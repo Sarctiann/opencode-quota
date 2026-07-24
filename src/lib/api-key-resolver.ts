@@ -6,6 +6,7 @@
  */
 
 import { existsSync } from "fs";
+import { sanitizeDisplayText } from "./display-sanitize.js";
 import { resolveEnvTemplate } from "./env-template.js";
 import { getOpencodeRuntimeDirCandidates } from "./opencode-runtime-paths.js";
 import {
@@ -175,31 +176,93 @@ export interface ResolveApiKeyConfig<
   authSource: Source;
 }
 
-export interface ResolveProviderApiKeyConfig<Source extends string> {
-  /** Environment variables to check (in order) */
+/** Shared configuration for provider-specific API key resolution. */
+export interface ResolveProviderApiKeyBaseConfig<Source extends string> {
   envVars: EnvVarDef<Source>[];
-
-  /** Provider keys to inspect under provider.<key>.options.apiKey */
   providerKeys: readonly string[];
-
-  /** Allowed env vars for {env:VAR_NAME} config values. */
   allowedEnvVars?: readonly string[];
-
-  /** Source label for opencode.json */
   configJsonSource: Source;
-
-  /** Source label for opencode.jsonc */
   configJsoncSource: Source;
-
-  /** Candidate config file paths to trust for provider-secret lookup. */
   getConfigCandidates?: () => ConfigCandidate[];
+}
 
-  /** Optional auth.json fallback config. Omit for providers without auth fallback. */
-  auth?: {
-    readAuth: () => Promise<unknown | null>;
-    authKeys?: readonly string[];
-    authSource: Source;
-  };
+export interface StrictApiKeyAuthConfig<Source extends string> {
+  policy?: "strict-api-key";
+  readAuth: () => Promise<unknown | null>;
+  authKeys?: readonly string[];
+  authSource: Source;
+}
+
+export interface InvalidAwareApiKeyAuthConfig<AuthSource extends string> {
+  policy: "invalid-aware-api-key";
+  readAuth: (maxAgeMs: number) => Promise<unknown | null>;
+  getAuthPaths: () => string[];
+  authKeys: readonly string[];
+  authSource: AuthSource;
+  displayName: string;
+  defaultMaxAgeMs: number;
+}
+
+/** Configuration for simple nullable API key resolution. */
+export interface ResolveProviderApiKeyConfig<
+  Source extends string,
+> extends ResolveProviderApiKeyBaseConfig<Source> {
+  auth?: StrictApiKeyAuthConfig<Source>;
+}
+
+/** Configuration for providers that surface malformed winning auth.json entries. */
+export interface ResolveInvalidAwareProviderApiKeyConfig<
+  Source extends string,
+  AuthSource extends Source,
+> extends ResolveProviderApiKeyBaseConfig<Source> {
+  auth: InvalidAwareApiKeyAuthConfig<AuthSource>;
+}
+
+export type InvalidAwareAuthResult =
+  | { state: "none" }
+  | { state: "configured"; apiKey: string }
+  | { state: "invalid"; error: string };
+
+export type InvalidAwareAuthDiagnostics<Source extends string, AuthSource extends Source> =
+  | {
+      state: "none";
+      source: null;
+      checkedPaths: string[];
+      authPaths: string[];
+    }
+  | {
+      state: "configured";
+      source: Source;
+      checkedPaths: string[];
+      authPaths: string[];
+    }
+  | {
+      state: "invalid";
+      source: AuthSource;
+      checkedPaths: string[];
+      authPaths: string[];
+      error: string;
+    };
+
+export interface ProviderApiKeyResolver<Source extends string> {
+  resolve: () => Promise<ApiKeyResult<Source> | null>;
+  has: () => Promise<boolean>;
+  diagnostics: () => Promise<{
+    configured: boolean;
+    source: Source | null;
+    checkedPaths: string[];
+  }>;
+}
+
+export interface InvalidAwareProviderApiKeyResolver<
+  Source extends string,
+  AuthSource extends Source,
+> {
+  parseAuth: (auth: unknown) => InvalidAwareAuthResult;
+  resolve: (params?: { maxAgeMs?: number }) => Promise<InvalidAwareAuthResult>;
+  diagnostics: (params?: {
+    maxAgeMs?: number;
+  }) => Promise<InvalidAwareAuthDiagnostics<Source, AuthSource>>;
 }
 
 export interface ApiKeyCheckedPathsConfig {
@@ -214,26 +277,134 @@ export interface ApiKeyCheckedPathsConfig {
   getConfigCandidates?: () => ConfigCandidate[];
 }
 
+function buildProviderEnvAndConfig<Source extends string>(
+  config: ResolveProviderApiKeyBaseConfig<Source>,
+): ResolveEnvAndConfigApiKeyConfig<Source> {
+  return {
+    envVars: config.envVars,
+    extractFromConfig: (candidate) =>
+      extractProviderOptionsApiKey(candidate, {
+        providerKeys: config.providerKeys,
+        allowedEnvVars: config.allowedEnvVars,
+      }),
+    configJsonSource: config.configJsonSource,
+    configJsoncSource: config.configJsoncSource,
+    getConfigCandidates: config.getConfigCandidates,
+  };
+}
+
+function parseInvalidAwareAuth(
+  auth: unknown,
+  config: InvalidAwareApiKeyAuthConfig<string>,
+): InvalidAwareAuthResult {
+  const entry = getFirstAuthEntryValue(auth, config.authKeys);
+  if (entry === null || entry === undefined) return { state: "none" };
+  if (typeof entry !== "object") {
+    return { state: "invalid", error: `${config.displayName} auth entry has invalid shape` };
+  }
+
+  const record = entry as Record<string, unknown>;
+  if (typeof record.type !== "string") {
+    return {
+      state: "invalid",
+      error: `${config.displayName} auth entry present but type is missing or invalid`,
+    };
+  }
+  if (record.type !== "api") {
+    const sanitized = sanitizeDisplayText(record.type).replace(/\s+/g, " ").trim();
+    return {
+      state: "invalid",
+      error: `Unsupported ${config.displayName} auth type: "${(sanitized || "unknown").slice(0, 120)}"`,
+    };
+  }
+
+  const apiKey = typeof record.key === "string" ? record.key.trim() : "";
+  return apiKey
+    ? { state: "configured", apiKey }
+    : {
+        state: "invalid",
+        error: `${config.displayName} auth entry present but key is empty`,
+      };
+}
+
+function createInvalidAwareProviderApiKeyResolver<Source extends string, AuthSource extends Source>(
+  config: ResolveInvalidAwareProviderApiKeyConfig<Source, AuthSource>,
+): InvalidAwareProviderApiKeyResolver<Source, AuthSource> {
+  const parseAuth = (auth: unknown) => parseInvalidAwareAuth(auth, config.auth);
+  const resolveWithSource = async (params?: { maxAgeMs?: number }) => {
+    const envOrConfig = await resolveApiKeyFromEnvAndConfig(buildProviderEnvAndConfig(config));
+    if (envOrConfig) {
+      return {
+        auth: { state: "configured", apiKey: envOrConfig.key } as InvalidAwareAuthResult,
+        source: envOrConfig.source as Source | AuthSource | null,
+      };
+    }
+
+    const maxAgeMs = Math.max(0, params?.maxAgeMs ?? config.auth.defaultMaxAgeMs);
+    const auth = parseAuth(await config.auth.readAuth(maxAgeMs));
+    return {
+      auth,
+      source: auth.state === "none" ? null : config.auth.authSource,
+    };
+  };
+
+  return {
+    parseAuth,
+    resolve: async (params) => (await resolveWithSource(params)).auth,
+    diagnostics: async (params) => {
+      const { auth, source } = await resolveWithSource(params);
+      const paths = {
+        checkedPaths: getApiKeyCheckedPaths({
+          envVarNames: config.envVars.map((envVar) => envVar.name),
+          getConfigCandidates: config.getConfigCandidates,
+        }),
+        authPaths: config.auth.getAuthPaths(),
+      };
+      if (auth.state === "none") return { state: "none", source: null, ...paths };
+      if (auth.state === "invalid") {
+        return {
+          state: "invalid",
+          source: config.auth.authSource,
+          error: auth.error,
+          ...paths,
+        };
+      }
+      return {
+        state: "configured",
+        source: source ?? config.auth.authSource,
+        ...paths,
+      };
+    },
+  };
+}
+
+export function createProviderApiKeyResolver<Source extends string, AuthSource extends Source>(
+  config: ResolveInvalidAwareProviderApiKeyConfig<Source, AuthSource>,
+): InvalidAwareProviderApiKeyResolver<Source, AuthSource>;
 export function createProviderApiKeyResolver<Source extends string>(
   config: ResolveProviderApiKeyConfig<Source>,
-): {
-  resolve: () => Promise<ApiKeyResult<Source> | null>;
-  has: () => Promise<boolean>;
-  diagnostics: () => Promise<{
-    configured: boolean;
-    source: Source | null;
-    checkedPaths: string[];
-  }>;
-} {
-  const resolve = () => resolveProviderApiKey(config);
+): ProviderApiKeyResolver<Source>;
+export function createProviderApiKeyResolver<Source extends string, AuthSource extends Source>(
+  config:
+    | ResolveProviderApiKeyConfig<Source>
+    | ResolveInvalidAwareProviderApiKeyConfig<Source, AuthSource>,
+): ProviderApiKeyResolver<Source> | InvalidAwareProviderApiKeyResolver<Source, AuthSource> {
+  if (config.auth?.policy === "invalid-aware-api-key") {
+    return createInvalidAwareProviderApiKeyResolver<Source, AuthSource>(
+      config as ResolveInvalidAwareProviderApiKeyConfig<Source, AuthSource>,
+    );
+  }
+
+  const simpleConfig = config as ResolveProviderApiKeyConfig<Source>;
+  const resolve = () => resolveProviderApiKey(simpleConfig);
   return {
     resolve,
     has: async () => (await resolve()) !== null,
     diagnostics: () =>
       getApiKeyDiagnostics({
-        envVarNames: config.envVars.map((envVar) => envVar.name),
+        envVarNames: simpleConfig.envVars.map((envVar) => envVar.name),
         resolve,
-        getConfigCandidates: config.getConfigCandidates,
+        getConfigCandidates: simpleConfig.getConfigCandidates,
       }),
   };
 }
@@ -323,17 +494,7 @@ export async function resolveApiKey<Source extends string>(
 export async function resolveProviderApiKey<Source extends string>(
   config: ResolveProviderApiKeyConfig<Source>,
 ): Promise<ApiKeyResult<Source> | null> {
-  const envAndConfig = {
-    envVars: config.envVars,
-    extractFromConfig: (candidate: unknown) =>
-      extractProviderOptionsApiKey(candidate, {
-        providerKeys: config.providerKeys,
-        allowedEnvVars: config.allowedEnvVars,
-      }),
-    configJsonSource: config.configJsonSource,
-    configJsoncSource: config.configJsoncSource,
-    getConfigCandidates: config.getConfigCandidates,
-  };
+  const envAndConfig = buildProviderEnvAndConfig(config);
 
   if (!config.auth) {
     return resolveApiKeyFromEnvAndConfig(envAndConfig);

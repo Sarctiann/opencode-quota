@@ -1,14 +1,11 @@
 import {
-  extractProviderOptionsApiKey,
-  getApiKeyCheckedPaths,
-  getFirstAuthEntryValue,
+  createProviderApiKeyResolver,
   getGlobalOpencodeConfigCandidatePaths,
-  resolveApiKeyFromEnvAndConfig,
 } from "./api-key-resolver.js";
-import { sanitizeDisplayText } from "./display-sanitize.js";
 import { getAuthPaths, readAuthFileCached } from "./opencode-auth.js";
 
-import type { AuthData, ZaiAuthData } from "./types.js";
+import type { InvalidAwareAuthDiagnostics, InvalidAwareAuthResult } from "./api-key-resolver.js";
+import type { AuthData } from "./types.js";
 
 export const DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS = 5_000;
 const ZAI_AUTH_KEYS = ["zai-coding-plan"] as const;
@@ -22,153 +19,44 @@ export type ZaiKeySource =
   | "opencode.jsonc"
   | "auth.json";
 
-export type ResolvedZaiAuth =
-  | { state: "none" }
-  | { state: "configured"; apiKey: string }
-  | { state: "invalid"; error: string };
-
-export type ZaiAuthDiagnostics =
-  | {
-      state: "none";
-      source: null;
-      checkedPaths: string[];
-      authPaths: string[];
-    }
-  | {
-      state: "configured";
-      source: ZaiKeySource;
-      checkedPaths: string[];
-      authPaths: string[];
-    }
-  | {
-      state: "invalid";
-      source: "auth.json";
-      checkedPaths: string[];
-      authPaths: string[];
-      error: string;
-    };
+export type ResolvedZaiAuth = InvalidAwareAuthResult;
+export type ZaiAuthDiagnostics = InvalidAwareAuthDiagnostics<ZaiKeySource, "auth.json">;
 
 export { getGlobalOpencodeConfigCandidatePaths as getOpencodeConfigCandidatePaths } from "./api-key-resolver.js";
 
-function getZaiAuthEntry(auth: AuthData | null | undefined): unknown {
-  return getFirstAuthEntryValue(auth, ZAI_AUTH_KEYS);
-}
-
-function isZaiAuthData(value: unknown): value is ZaiAuthData {
-  return value !== null && typeof value === "object";
-}
-
-function sanitizeZaiAuthValue(value: string): string {
-  const sanitized = sanitizeDisplayText(value).replace(/\s+/g, " ").trim();
-  return (sanitized || "unknown").slice(0, 120);
-}
+const zaiAuthResolver = createProviderApiKeyResolver<ZaiKeySource, "auth.json">({
+  envVars: [
+    { name: "ZAI_API_KEY", source: "env:ZAI_API_KEY" },
+    { name: "ZAI_CODING_PLAN_API_KEY", source: "env:ZAI_CODING_PLAN_API_KEY" },
+  ],
+  providerKeys: ZAI_PROVIDER_KEYS,
+  allowedEnvVars: ALLOWED_ZAI_ENV_VARS,
+  configJsonSource: "opencode.json",
+  configJsoncSource: "opencode.jsonc",
+  getConfigCandidates: getGlobalOpencodeConfigCandidatePaths,
+  auth: {
+    policy: "invalid-aware-api-key",
+    authKeys: ZAI_AUTH_KEYS,
+    authSource: "auth.json",
+    displayName: "Z.ai",
+    defaultMaxAgeMs: DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS,
+    readAuth: (maxAgeMs) => readAuthFileCached({ maxAgeMs }),
+    getAuthPaths,
+  },
+});
 
 export function resolveZaiAuth(auth: AuthData | null | undefined): ResolvedZaiAuth {
-  const zai = getZaiAuthEntry(auth);
-  if (zai === null || zai === undefined) {
-    return { state: "none" };
-  }
-
-  if (!isZaiAuthData(zai)) {
-    return { state: "invalid", error: "Z.ai auth entry has invalid shape" };
-  }
-
-  if (typeof zai.type !== "string") {
-    return { state: "invalid", error: "Z.ai auth entry present but type is missing or invalid" };
-  }
-
-  if (zai.type !== "api") {
-    return {
-      state: "invalid",
-      error: `Unsupported Z.ai auth type: "${sanitizeZaiAuthValue(zai.type)}"`,
-    };
-  }
-
-  const key = typeof zai.key === "string" ? zai.key.trim() : "";
-  if (!key) {
-    return { state: "invalid", error: "Z.ai auth entry present but key is empty" };
-  }
-
-  return { state: "configured", apiKey: key };
-}
-
-async function resolveZaiAuthWithSource(params?: {
-  maxAgeMs?: number;
-}): Promise<{ auth: ResolvedZaiAuth; source: ZaiKeySource | null }> {
-  const resolvedFromEnvOrConfig = await resolveApiKeyFromEnvAndConfig<ZaiKeySource>({
-    envVars: [
-      { name: "ZAI_API_KEY", source: "env:ZAI_API_KEY" },
-      {
-        name: "ZAI_CODING_PLAN_API_KEY",
-        source: "env:ZAI_CODING_PLAN_API_KEY",
-      },
-    ],
-    extractFromConfig: (config) =>
-      extractProviderOptionsApiKey(config, {
-        providerKeys: ZAI_PROVIDER_KEYS,
-        allowedEnvVars: ALLOWED_ZAI_ENV_VARS,
-      }),
-    configJsonSource: "opencode.json",
-    configJsoncSource: "opencode.jsonc",
-    getConfigCandidates: getGlobalOpencodeConfigCandidatePaths,
-  });
-
-  if (resolvedFromEnvOrConfig) {
-    return {
-      auth: { state: "configured", apiKey: resolvedFromEnvOrConfig.key },
-      source: resolvedFromEnvOrConfig.source,
-    };
-  }
-
-  const maxAgeMs = Math.max(0, params?.maxAgeMs ?? DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS);
-  const authData = await readAuthFileCached({ maxAgeMs });
-  const auth = resolveZaiAuth(authData);
-
-  return {
-    auth,
-    source: auth.state === "none" ? null : "auth.json",
-  };
+  return zaiAuthResolver.parseAuth(auth);
 }
 
 export async function resolveZaiAuthCached(params?: {
   maxAgeMs?: number;
 }): Promise<ResolvedZaiAuth> {
-  return (await resolveZaiAuthWithSource(params)).auth;
+  return zaiAuthResolver.resolve(params);
 }
 
 export async function getZaiAuthDiagnostics(params?: {
   maxAgeMs?: number;
 }): Promise<ZaiAuthDiagnostics> {
-  const { auth, source } = await resolveZaiAuthWithSource(params);
-  const checkedPaths = getApiKeyCheckedPaths({
-    envVarNames: [...ALLOWED_ZAI_ENV_VARS],
-    getConfigCandidates: getGlobalOpencodeConfigCandidatePaths,
-  });
-  const authPaths = getAuthPaths();
-
-  if (auth.state === "none") {
-    return {
-      state: "none",
-      source: null,
-      checkedPaths,
-      authPaths,
-    };
-  }
-
-  if (auth.state === "invalid") {
-    return {
-      state: "invalid",
-      source: "auth.json",
-      checkedPaths,
-      authPaths,
-      error: auth.error,
-    };
-  }
-
-  return {
-    state: "configured",
-    source: source ?? "auth.json",
-    checkedPaths,
-    authPaths,
-  };
+  return zaiAuthResolver.diagnostics(params);
 }

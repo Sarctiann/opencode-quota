@@ -26,6 +26,7 @@ vi.mock("fs/promises", () => ({
 }));
 
 import {
+  createProviderApiKeyResolver,
   extractAuthApiKeyEntry,
   getApiKeyCheckedPaths,
   resolveApiKey,
@@ -154,6 +155,48 @@ describe("api-key-resolver", () => {
         envVarNames: [],
       }),
     ).toEqual([trustedJsonPath]);
+  });
+
+  it("keeps simple and invalid-aware auth policies distinct", async () => {
+    const simpleReadAuth = vi.fn().mockResolvedValue({
+      provider: { type: "oauth", key: "ignored-key" },
+    });
+    const simple = createProviderApiKeyResolver<"config" | "auth.json">({
+      envVars: [],
+      providerKeys: ["provider"],
+      configJsonSource: "config",
+      configJsoncSource: "config",
+      getConfigCandidates: () => [],
+      auth: { readAuth: simpleReadAuth, authSource: "auth.json" },
+    });
+    await expect(simple.resolve()).resolves.toBeNull();
+
+    const invalidReadAuth = vi.fn().mockResolvedValue({
+      provider: { type: "oauth", key: "ignored-key" },
+    });
+    const invalidAware = createProviderApiKeyResolver<"config" | "auth.json", "auth.json">({
+      envVars: [],
+      providerKeys: ["provider"],
+      configJsonSource: "config",
+      configJsoncSource: "config",
+      getConfigCandidates: () => [],
+      auth: {
+        policy: "invalid-aware-api-key",
+        authKeys: ["provider"],
+        authSource: "auth.json",
+        displayName: "Provider",
+        defaultMaxAgeMs: 5_000,
+        readAuth: invalidReadAuth,
+        getAuthPaths: () => ["/tmp/auth.json"],
+      },
+    });
+
+    expect(invalidAware.parseAuth(null)).toEqual({ state: "none" });
+    await expect(invalidAware.resolve({ maxAgeMs: -1 })).resolves.toEqual({
+      state: "invalid",
+      error: 'Unsupported Provider auth type: "oauth"',
+    });
+    expect(invalidReadAuth).toHaveBeenCalledWith(0);
   });
 
   it("extracts only strict api key auth entries", () => {
