@@ -97,11 +97,31 @@ function basePayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function useStatusData(
+  payload = basePayload(),
+  hasComparableProviderData?: boolean,
+  output = "report text",
+): void {
+  statusData.value = { output, payload, hasComparableProviderData };
+}
+
 describe("runCliStatusCommand", () => {
   let tempDir: string;
   let globalConfigDir: string;
   let workspaceDir: string;
   let savedConfigDir: string | undefined;
+
+  async function runStatus(argv: string[]) {
+    const stdout = createCaptureStream();
+    const stderr = createCaptureStream();
+    const code = await runCliStatusCommand({
+      argv,
+      cwd: workspaceDir,
+      stdout: stdout.stream as any,
+      stderr: stderr.stream as any,
+    });
+    return { code, stdout: stdout.output, stderr: stderr.output };
+  }
 
   beforeEach(() => {
     savedConfigDir = process.env.OPENCODE_CONFIG_DIR;
@@ -138,47 +158,29 @@ describe("runCliStatusCommand", () => {
   });
 
   it("prints a plain-text Quota Status report and returns zero", async () => {
-    statusData.value = {
-      output: "Quota Status (opencode-quota v3.11.2)\ntoast:\n- enabledProviders: synthetic",
-      payload: basePayload(),
-    };
-    const stdout = createCaptureStream();
-    const stderr = createCaptureStream();
+    useStatusData(
+      basePayload(),
+      undefined,
+      "Quota Status (opencode-quota v3.11.2)\ntoast:\n- enabledProviders: synthetic",
+    );
+    const result = await runStatus([]);
 
-    const code = await runCliStatusCommand({
-      argv: [],
-      cwd: workspaceDir,
-      stdout: stdout.stream as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(0);
-    expect(stdout.output).toContain("Quota Status");
-    expect(stdout.output).toContain("enabledProviders: synthetic");
-    expect(stderr.output).toBe("");
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Quota Status");
+    expect(result.stdout).toContain("enabledProviders: synthetic");
+    expect(result.stderr).toBe("");
     expect(buildStatusReportData).toHaveBeenCalledWith(
       expect.objectContaining({ providerFilterId: undefined }),
     );
   });
 
   it("--json emits a structured payload and returns zero when live probes exist", async () => {
-    statusData.value = {
-      output: "report text",
-      payload: basePayload(),
-    };
-    const stdout = createCaptureStream();
-    const stderr = createCaptureStream();
+    useStatusData();
+    const result = await runStatus(["--json"]);
 
-    const code = await runCliStatusCommand({
-      argv: ["--json"],
-      cwd: workspaceDir,
-      stdout: stdout.stream as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(0);
-    expect(stderr.output).toBe("");
-    const parsed = JSON.parse(stdout.output);
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    const parsed = JSON.parse(result.stdout);
     expect(parsed).toHaveProperty("version", "3.11.2");
     expect(parsed).toHaveProperty("generatedAt");
     expect(parsed).toHaveProperty("config");
@@ -190,206 +192,106 @@ describe("runCliStatusCommand", () => {
   });
 
   it("--json exits 2 when there is no comparable provider data", async () => {
-    statusData.value = {
-      output: "report text",
-      payload: basePayload({ liveProbes: [] }),
-      hasComparableProviderData: false,
-    };
-    const stdout = createCaptureStream();
-    const stderr = createCaptureStream();
+    useStatusData(basePayload({ liveProbes: [] }), false);
+    const result = await runStatus(["--json"]);
 
-    const code = await runCliStatusCommand({
-      argv: ["--json"],
-      cwd: workspaceDir,
-      stdout: stdout.stream as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(2);
-    expect(stderr.output).toBe("");
-    // JSON still printed even on exit 2.
-    const parsed = JSON.parse(stdout.output);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toBe("");
+    // JSON still prints on exit 2.
+    const parsed = JSON.parse(result.stdout);
     expect(parsed.liveProbes).toEqual([]);
   });
 
   it("--json exits 2 when probes fail without producing quota entries", async () => {
-    statusData.value = {
-      output: "report text",
-      payload: basePayload({ liveProbes: [{ id: "synthetic", ok: false }] }),
-      hasComparableProviderData: false,
-    };
-    const stdout = createCaptureStream();
+    useStatusData(basePayload({ liveProbes: [{ id: "synthetic", ok: false }] }), false);
+    const result = await runStatus(["--json"]);
 
-    const code = await runCliStatusCommand({
-      argv: ["--json"],
-      cwd: workspaceDir,
-      stdout: stdout.stream as any,
-      stderr: { write: () => true } as any,
-    });
-
-    expect(code).toBe(2);
-    expect(JSON.parse(stdout.output).liveProbes).toEqual([{ id: "synthetic", ok: false }]);
+    expect(result.code).toBe(2);
+    expect(JSON.parse(result.stdout).liveProbes).toEqual([{ id: "synthetic", ok: false }]);
   });
 
   it("--json succeeds when a partial probe produced quota entries", async () => {
-    statusData.value = {
-      output: "report text",
-      payload: basePayload({ liveProbes: [{ id: "synthetic", ok: false }] }),
-      hasComparableProviderData: true,
-    };
+    useStatusData(basePayload({ liveProbes: [{ id: "synthetic", ok: false }] }), true);
 
-    const code = await runCliStatusCommand({
-      argv: ["--json"],
-      cwd: workspaceDir,
-      stdout: { write: () => true } as any,
-      stderr: { write: () => true } as any,
-    });
-
-    expect(code).toBe(0);
+    expect((await runStatus(["--json"])).code).toBe(0);
   });
 
   it("--provider filters the report to one provider", async () => {
-    statusData.value = {
-      output: "report text",
-      payload: basePayload(),
-    };
-    const stdout = createCaptureStream();
-    const stderr = createCaptureStream();
+    useStatusData();
+    const result = await runStatus(["--provider", "synthetic"]);
 
-    const code = await runCliStatusCommand({
-      argv: ["--provider", "synthetic"],
-      cwd: workspaceDir,
-      stdout: stdout.stream as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(0);
-    expect(stderr.output).toBe("");
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
     expect(buildStatusReportData).toHaveBeenCalledWith(
       expect.objectContaining({ providerFilterId: "synthetic" }),
     );
   });
 
   it("resolves a case-insensitive provider synonym before filtering", async () => {
-    statusData.value = {
-      output: "report text",
-      payload: basePayload(),
-    };
-    const stderr = createCaptureStream();
+    useStatusData();
+    const result = await runStatus(["--provider", "  CLAUDE  "]);
 
-    const code = await runCliStatusCommand({
-      argv: ["--provider", "  CLAUDE  "],
-      cwd: workspaceDir,
-      stdout: { write: () => true } as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(0);
-    expect(stderr.output).toBe("");
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
     expect(buildStatusReportData).toHaveBeenCalledWith(
       expect.objectContaining({ providerFilterId: "anthropic" }),
     );
   });
 
   it("--provider --json forwards the provider filter and still emits JSON", async () => {
-    statusData.value = {
-      output: "report text",
-      payload: basePayload(),
-    };
-    const stdout = createCaptureStream();
-    const stderr = createCaptureStream();
+    useStatusData();
+    const result = await runStatus(["--json", "--provider", "synthetic"]);
 
-    const code = await runCliStatusCommand({
-      argv: ["--json", "--provider", "synthetic"],
-      cwd: workspaceDir,
-      stdout: stdout.stream as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(0);
+    expect(result.code).toBe(0);
     expect(buildStatusReportData).toHaveBeenCalledWith(
       expect.objectContaining({ providerFilterId: "synthetic" }),
     );
-    const parsed = JSON.parse(stdout.output);
+    const parsed = JSON.parse(result.stdout);
     expect(parsed.providers).toHaveLength(1);
     expect(parsed).not.toHaveProperty("providerFilterId");
   });
 
   it("rejects --threshold with a redirect to show --json --threshold", async () => {
-    const stdout = createCaptureStream();
-    const stderr = createCaptureStream();
+    const result = await runStatus(["--threshold", "50"]);
 
-    const code = await runCliStatusCommand({
-      argv: ["--threshold", "50"],
-      cwd: workspaceDir,
-      stdout: stdout.stream as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(1);
-    expect(stdout.output).toBe("");
-    expect(stderr.output).toContain("--threshold is not supported by status");
-    expect(stderr.output).toContain("opencode-quota show --json --threshold");
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("--threshold is not supported by status");
+    expect(result.stderr).toContain("opencode-quota show --json --threshold");
     expect(buildStatusReportData).not.toHaveBeenCalled();
   });
 
   it("rejects --threshold even when combined with --json", async () => {
-    const stderr = createCaptureStream();
-    const code = await runCliStatusCommand({
-      argv: ["--json", "--threshold=10"],
-      cwd: workspaceDir,
-      stdout: { write: () => true } as any,
-      stderr: stderr.stream as any,
-    });
+    const result = await runStatus(["--json", "--threshold=10"]);
 
-    expect(code).toBe(1);
-    expect(stderr.output).toContain("--threshold is not supported by status");
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("--threshold is not supported by status");
     expect(buildStatusReportData).not.toHaveBeenCalled();
   });
 
   it("rejects an unknown provider before building the report", async () => {
-    const stdout = createCaptureStream();
-    const stderr = createCaptureStream();
+    const result = await runStatus(["--provider", "not-a-provider"]);
 
-    const code = await runCliStatusCommand({
-      argv: ["--provider", "not-a-provider"],
-      cwd: workspaceDir,
-      stdout: stdout.stream as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(1);
-    expect(stdout.output).toBe("");
-    expect(stderr.output).toContain("Unknown provider: not-a-provider");
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Unknown provider: not-a-provider");
     expect(buildStatusReportData).not.toHaveBeenCalled();
   });
 
   it("rejects a missing --provider value", async () => {
-    const stderr = createCaptureStream();
-    const code = await runCliStatusCommand({
-      argv: ["--provider"],
-      cwd: workspaceDir,
-      stdout: { write: () => true } as any,
-      stderr: stderr.stream as any,
-    });
+    const result = await runStatus(["--provider"]);
 
-    expect(code).toBe(1);
-    expect(stderr.output).toContain("Missing value for --provider");
-    expect(stderr.output).toContain("opencode-quota status");
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("Missing value for --provider");
+    expect(result.stderr).toContain("opencode-quota status");
   });
 
   it("rejects an unknown flag", async () => {
-    const stderr = createCaptureStream();
-    const code = await runCliStatusCommand({
-      argv: ["--bogus"],
-      cwd: workspaceDir,
-      stdout: { write: () => true } as any,
-      stderr: stderr.stream as any,
-    });
+    const result = await runStatus(["--bogus"]);
 
-    expect(code).toBe(1);
-    expect(stderr.output).toContain("Unknown option: --bogus");
-    expect(stderr.output).toContain("opencode-quota status");
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("Unknown option: --bogus");
+    expect(result.stderr).toContain("opencode-quota status");
   });
 
   it("returns non-zero when quota is disabled in config", async () => {
@@ -398,52 +300,29 @@ describe("runCliStatusCommand", () => {
       JSON.stringify({ experimental: { quotaToast: { enabled: false } } }),
       "utf8",
     );
-    const stdout = createCaptureStream();
-    const stderr = createCaptureStream();
+    const result = await runStatus([]);
 
-    const code = await runCliStatusCommand({
-      argv: [],
-      cwd: workspaceDir,
-      stdout: stdout.stream as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(1);
-    expect(stdout.output).toBe("");
-    expect(stderr.output).toContain("Quota disabled in config");
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Quota disabled in config");
     expect(buildStatusReportData).not.toHaveBeenCalled();
   });
 
   it("prints help and returns zero for --help", async () => {
-    const stdout = createCaptureStream();
-    const stderr = createCaptureStream();
+    const result = await runStatus(["--help"]);
 
-    const code = await runCliStatusCommand({
-      argv: ["--help"],
-      cwd: workspaceDir,
-      stdout: stdout.stream as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(0);
-    expect(stderr.output).toBe("");
-    expect(stdout.output).toContain("opencode-quota status");
-    expect(stdout.output).toContain("Exit codes:");
+    expect(result.code).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toContain("opencode-quota status");
+    expect(result.stdout).toContain("Exit codes:");
     expect(buildStatusReportData).not.toHaveBeenCalled();
   });
 
   it("returns non-zero when report building throws", async () => {
     vi.mocked(buildStatusReportData).mockRejectedValueOnce(new Error("boom"));
-    const stderr = createCaptureStream();
+    const result = await runStatus([]);
 
-    const code = await runCliStatusCommand({
-      argv: [],
-      cwd: workspaceDir,
-      stdout: { write: () => true } as any,
-      stderr: stderr.stream as any,
-    });
-
-    expect(code).toBe(1);
-    expect(stderr.output).toContain("Failed to generate quota status: boom");
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("Failed to generate quota status: boom");
   });
 });

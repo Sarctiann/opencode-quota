@@ -29,6 +29,7 @@ const chutesApiKeyResolver = createProviderApiKeyResolver<ChutesKeySource>({
   getConfigCandidates: getGlobalOpencodeConfigCandidatePaths,
   auth: {
     readAuth: readAuthFile,
+    getAuthPaths,
     authSource: "auth.json",
   },
 });
@@ -47,8 +48,5 @@ export async function getChutesKeyDiagnostics(): Promise<{
   checkedPaths: string[];
   authPaths: string[];
 }> {
-  return {
-    ...(await chutesApiKeyResolver.diagnostics()),
-    authPaths: getAuthPaths(),
-  };
+  return chutesApiKeyResolver.diagnostics();
 }

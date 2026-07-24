@@ -611,8 +611,6 @@ export async function buildStatusReportData(params: {
       config: runtimeConfig.maintainerAnnouncements,
       summary: maintainerAnnouncementsSummary,
     },
-    geminiCliClient: params.runtime.client,
-    agyClient: params.runtime.client,
     generatedAtMs: params.generatedAtMs,
   });
 

@@ -298,8 +298,6 @@ describe("/quota_status command behavior", () => {
         workspaceConfigPaths: [],
         settingSources: {},
         configIssues: [],
-        geminiCliClient: client,
-        agyClient: client,
         providerLiveProbes: [
           {
             providerId: "openai",

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { QuotaProviderResult } from "../src/lib/entries.js";
 import { rm } from "fs/promises";
 
 const TEST_RUNTIME_ROOT = "/tmp/opencode-quota-render-data-tests";
@@ -32,7 +33,26 @@ import {
   matchesQuotaProviderCurrentSelection,
 } from "../src/lib/quota-render-data.js";
 import { __resetQuotaStateForTests } from "../src/lib/quota-state.js";
-import { DEFAULT_CONFIG } from "../src/lib/types.js";
+import { DEFAULT_CONFIG, type QuotaToastConfig } from "../src/lib/types.js";
+
+function renderConfig(overrides: Partial<QuotaToastConfig> = {}): QuotaToastConfig {
+  return { ...DEFAULT_CONFIG, showSessionTokens: false, ...overrides };
+}
+
+function testProvider(
+  id: string,
+  result: Partial<QuotaProviderResult> = {},
+  availability: boolean | Error = true,
+) {
+  return {
+    id,
+    isAvailable:
+      availability instanceof Error
+        ? vi.fn().mockRejectedValue(availability)
+        : vi.fn().mockResolvedValue(availability),
+    fetch: vi.fn().mockResolvedValue({ attempted: true, entries: [], errors: [], ...result }),
+  };
+}
 
 const TEST_CLIENT = {
   config: {
@@ -57,31 +77,21 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("uses explicitly provided providers instead of the global registry", async () => {
-    const runtimeProvider = {
-      id: "custom-runtime",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Custom Runtime Daily",
-            group: "Custom Runtime",
-            label: "Daily:",
-            percentRemaining: 42,
-          },
-        ],
-        errors: [],
-      }),
-    };
+    const runtimeProvider = testProvider("custom-runtime", {
+      entries: [
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Custom Runtime Daily",
+          group: "Custom Runtime",
+          label: "Daily:",
+          percentRemaining: 42,
+        },
+      ],
+    });
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
-        enabledProviders: ["custom-runtime"],
-        showSessionTokens: false,
-      },
+      config: renderConfig({ enabledProviders: ["custom-runtime"] }),
       surfaceExplicitProviderIssues: true,
       formatStyle: "allWindows",
       providers: [runtimeProvider],
@@ -102,26 +112,16 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("returns allWindowsData when includeAllWindowsData is true and style is singleWindow", async () => {
-    const provider = {
-      id: "test-provider",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          { accounting: TEST_ACCOUNTING, name: "Daily", label: "Daily:", percentRemaining: 50 },
-          { accounting: TEST_ACCOUNTING, name: "Weekly", label: "Weekly:", percentRemaining: 80 },
-        ],
-        errors: [],
-      }),
-    };
+    const provider = testProvider("test-provider", {
+      entries: [
+        { accounting: TEST_ACCOUNTING, name: "Daily", label: "Daily:", percentRemaining: 50 },
+        { accounting: TEST_ACCOUNTING, name: "Weekly", label: "Weekly:", percentRemaining: 80 },
+      ],
+    });
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
-        enabledProviders: ["test-provider"],
-        showSessionTokens: false,
-      },
+      config: renderConfig({ enabledProviders: ["test-provider"] }),
       surfaceExplicitProviderIssues: true,
       formatStyle: "singleWindow",
       providers: [provider],
@@ -136,25 +136,15 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("does not return allWindowsData when includeAllWindowsData is not set", async () => {
-    const provider = {
-      id: "test-provider",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          { accounting: TEST_ACCOUNTING, name: "Daily", label: "Daily:", percentRemaining: 50 },
-        ],
-        errors: [],
-      }),
-    };
+    const provider = testProvider("test-provider", {
+      entries: [
+        { accounting: TEST_ACCOUNTING, name: "Daily", label: "Daily:", percentRemaining: 50 },
+      ],
+    });
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
-        enabledProviders: ["test-provider"],
-        showSessionTokens: false,
-      },
+      config: renderConfig({ enabledProviders: ["test-provider"] }),
       surfaceExplicitProviderIssues: true,
       formatStyle: "singleWindow",
       providers: [provider],
@@ -165,26 +155,16 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("returns allWindowsData equal to data when style is already allWindows", async () => {
-    const provider = {
-      id: "test-provider",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          { accounting: TEST_ACCOUNTING, name: "Daily", label: "Daily:", percentRemaining: 50 },
-          { accounting: TEST_ACCOUNTING, name: "Weekly", label: "Weekly:", percentRemaining: 80 },
-        ],
-        errors: [],
-      }),
-    };
+    const provider = testProvider("test-provider", {
+      entries: [
+        { accounting: TEST_ACCOUNTING, name: "Daily", label: "Daily:", percentRemaining: 50 },
+        { accounting: TEST_ACCOUNTING, name: "Weekly", label: "Weekly:", percentRemaining: 80 },
+      ],
+    });
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
-        enabledProviders: ["test-provider"],
-        showSessionTokens: false,
-      },
+      config: renderConfig({ enabledProviders: ["test-provider"] }),
       surfaceExplicitProviderIssues: true,
       formatStyle: "allWindows",
       providers: [provider],
@@ -197,41 +177,27 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("treats a thrown availability probe as unavailable instead of rejecting the whole render", async () => {
-    const failingProvider = {
-      id: "copilot",
-      isAvailable: vi.fn().mockRejectedValue(new Error("boom")),
-      fetch: vi.fn(),
-    };
-    const workingProvider = {
-      id: "openai",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "OpenAI (Pro) 5h",
-            group: "OpenAI (Pro)",
-            label: "5h:",
-            percentRemaining: 75,
-          },
-        ],
-        errors: [],
-        presentation: {
-          singleWindowDisplayName: "OpenAI (Pro)",
+    const failingProvider = testProvider("copilot", {}, new Error("boom"));
+    const workingProvider = testProvider("openai", {
+      entries: [
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "OpenAI (Pro) 5h",
+          group: "OpenAI (Pro)",
+          label: "5h:",
+          percentRemaining: 75,
         },
-      }),
-    };
+      ],
+      presentation: {
+        singleWindowDisplayName: "OpenAI (Pro)",
+      },
+    });
 
     mockProviders.push(failingProvider, workingProvider);
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
-        enabledProviders: ["copilot", "openai"],
-        showSessionTokens: false,
-      },
+      config: renderConfig({ enabledProviders: ["copilot", "openai"] }),
       surfaceExplicitProviderIssues: true,
       formatStyle: "singleWindow",
     });
@@ -250,21 +216,13 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("surfaces explicit unavailable rows when every availability probe fails", async () => {
-    const failingProvider = {
-      id: "copilot",
-      isAvailable: vi.fn().mockRejectedValue(new Error("boom")),
-      fetch: vi.fn(),
-    };
+    const failingProvider = testProvider("copilot", {}, new Error("boom"));
 
     mockProviders.push(failingProvider);
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
-        enabledProviders: ["copilot"],
-        showSessionTokens: false,
-      },
+      config: renderConfig({ enabledProviders: ["copilot"] }),
       surfaceExplicitProviderIssues: true,
       formatStyle: "singleWindow",
     });
@@ -279,21 +237,13 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("still returns null in auto mode when every availability probe fails", async () => {
-    const failingProvider = {
-      id: "copilot",
-      isAvailable: vi.fn().mockRejectedValue(new Error("boom")),
-      fetch: vi.fn(),
-    };
+    const failingProvider = testProvider("copilot", {}, new Error("boom"));
 
     mockProviders.push(failingProvider);
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
-        enabledProviders: "auto",
-        showSessionTokens: false,
-      },
+      config: renderConfig({ enabledProviders: "auto" }),
       surfaceExplicitProviderIssues: true,
       formatStyle: "singleWindow",
     });
@@ -305,22 +255,16 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("waits for current model metadata before probing providers under onlyCurrentModel", async () => {
-    const provider = {
-      id: "copilot",
-      isAvailable: vi.fn().mockResolvedValue(false),
-      fetch: vi.fn(),
-    };
+    const provider = testProvider("copilot", {}, false);
 
     mockProviders.push(provider);
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
+      config: renderConfig({
         enabledProviders: ["copilot"],
         onlyCurrentModel: true,
-        showSessionTokens: false,
-      },
+      }),
       request: {
         sessionID: "fresh-session",
         sessionMeta: {},
@@ -341,31 +285,19 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("uses provider-only session metadata for onlyCurrentModel filtering", async () => {
-    const openaiProvider = {
-      id: "openai",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [{ accounting: TEST_ACCOUNTING, name: "OpenAI Weekly", percentRemaining: 55 }],
-        errors: [],
-      }),
-    };
-    const copilotProvider = {
-      id: "copilot",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn(),
-    };
+    const openaiProvider = testProvider("openai", {
+      entries: [{ accounting: TEST_ACCOUNTING, name: "OpenAI Weekly", percentRemaining: 55 }],
+    });
+    const copilotProvider = testProvider("copilot");
 
     mockProviders.push(openaiProvider, copilotProvider);
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
+      config: renderConfig({
         enabledProviders: ["openai", "copilot"],
         onlyCurrentModel: true,
-        showSessionTokens: false,
-      },
+      }),
       request: {
         sessionID: "provider-only-session",
         sessionMeta: { providerID: "openai" },
@@ -492,48 +424,40 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("reuses one canonical provider snapshot across single-window and all-window renders without mutation bleed", async () => {
-    const syntheticProvider = {
-      id: "synthetic",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Synthetic 5h",
-            group: "Synthetic",
-            label: "5h:",
-            percentRemaining: 75,
-            right: "26/100",
-            resetTimeIso: "2026-01-20T18:12:03.000Z",
-          },
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Synthetic Weekly",
-            group: "Synthetic",
-            label: "Weekly:",
-            percentRemaining: 8,
-            right: "$22/$24",
-            resetTimeIso: "2026-01-27T18:12:03.000Z",
-          },
-        ],
-        errors: [],
-        presentation: {
-          singleWindowShowRight: true,
+    const syntheticProvider = testProvider("synthetic", {
+      entries: [
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Synthetic 5h",
+          group: "Synthetic",
+          label: "5h:",
+          percentRemaining: 75,
+          right: "26/100",
+          resetTimeIso: "2026-01-20T18:12:03.000Z",
         },
-      }),
-    };
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Synthetic Weekly",
+          group: "Synthetic",
+          label: "Weekly:",
+          percentRemaining: 8,
+          right: "$22/$24",
+          resetTimeIso: "2026-01-27T18:12:03.000Z",
+        },
+      ],
+      presentation: {
+        singleWindowShowRight: true,
+      },
+    });
 
     mockProviders.push(syntheticProvider);
 
     const baseParams = {
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
+      config: renderConfig({
         enabledProviders: ["synthetic"],
         minIntervalMs: 60_000,
-        showSessionTokens: false,
-      },
+      }),
       surfaceExplicitProviderIssues: true,
     };
 
@@ -587,44 +511,36 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("preserves account labels for preserved single-window entries", async () => {
-    const googleProvider = {
-      id: "google-antigravity",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Claude (sha..gmail)",
-            group: "Claude",
-            label: "Claude:",
-            percentRemaining: 12,
-            resetTimeIso: "2026-01-01T12:00:00.000Z",
-          },
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "G3Pro (bob..gmail)",
-            group: "G3Pro",
-            label: "G3Pro:",
-            percentRemaining: 83,
-            resetTimeIso: "2026-01-01T08:00:00.000Z",
-          },
-        ],
-        errors: [],
-        presentation: { classicStrategy: "preserve" },
-      }),
-    };
+    const googleProvider = testProvider("google-antigravity", {
+      entries: [
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Claude (sha..gmail)",
+          group: "Claude",
+          label: "Claude:",
+          percentRemaining: 12,
+          resetTimeIso: "2026-01-01T12:00:00.000Z",
+        },
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "G3Pro (bob..gmail)",
+          group: "G3Pro",
+          label: "G3Pro:",
+          percentRemaining: 83,
+          resetTimeIso: "2026-01-01T08:00:00.000Z",
+        },
+      ],
+      presentation: { classicStrategy: "preserve" },
+    });
 
     mockProviders.push(googleProvider);
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
+      config: renderConfig({
         enabledProviders: ["google-antigravity"],
         minIntervalMs: 60_000,
-        showSessionTokens: false,
-      },
+      }),
       formatStyle: "singleWindow",
       surfaceExplicitProviderIssues: true,
     });
@@ -636,58 +552,50 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("projects Gemini quality tiers as bottleneck-only in single-window and all rows in all-windows", async () => {
-    const geminiProvider = {
-      id: "google-gemini-cli",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Gemini Pro (ali..example)",
-            group: "Gemini CLI",
-            label: "Gemini Pro:",
-            percentRemaining: 45,
-            right: "50 left",
-            resetTimeIso: "2026-01-01T12:00:00.000Z",
-          },
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Gemini Flash (ali..example)",
-            group: "Gemini CLI",
-            label: "Gemini Flash:",
-            percentRemaining: 12,
-            right: "20 left",
-            resetTimeIso: "2026-01-01T08:00:00.000Z",
-          },
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Gemini Flash Lite (ali..example)",
-            group: "Gemini CLI",
-            label: "Gemini Flash Lite:",
-            percentRemaining: 30,
-            right: "25 left",
-            resetTimeIso: "2026-01-01T06:00:00.000Z",
-          },
-        ],
-        errors: [],
-        presentation: {
-          singleWindowDisplayName: "Gemini CLI",
-          singleWindowShowRight: true,
+    const geminiProvider = testProvider("google-gemini-cli", {
+      entries: [
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Gemini Pro (ali..example)",
+          group: "Gemini CLI",
+          label: "Gemini Pro:",
+          percentRemaining: 45,
+          right: "50 left",
+          resetTimeIso: "2026-01-01T12:00:00.000Z",
         },
-      }),
-    };
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Gemini Flash (ali..example)",
+          group: "Gemini CLI",
+          label: "Gemini Flash:",
+          percentRemaining: 12,
+          right: "20 left",
+          resetTimeIso: "2026-01-01T08:00:00.000Z",
+        },
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Gemini Flash Lite (ali..example)",
+          group: "Gemini CLI",
+          label: "Gemini Flash Lite:",
+          percentRemaining: 30,
+          right: "25 left",
+          resetTimeIso: "2026-01-01T06:00:00.000Z",
+        },
+      ],
+      presentation: {
+        singleWindowDisplayName: "Gemini CLI",
+        singleWindowShowRight: true,
+      },
+    });
 
     mockProviders.push(geminiProvider);
 
     const baseParams = {
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
+      config: renderConfig({
         enabledProviders: ["google-gemini-cli"],
         minIntervalMs: 60_000,
-        showSessionTokens: false,
-      },
+      }),
       surfaceExplicitProviderIssues: true,
     };
 
@@ -742,45 +650,37 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("keeps live-local providers uncached and returns snapshot-owned entries", async () => {
-    const cursorProvider = {
-      id: "cursor",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Cursor API (Pro)",
-            group: "Cursor (Pro)",
-            label: "API:",
-            right: "$5.00/$20.00",
-            percentRemaining: 75,
-            resetTimeIso: "2026-03-01T00:00:00.000Z",
-          },
-          {
-            kind: "value",
-            accounting: TEST_ACCOUNTING,
-            name: "Cursor Auto+Composer",
-            group: "Cursor (Pro)",
-            label: "Auto+Composer:",
-            value: "$1.25 used",
-            resetTimeIso: "2026-03-01T00:00:00.000Z",
-          },
-        ],
-        errors: [],
-      }),
-    };
+    const cursorProvider = testProvider("cursor", {
+      entries: [
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Cursor API (Pro)",
+          group: "Cursor (Pro)",
+          label: "API:",
+          right: "$5.00/$20.00",
+          percentRemaining: 75,
+          resetTimeIso: "2026-03-01T00:00:00.000Z",
+        },
+        {
+          kind: "value",
+          accounting: TEST_ACCOUNTING,
+          name: "Cursor Auto+Composer",
+          group: "Cursor (Pro)",
+          label: "Auto+Composer:",
+          value: "$1.25 used",
+          resetTimeIso: "2026-03-01T00:00:00.000Z",
+        },
+      ],
+    });
 
     mockProviders.push(cursorProvider);
 
     const params = {
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
+      config: renderConfig({
         enabledProviders: ["cursor"],
         minIntervalMs: 60_000,
-        showSessionTokens: false,
-      },
+      }),
       surfaceExplicitProviderIssues: true,
       formatStyle: "singleWindow" as const,
     };
@@ -805,48 +705,32 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("collects live probes in order, projects them to single-window rows, and bypasses shared cache reuse", async () => {
-    const syntheticProvider = {
-      id: "synthetic",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Synthetic Weekly",
-            group: "Synthetic",
-            label: "Weekly:",
-            percentRemaining: 84,
-            right: "$8/$50",
-            resetTimeIso: "2026-04-21T18:00:00.000Z",
-          },
-        ],
-        errors: [],
-        presentation: {
-          singleWindowShowRight: true,
+    const syntheticProvider = testProvider("synthetic", {
+      entries: [
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Synthetic Weekly",
+          group: "Synthetic",
+          label: "Weekly:",
+          percentRemaining: 84,
+          right: "$8/$50",
+          resetTimeIso: "2026-04-21T18:00:00.000Z",
         },
-      }),
-    };
-    const openaiProvider = {
-      id: "openai",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [],
-        errors: [{ label: "OpenAI", message: "Temporary outage" }],
-        presentation: {
-          singleWindowDisplayName: "OpenAI",
-        },
-      }),
-    };
+      ],
+      presentation: {
+        singleWindowShowRight: true,
+      },
+    });
+    const openaiProvider = testProvider("openai", {
+      errors: [{ label: "OpenAI", message: "Temporary outage" }],
+      presentation: {
+        singleWindowDisplayName: "OpenAI",
+      },
+    });
 
     const params = {
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
-        minIntervalMs: 60_000,
-        showSessionTokens: false,
-      },
+      config: renderConfig({ minIntervalMs: 60_000 }),
       formatStyle: "singleWindow" as const,
       providers: [syntheticProvider, openaiProvider],
     };
@@ -891,25 +775,18 @@ describe("collectQuotaRenderData shared quota state", () => {
     expect(openaiProvider.fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("memoizes duplicate provider ids within one status invocation", async () => {
-    const firstProvider = {
-      id: "synthetic",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({ attempted: false, entries: [], errors: [] }),
-    };
-    const duplicateProvider = {
-      id: "synthetic",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [],
-        errors: [{ label: "Synthetic", message: "must not be used" }],
-      }),
-    };
+  it("fetches an available but disabled provider once and preserves its status details", async () => {
+    const firstProvider = testProvider("synthetic", {
+      attempted: false,
+      statusDetails: [{ key: "api_key_source", value: "auth.json" }],
+    });
+    const duplicateProvider = testProvider("synthetic", {
+      errors: [{ label: "Synthetic", message: "must not be used" }],
+    });
 
     const probes = await collectQuotaStatusLiveProbes({
       client: TEST_CLIENT,
-      config: { ...DEFAULT_CONFIG, showSessionTokens: false },
+      config: renderConfig({ enabledProviders: ["openai"] }),
       formatStyle: "singleWindow",
       providers: [firstProvider, duplicateProvider],
     });
@@ -917,11 +794,21 @@ describe("collectQuotaRenderData shared quota state", () => {
     expect(probes).toEqual([
       {
         providerId: "synthetic",
-        result: { attempted: false, entries: [], errors: [] },
+        result: {
+          attempted: false,
+          entries: [],
+          errors: [],
+          statusDetails: [{ key: "api_key_source", value: "auth.json" }],
+        },
       },
       {
         providerId: "synthetic",
-        result: { attempted: false, entries: [], errors: [] },
+        result: {
+          attempted: false,
+          entries: [],
+          errors: [],
+          statusDetails: [{ key: "api_key_source", value: "auth.json" }],
+        },
       },
     ]);
     expect(firstProvider.fetch).toHaveBeenCalledOnce();
@@ -930,54 +817,44 @@ describe("collectQuotaRenderData shared quota state", () => {
 
   it("selects one limiting percent or first value row per ordered source identity", async () => {
     const accounting = (sourceId: string) => ({ ...TEST_ACCOUNTING, sourceId });
-    const provider = {
-      id: "source-aggregate",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            accounting: accounting("first"),
-            name: "Shared label",
-            group: "Shared label",
-            label: "Daily:",
-            percentRemaining: 60,
-          },
-          {
-            accounting: accounting("first"),
-            name: "Shared label",
-            group: "Shared label",
-            label: "Weekly:",
-            percentRemaining: 20,
-          },
-          {
-            accounting: accounting("second"),
-            name: "Shared label",
-            group: "Shared label",
-            label: "Balance:",
-            kind: "value" as const,
-            value: "$4.00",
-          },
-          {
-            accounting: accounting("second"),
-            name: "Shared label",
-            group: "Shared label",
-            label: "Credits:",
-            kind: "value" as const,
-            value: "9 credits",
-          },
-        ],
-        errors: [],
-      }),
-    };
+    const provider = testProvider("source-aggregate", {
+      entries: [
+        {
+          accounting: accounting("first"),
+          name: "Shared label",
+          group: "Shared label",
+          label: "Daily:",
+          percentRemaining: 60,
+        },
+        {
+          accounting: accounting("first"),
+          name: "Shared label",
+          group: "Shared label",
+          label: "Weekly:",
+          percentRemaining: 20,
+        },
+        {
+          accounting: accounting("second"),
+          name: "Shared label",
+          group: "Shared label",
+          label: "Balance:",
+          kind: "value" as const,
+          value: "$4.00",
+        },
+        {
+          accounting: accounting("second"),
+          name: "Shared label",
+          group: "Shared label",
+          label: "Credits:",
+          kind: "value" as const,
+          value: "9 credits",
+        },
+      ],
+    });
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
-        enabledProviders: [provider.id],
-        showSessionTokens: false,
-      },
+      config: renderConfig({ enabledProviders: [provider.id] }),
       surfaceExplicitProviderIssues: true,
       formatStyle: "singleWindow",
       providers: [provider],
@@ -999,49 +876,39 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("keeps one labeled Google AGY result per account in single-window mode", async () => {
-    const provider = {
-      id: "google-agy",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            accounting: { ...TEST_ACCOUNTING, sourceId: "account-alice" },
-            name: "Gemini Models (ali..example)",
-            group: "AGY · ali..example · Gemini",
-            label: "Weekly:",
-            sortPriority: 0,
-            percentRemaining: 58,
-          },
-          {
-            accounting: { ...TEST_ACCOUNTING, sourceId: "account-alice" },
-            name: "Gemini Models (ali..example)",
-            group: "AGY · ali..example · Gemini",
-            label: "5h:",
-            sortPriority: 1,
-            percentRemaining: 25,
-          },
-          {
-            accounting: { ...TEST_ACCOUNTING, sourceId: "account-bob" },
-            name: "Gemini Models (bob..example)",
-            group: "AGY · bob..example · Gemini",
-            label: "Weekly:",
-            sortPriority: 0,
-            percentRemaining: 80,
-          },
-        ],
-        errors: [],
-        presentation: { singleWindowShowRight: true },
-      }),
-    };
+    const provider = testProvider("google-agy", {
+      entries: [
+        {
+          accounting: { ...TEST_ACCOUNTING, sourceId: "account-alice" },
+          name: "Gemini Models (ali..example)",
+          group: "AGY · ali..example · Gemini",
+          label: "Weekly:",
+          sortPriority: 0,
+          percentRemaining: 58,
+        },
+        {
+          accounting: { ...TEST_ACCOUNTING, sourceId: "account-alice" },
+          name: "Gemini Models (ali..example)",
+          group: "AGY · ali..example · Gemini",
+          label: "5h:",
+          sortPriority: 1,
+          percentRemaining: 25,
+        },
+        {
+          accounting: { ...TEST_ACCOUNTING, sourceId: "account-bob" },
+          name: "Gemini Models (bob..example)",
+          group: "AGY · bob..example · Gemini",
+          label: "Weekly:",
+          sortPriority: 0,
+          percentRemaining: 80,
+        },
+      ],
+      presentation: { singleWindowShowRight: true },
+    });
 
     const result = await collectQuotaRenderData({
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
-        enabledProviders: [provider.id],
-        showSessionTokens: false,
-      },
+      config: renderConfig({ enabledProviders: [provider.id] }),
       surfaceExplicitProviderIssues: true,
       formatStyle: "singleWindow",
       providers: [provider],
@@ -1054,47 +921,39 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it("keeps the classic style id aligned with current presentation fields", async () => {
-    const syntheticProvider = {
-      id: "synthetic",
-      isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
-        attempted: true,
-        entries: [
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Synthetic 5h",
-            group: "Synthetic",
-            label: "5h:",
-            percentRemaining: 75,
-            right: "26/100",
-          },
-          {
-            accounting: TEST_ACCOUNTING,
-            name: "Synthetic Weekly",
-            group: "Synthetic",
-            label: "Weekly:",
-            percentRemaining: 8,
-            right: "$22/$24",
-          },
-        ],
-        errors: [],
-        presentation: {
-          singleWindowDisplayName: "Synthetic",
-          singleWindowShowRight: true,
+    const syntheticProvider = testProvider("synthetic", {
+      entries: [
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Synthetic 5h",
+          group: "Synthetic",
+          label: "5h:",
+          percentRemaining: 75,
+          right: "26/100",
         },
-      }),
-    };
+        {
+          accounting: TEST_ACCOUNTING,
+          name: "Synthetic Weekly",
+          group: "Synthetic",
+          label: "Weekly:",
+          percentRemaining: 8,
+          right: "$22/$24",
+        },
+      ],
+      presentation: {
+        singleWindowDisplayName: "Synthetic",
+        singleWindowShowRight: true,
+      },
+    });
 
     mockProviders.push(syntheticProvider);
 
     const baseParams = {
       client: TEST_CLIENT,
-      config: {
-        ...DEFAULT_CONFIG,
+      config: renderConfig({
         enabledProviders: ["synthetic"],
         minIntervalMs: 60_000,
-        showSessionTokens: false,
-      },
+      }),
       surfaceExplicitProviderIssues: true,
     };
 

@@ -72,12 +72,6 @@ function fmtInt(n: number): string {
   return Math.trunc(n).toLocaleString("en-US");
 }
 
-type ConfigClient = {
-  config?: {
-    get?: () => Promise<{ data?: unknown }>;
-  };
-};
-
 type PricingCoverageByProvider = {
   pricedKeysSeen: number;
   mappedMissingKeysSeen: number;
@@ -658,8 +652,6 @@ export async function buildQuotaStatusReport(params: {
   workspaceConfigPaths?: string[];
   settingSources?: QuotaToastSettingSources;
   configIssues?: LoadConfigIssue[];
-  /** @deprecated compatibility only; not rendered */
-  networkSettingSources?: Record<string, string>;
   tuiDiagnostics?: {
     workspaceRoot: string;
     configRoot: string;
@@ -695,8 +687,6 @@ export async function buildQuotaStatusReport(params: {
     config: MaintainerAnnouncementsConfig;
     summary: MaintainerAnnouncementsSummary;
   };
-  geminiCliClient?: ConfigClient;
-  agyClient?: ConfigClient;
   generatedAtMs?: number;
 }): Promise<string> {
   const version = await getPackageVersion();

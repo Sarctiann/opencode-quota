@@ -189,6 +189,7 @@ export interface ResolveProviderApiKeyBaseConfig<Source extends string> {
 export interface StrictApiKeyAuthConfig<Source extends string> {
   policy?: "strict-api-key";
   readAuth: () => Promise<unknown | null>;
+  getAuthPaths?: () => string[];
   authKeys?: readonly string[];
   authSource: Source;
 }
@@ -251,6 +252,7 @@ export interface ProviderApiKeyResolver<Source extends string> {
     configured: boolean;
     source: Source | null;
     checkedPaths: string[];
+    authPaths: string[];
   }>;
 }
 
@@ -400,12 +402,14 @@ export function createProviderApiKeyResolver<Source extends string, AuthSource e
   return {
     resolve,
     has: async () => (await resolve()) !== null,
-    diagnostics: () =>
-      getApiKeyDiagnostics({
+    diagnostics: async () => ({
+      ...(await getApiKeyDiagnostics({
         envVarNames: simpleConfig.envVars.map((envVar) => envVar.name),
         resolve,
         getConfigCandidates: simpleConfig.getConfigCandidates,
-      }),
+      })),
+      authPaths: simpleConfig.auth?.getAuthPaths?.() ?? [],
+    }),
   };
 }
 

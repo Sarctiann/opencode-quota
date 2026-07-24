@@ -64,6 +64,15 @@ const TUI_COMMAND_IDS = [
   "tokens_between",
 ] as const;
 
+const TUI_COMMAND_GROUPS = [
+  ["quota", "quota_status"],
+  ["quota_announcements", "pricing_refresh"],
+  ["tokens_today", "tokens_daily"],
+  ["tokens_weekly", "tokens_monthly"],
+  ["tokens_all", "tokens_session"],
+  ["tokens_session_all", "tokens_between"],
+] as const;
+
 vi.mock("solid-js", () => ({
   Show: (props: { when: unknown; children?: unknown; fallback?: unknown }) => {
     if (!props.when) return props.fallback ?? null;
@@ -300,62 +309,68 @@ describe("tui plugin smoke", () => {
   });
 
   describe.each(["inline", "dialog"] as const)("%s native command display", (commandDisplay) => {
-    it.each(TUI_COMMAND_IDS)("routes /%s once without model execution", async (command) => {
-      const plugin = await loadTuiModule();
-      const { api, keymapLayers, dialog } = createApi();
-      const output = `${command} output`;
-      buildQuotaDialogCommandOutput.mockResolvedValueOnce({
-        state: "output",
-        command,
-        title: command,
-        output,
-        dialogSize: "xlarge",
-      });
+    it.each(TUI_COMMAND_GROUPS)(
+      "routes /%s and /%s once without model execution",
+      async (...commands) => {
+        const plugin = await loadTuiModule();
+        const { api, keymapLayers, dialog } = createApi();
 
-      resolveTuiSurfaceRegistration.mockResolvedValueOnce({
-        commandDisplay,
-        sidebar: { enabled: false },
-        compact: {
-          enabled: false,
+        resolveTuiSurfaceRegistration.mockResolvedValueOnce({
+          commandDisplay,
+          sidebar: { enabled: false },
+          compact: {
+            enabled: false,
+            homeBottom: false,
+            sessionPrompt: false,
+            hasNativeProviderQuota: false,
+            suppressedByNativeProviderQuota: false,
+          },
+          announcements: { homeBottom: false },
           homeBottom: false,
-          sessionPrompt: false,
-          hasNativeProviderQuota: false,
-          suppressedByNativeProviderQuota: false,
-        },
-        announcements: { homeBottom: false },
-        homeBottom: false,
-      });
-
-      await plugin.tui(api as any, undefined, {} as any);
-      const registeredCommand = keymapLayers[0]!.commands.find(
-        (item) => item.slashName === command,
-      )!;
-      (registeredCommand.run as (input?: unknown) => void)({ arguments: "" });
-      await Promise.resolve();
-      await Promise.resolve();
-
-      expect(buildQuotaDialogCommandOutput).toHaveBeenCalledOnce();
-      expect(buildQuotaDialogCommandOutput).toHaveBeenCalledWith(
-        expect.objectContaining({
-          command,
-          client: { config: {} },
-          sessionID: "session-route",
-        }),
-      );
-      if (commandDisplay === "inline") {
-        expect(api.client.session.prompt).toHaveBeenCalledOnce();
-        expect(api.client.session.prompt).toHaveBeenCalledWith({
-          sessionID: "session-route",
-          noReply: true,
-          parts: [{ type: "text", text: output, ignored: true }],
         });
-        expect(dialog.replace).not.toHaveBeenCalled();
-      } else {
-        expect(api.client.session.prompt).not.toHaveBeenCalled();
-        expect(dialog.replace).toHaveBeenCalledTimes(2);
-      }
-      expect(api.client.session.command).not.toHaveBeenCalled();
-    });
+
+        await plugin.tui(api as any, undefined, {} as any);
+        for (const command of commands) {
+          vi.clearAllMocks();
+          const output = `${command} output`;
+          buildQuotaDialogCommandOutput.mockResolvedValueOnce({
+            state: "output",
+            command,
+            title: command,
+            output,
+            dialogSize: "xlarge",
+          });
+          const registeredCommand = keymapLayers[0]!.commands.find(
+            (item) => item.slashName === command,
+          )!;
+          (registeredCommand.run as (input?: unknown) => void)({ arguments: "" });
+          await Promise.resolve();
+          await Promise.resolve();
+
+          expect(buildQuotaDialogCommandOutput, command).toHaveBeenCalledOnce();
+          expect(buildQuotaDialogCommandOutput, command).toHaveBeenCalledWith(
+            expect.objectContaining({
+              command,
+              client: { config: {} },
+              sessionID: "session-route",
+            }),
+          );
+          if (commandDisplay === "inline") {
+            expect(api.client.session.prompt, command).toHaveBeenCalledOnce();
+            expect(api.client.session.prompt, command).toHaveBeenCalledWith({
+              sessionID: "session-route",
+              noReply: true,
+              parts: [{ type: "text", text: output, ignored: true }],
+            });
+            expect(dialog.replace, command).not.toHaveBeenCalled();
+          } else {
+            expect(api.client.session.prompt, command).not.toHaveBeenCalled();
+            expect(dialog.replace, command).toHaveBeenCalledTimes(2);
+          }
+          expect(api.client.session.command, command).not.toHaveBeenCalled();
+        }
+      },
+    );
   });
 
   it("selects Home dialog destination before executing an inline-configured command", async () => {

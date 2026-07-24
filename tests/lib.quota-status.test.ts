@@ -154,8 +154,6 @@ describe("buildQuotaStatusReport", () => {
   });
 
   it("renders config validation errors in the toast diagnostics section", async () => {
-    const geminiCliClient = { config: { get: vi.fn() } };
-
     const report = await buildQuotaStatusReportForTest({
       configSource: "files",
       configPaths: [
@@ -172,7 +170,6 @@ describe("buildQuotaStatusReport", () => {
           message: "unknown provider id(s): opnai",
         },
       ],
-      geminiCliClient,
     });
 
     expect(report).toContain("- enabledProviders: (none)");
@@ -575,13 +572,10 @@ describe("buildQuotaStatusReport", () => {
   it("renders Synthetic API-key diagnostics plus compact live success rows", async () => {
     const report = await buildSyntheticStatusReport({
       providerLiveProbes: [
-        {
-          providerId: "synthetic",
-          result: {
-            attempted: true,
-            statusDetails: makeStatusDetails({
-              "synthetic api key": "configured=true source=env:SYNTHETIC_API_KEY",
-            }),
+        makeProviderSuccessProbe(
+          "synthetic",
+          { "synthetic api key": "configured=true source=env:SYNTHETIC_API_KEY" },
+          {
             entries: [
               {
                 name: "Synthetic 5h",
@@ -600,9 +594,8 @@ describe("buildQuotaStatusReport", () => {
                 resetTimeIso: "2026-04-27T18:00:00.000Z",
               },
             ],
-            errors: [],
           },
-        },
+        ),
       ],
     });
 
@@ -621,17 +614,11 @@ describe("buildQuotaStatusReport", () => {
   it("renders Synthetic live no-data state when the shared probe returns nothing reportable", async () => {
     const report = await buildSyntheticStatusReport({
       providerLiveProbes: [
-        {
-          providerId: "synthetic",
-          result: {
-            attempted: false,
-            entries: [],
-            errors: [],
-            statusDetails: makeStatusDetails({
-              "synthetic api key": "configured=true source=env:SYNTHETIC_API_KEY",
-            }),
-          },
-        },
+        makeProviderProbe("synthetic", {
+          statusDetails: makeStatusDetails({
+            "synthetic api key": "configured=true source=env:SYNTHETIC_API_KEY",
+          }),
+        }),
       ],
     });
 
@@ -653,51 +640,35 @@ describe("buildQuotaStatusReport", () => {
         "chutes",
       ],
       providerLiveProbes: [
-        {
-          providerId: "openai",
-          result: {
-            attempted: true,
-            entries: [
-              {
-                label: "Pro",
-                name: "OpenAI Pro",
-                percentRemaining: 91,
-                right: "91/100",
-                resetTimeIso: "2026-04-22T00:00:00.000Z",
-              },
-            ],
-            errors: [],
-          },
-        },
-        {
-          providerId: "qwen-code",
-          result: {
-            attempted: true,
-            entries: [
-              {
-                label: "Daily",
-                name: "Qwen Code Daily",
-                percentRemaining: 88,
-                right: "120/1000",
-                resetTimeIso: "2026-04-22T00:00:00.000Z",
-              },
-            ],
-            errors: [],
-          },
-        },
-        {
-          providerId: "alibaba-coding-plan",
-          result: {
-            attempted: false,
-            entries: [],
-            errors: [],
-          },
-        },
-        {
-          providerId: "minimax-coding-plan",
-          result: {
-            attempted: true,
-            statusDetails: makeStatusDetails({ auth_state: "none" }),
+        makeProviderProbe("openai", {
+          attempted: true,
+          entries: [
+            {
+              label: "Pro",
+              name: "OpenAI Pro",
+              percentRemaining: 91,
+              right: "91/100",
+              resetTimeIso: "2026-04-22T00:00:00.000Z",
+            },
+          ],
+        }),
+        makeProviderProbe("qwen-code", {
+          attempted: true,
+          entries: [
+            {
+              label: "Daily",
+              name: "Qwen Code Daily",
+              percentRemaining: 88,
+              right: "120/1000",
+              resetTimeIso: "2026-04-22T00:00:00.000Z",
+            },
+          ],
+        }),
+        makeProviderProbe("alibaba-coding-plan"),
+        makeProviderSuccessProbe(
+          "minimax-coding-plan",
+          { auth_state: "none" },
+          {
             entries: [
               {
                 label: "Weekly",
@@ -707,33 +678,14 @@ describe("buildQuotaStatusReport", () => {
                 resetTimeIso: "2026-04-28T00:00:00.000Z",
               },
             ],
-            errors: [],
           },
-        },
-        {
-          providerId: "copilot",
-          result: {
-            attempted: true,
-            entries: [],
-            errors: [{ label: "Copilot", message: "Billing endpoint unavailable" }],
-          },
-        },
-        {
-          providerId: "google-antigravity",
-          result: {
-            attempted: false,
-            entries: [],
-            errors: [],
-          },
-        },
-        {
-          providerId: "google-gemini-cli",
-          result: {
-            attempted: true,
-            statusDetails: makeStatusDetails({
-              auth_state: "missing",
-              companion_package_state: "missing",
-            }),
+        ),
+        makeProviderSafeFailureProbe("copilot", {}, "Billing endpoint unavailable"),
+        makeProviderProbe("google-antigravity"),
+        makeProviderSuccessProbe(
+          "google-gemini-cli",
+          { auth_state: "missing", companion_package_state: "missing" },
+          {
             entries: [
               {
                 label: "Pro",
@@ -743,26 +695,13 @@ describe("buildQuotaStatusReport", () => {
                 resetTimeIso: "2026-04-23T00:00:00.000Z",
               },
             ],
-            errors: [],
           },
-        },
+        ),
         makeProviderSuccessProbe("google-agy", {
           auth_state: "missing",
           auth_source: "(none)",
         }),
-        {
-          providerId: "chutes",
-          result: {
-            attempted: true,
-            entries: [],
-            errors: [
-              {
-                label: "Chutes",
-                message: "probe \u001b[31mfailed\u0007\n\twith noise",
-              },
-            ],
-          },
-        },
+        makeProviderSafeFailureProbe("chutes", {}, "probe \u001b[31mfailed\u0007\n\twith noise"),
       ],
     });
 
@@ -815,23 +754,20 @@ describe("buildQuotaStatusReport", () => {
   });
 
   it("reports Google AGY auth, companion, and live quota diagnostics", async () => {
-    const agyClient = { config: { get: vi.fn() } };
     const report = await buildProviderStatusReport("google-agy", {
-      agyClient,
       providerLiveProbes: [
-        {
-          providerId: "google-agy",
-          result: {
-            attempted: true,
-            statusDetails: makeStatusDetails({
-              auth_state: "present",
-              auth_source: "google-agy",
-              account_count: "2",
-              valid_account_count: "2",
-              companion_package_state: "present",
-              companion_package_path:
-                "/tmp/node_modules/@anthonyhaussman/opencode-agy-auth/dist/src/constants.js",
-            }),
+        makeProviderPartialProbe(
+          "google-agy",
+          {
+            auth_state: "present",
+            auth_source: "google-agy",
+            account_count: "2",
+            valid_account_count: "2",
+            companion_package_state: "present",
+            companion_package_path:
+              "/tmp/node_modules/@anthonyhaussman/opencode-agy-auth/dist/src/constants.js",
+          },
+          {
             entries: [
               {
                 label: "Gemini Models:",
@@ -849,7 +785,7 @@ describe("buildQuotaStatusReport", () => {
               },
             ],
           },
-        },
+        ),
       ],
     });
 
@@ -872,19 +808,11 @@ describe("buildQuotaStatusReport", () => {
   it("sanitizes and truncates Synthetic live probe errors", async () => {
     const report = await buildSyntheticStatusReport({
       providerLiveProbes: [
-        {
-          providerId: "synthetic",
-          result: {
-            attempted: true,
-            entries: [],
-            errors: [
-              {
-                label: "Synthetic",
-                message: `failure \u001b[31mwith control codes\u0007\n\t${"x".repeat(200)}`,
-              },
-            ],
-          },
-        },
+        makeProviderSafeFailureProbe(
+          "synthetic",
+          {},
+          `failure \u001b[31mwith control codes\u0007\n\t${"x".repeat(200)}`,
+        ),
       ],
     });
 

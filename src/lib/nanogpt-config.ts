@@ -33,6 +33,7 @@ const nanoGptApiKeyResolver = createProviderApiKeyResolver<NanoGptKeySource>({
   getConfigCandidates: getGlobalOpencodeConfigCandidatePaths,
   auth: {
     readAuth: readAuthFile,
+    getAuthPaths,
     authSource: "auth.json",
   },
 });
@@ -51,8 +52,5 @@ export async function getNanoGptKeyDiagnostics(): Promise<{
   checkedPaths: string[];
   authPaths: string[];
 }> {
-  return {
-    ...(await nanoGptApiKeyResolver.diagnostics()),
-    authPaths: getAuthPaths(),
-  };
+  return nanoGptApiKeyResolver.diagnostics();
 }
