@@ -39,6 +39,7 @@ import {
   makeAccountCacheKey,
   setCachedAccessToken,
 } from "./google-token-cache.js";
+import { mapWithConcurrency } from "./map-with-concurrency.js";
 
 // =============================================================================
 // Constants
@@ -237,27 +238,6 @@ export async function hasAntigravityQuotaRuntimeAvailable(): Promise<boolean> {
   );
 }
 
-async function mapWithConcurrency<T, R>(params: {
-  items: T[];
-  concurrency: number;
-  fn: (item: T, index: number) => Promise<R>;
-}): Promise<R[]> {
-  const n = Math.max(1, Math.trunc(params.concurrency));
-  const results = new Array<R>(params.items.length);
-  let nextIndex = 0;
-
-  const workers = Array.from({ length: Math.min(n, params.items.length) }, async () => {
-    while (true) {
-      const idx = nextIndex++;
-      if (idx >= params.items.length) return;
-      results[idx] = await params.fn(params.items[idx]!, idx);
-    }
-  });
-
-  await Promise.all(workers);
-  return results;
-}
-
 /**
  * Refresh Google access token
  */
@@ -390,25 +370,21 @@ export async function refreshGoogleTokensForAllAccounts(params?: {
     };
   }
 
-  const results = await mapWithConcurrency({
-    items: valid,
-    concurrency: GOOGLE_ACCOUNTS_CONCURRENCY,
-    fn: async (account) => {
-      const email = account.email;
-      const projectId = getProjectId(account);
-      if (!projectId) return { ok: false as const, email, error: "No projectId" };
+  const results = await mapWithConcurrency(valid, GOOGLE_ACCOUNTS_CONCURRENCY, async (account) => {
+    const email = account.email;
+    const projectId = getProjectId(account);
+    if (!projectId) return { ok: false as const, email, error: "No projectId" };
 
-      const token = await refreshAccessTokenWithCache({
-        refreshToken: account.refreshToken,
-        projectId,
-        email,
-        skewMs: params?.skewMs,
-        force: params?.force,
-        credentials,
-      });
-      if ("error" in token) return { ok: false as const, email, error: token.error };
-      return { ok: true as const, email };
-    },
+    const token = await refreshAccessTokenWithCache({
+      refreshToken: account.refreshToken,
+      projectId,
+      email,
+      skewMs: params?.skewMs,
+      force: params?.force,
+      credentials,
+    });
+    if ("error" in token) return { ok: false as const, email, error: token.error };
+    return { ok: true as const, email };
   });
 
   const failures = results.filter((r) => !r.ok).map((r) => ({ email: r.email, error: r.error }));
@@ -677,17 +653,14 @@ export async function queryGoogleQuota(
   }
 
   // Query accounts with bounded concurrency (reliability > speed).
-  const results = await mapWithConcurrency({
-    items: accounts,
-    concurrency: GOOGLE_ACCOUNTS_CONCURRENCY,
-    fn: async (account) =>
-      fetchAccountQuotaWithAntigravityRefresh({
-        account,
-        modelIds,
-        credentials,
-        timeoutMs: options.requestTimeoutMs,
-      }),
-  });
+  const results = await mapWithConcurrency(accounts, GOOGLE_ACCOUNTS_CONCURRENCY, async (account) =>
+    fetchAccountQuotaWithAntigravityRefresh({
+      account,
+      modelIds,
+      credentials,
+      timeoutMs: options.requestTimeoutMs,
+    }),
+  );
 
   // Collect all successful models and errors
   const allModels: GoogleModelQuota[] = [];

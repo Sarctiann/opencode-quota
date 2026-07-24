@@ -16,10 +16,10 @@ import {
   selectEligibleQuotaProviderDefinitions,
 } from "../lib/quota-providers.js";
 import { fetchQuotaProviderResult } from "../lib/quota-state.js";
+import { mapWithConcurrency } from "../lib/map-with-concurrency.js";
 import {
   QUOTA_PROVIDER_CONCURRENCY,
   fetchRemoteQuotaProvider,
-  mapWithConcurrency,
   resolveQuotaProviderApiKey,
 } from "../lib/quota-providers-remote.js";
 import {

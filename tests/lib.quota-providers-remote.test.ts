@@ -4,7 +4,6 @@ import type { RemoteApiQuotaProviderDefinition } from "../src/lib/quota-provider
 import {
   QUOTA_PROVIDER_MAX_BODY_BYTES,
   fetchRemoteQuotaProvider,
-  mapWithConcurrency,
 } from "../src/lib/quota-providers-remote.js";
 import {
   NEURALWATT_LIKE_ADAPTER,
@@ -886,21 +885,5 @@ describe("quota provider remote runtime", () => {
       success: false,
       error: "Invalid json-v1 response: nesting depth exceeded 32",
     });
-  });
-
-  it("limits independent work to four concurrent instances and preserves order", async () => {
-    let active = 0;
-    let maxActive = 0;
-    const values = Array.from({ length: 9 }, (_, index) => index);
-    const result = await mapWithConcurrency(values, 4, async (value) => {
-      active += 1;
-      maxActive = Math.max(maxActive, active);
-      await new Promise((resolve) => setTimeout(resolve, (9 - value) * 2));
-      active -= 1;
-      return value;
-    });
-
-    expect(maxActive).toBe(4);
-    expect(result).toEqual(values);
   });
 });

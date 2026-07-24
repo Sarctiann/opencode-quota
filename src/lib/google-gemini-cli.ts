@@ -1,5 +1,6 @@
 import { readAuthFileCached } from "./opencode-auth.js";
 import { fetchWithTimeout } from "./http.js";
+import { mapWithConcurrency } from "./map-with-concurrency.js";
 import {
   getCachedAccessToken,
   makeAccountCacheKey,
@@ -284,27 +285,6 @@ export async function hasGeminiCliQuotaRuntimeAvailable(client?: ConfigClient): 
     authPresence.validAccountCount > 0 &&
     companionPresence.state === "present"
   );
-}
-
-async function mapWithConcurrency<T, R>(params: {
-  items: T[];
-  concurrency: number;
-  fn: (item: T, index: number) => Promise<R>;
-}): Promise<R[]> {
-  const n = Math.max(1, Math.trunc(params.concurrency));
-  const results = new Array<R>(params.items.length);
-  let nextIndex = 0;
-
-  const workers = Array.from({ length: Math.min(n, params.items.length) }, async () => {
-    while (true) {
-      const idx = nextIndex++;
-      if (idx >= params.items.length) return;
-      results[idx] = await params.fn(params.items[idx]!, idx);
-    }
-  });
-
-  await Promise.all(workers);
-  return results;
 }
 
 async function refreshAccessToken(params: {
@@ -636,12 +616,9 @@ export async function queryGeminiCliQuota(
     };
   }
 
-  const results = await mapWithConcurrency({
-    items: accounts,
-    concurrency: GEMINI_ACCOUNTS_CONCURRENCY,
-    fn: async (account) =>
-      fetchAccountQuota({ account, credentials, timeoutMs: options.requestTimeoutMs }),
-  });
+  const results = await mapWithConcurrency(accounts, GEMINI_ACCOUNTS_CONCURRENCY, async (account) =>
+    fetchAccountQuota({ account, credentials, timeoutMs: options.requestTimeoutMs }),
+  );
 
   const allBuckets: GeminiCliQuotaBucket[] = [];
   const errors: GoogleAccountError[] = [];
