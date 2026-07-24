@@ -12,8 +12,11 @@ import type {
 } from "../lib/entries.js";
 import {
   DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
+  getMiniMaxAuthDiagnostics,
+  getMiniMaxChinaAuthDiagnostics,
   resolveMiniMaxAuthCached,
   resolveMiniMaxChinaAuthCached,
+  type MiniMaxAuthDiagnostics,
   type ResolvedMiniMaxAuth,
 } from "../lib/minimax-auth.js";
 import { getMiniMaxQuotaEndpoint, type MiniMaxQuotaEndpointId } from "../lib/minimax-endpoints.js";
@@ -25,7 +28,14 @@ import {
 } from "../lib/provider-availability.js";
 import { normalizeQuotaProviderId } from "../lib/provider-metadata.js";
 import type { MiniMaxResult, MiniMaxResultEntry } from "../lib/types.js";
-import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
+import {
+  apiKeyStatusDetails,
+  attemptedErrorResult,
+  attemptedResult,
+  notAttemptedResult,
+  statusDetailsFromRecord,
+  withStatusDetails,
+} from "./result-helpers.js";
 
 const MINIMAX_PROVIDER_LABEL = "MiniMax Coding Plan";
 const MINIMAX_CHINA_PROVIDER_LABEL = "MiniMax Coding Plan (CN)";
@@ -308,6 +318,7 @@ type MiniMaxProviderSpec = {
   label: string;
   endpoint: MiniMaxQuotaEndpointId;
   resolveAuthCached: (params?: { maxAgeMs?: number }) => Promise<ResolvedMiniMaxAuth>;
+  getAuthDiagnostics: (params?: { maxAgeMs?: number }) => Promise<MiniMaxAuthDiagnostics>;
 };
 
 function isMiniMaxChinaExplicitlyEnabled(context?: QuotaProviderMatchContext): boolean {
@@ -379,16 +390,30 @@ function createMiniMaxProvider(spec: MiniMaxProviderSpec): QuotaProvider {
     },
 
     async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+      const diagnostics = await spec.getAuthDiagnostics({
+        maxAgeMs: DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
+      });
+      const endpoint =
+        diagnostics.state === "configured"
+          ? getMiniMaxQuotaEndpoint(diagnostics.endpoint)
+          : undefined;
+      const statusDetails = [
+        ...apiKeyStatusDetails(diagnostics),
+        ...statusDetailsFromRecord({
+          api_endpoint: endpoint?.id,
+          api_base_url: endpoint?.apiBaseUrl,
+        }),
+      ];
       const auth = await spec.resolveAuthCached({
         maxAgeMs: DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
       });
 
       if (auth.state === "none") {
-        return notAttemptedResult();
+        return withStatusDetails(notAttemptedResult(), statusDetails);
       }
 
       if (auth.state === "invalid") {
-        return attemptedErrorResult(spec.label, auth.error);
+        return withStatusDetails(attemptedErrorResult(spec.label, auth.error), statusDetails);
       }
 
       const result = await queryMiniMaxQuota(auth.apiKey, {
@@ -398,10 +423,13 @@ function createMiniMaxProvider(spec: MiniMaxProviderSpec): QuotaProvider {
       });
 
       if (!result.success) {
-        return attemptedErrorResult(spec.label, result.error);
+        return withStatusDetails(attemptedErrorResult(spec.label, result.error), [
+          ...statusDetails,
+          { key: "live_fetch_error", value: result.error },
+        ]);
       }
 
-      return attemptedResult(
+      const providerResult = attemptedResult(
         result.entries.map((entry) => ({
           ...entry,
           accounting: {
@@ -412,6 +440,21 @@ function createMiniMaxProvider(spec: MiniMaxProviderSpec): QuotaProvider {
           },
         })),
       );
+      const fiveHourEntry = result.entries.find((entry) => entry.window === "five_hour");
+      const weeklyEntry = result.entries.find((entry) => entry.window === "weekly");
+      const formatUsage = (entry: MiniMaxResultEntry | undefined): string | undefined =>
+        entry
+          ? `${entry.right ?? "(none)"} percent_remaining=${entry.percentRemaining} reset_at=${entry.resetTimeIso ?? "(none)"}`
+          : undefined;
+      return withStatusDetails(providerResult, [
+        ...statusDetails,
+        ...statusDetailsFromRecord({
+          five_hour_usage: formatUsage(fiveHourEntry),
+          weekly_usage: formatUsage(weeklyEntry),
+          live_state:
+            !fiveHourEntry && !weeklyEntry ? `no reportable ${spec.label} quota` : undefined,
+        }),
+      ]);
     },
   };
 }
@@ -421,6 +464,7 @@ export const minimaxCodingPlanProvider: QuotaProvider = createMiniMaxProvider({
   label: MINIMAX_PROVIDER_LABEL,
   endpoint: "international",
   resolveAuthCached: resolveMiniMaxAuthCached,
+  getAuthDiagnostics: getMiniMaxAuthDiagnostics,
 });
 
 export const minimaxChinaCodingPlanProvider: QuotaProvider = createMiniMaxProvider({
@@ -428,4 +472,5 @@ export const minimaxChinaCodingPlanProvider: QuotaProvider = createMiniMaxProvid
   label: MINIMAX_CHINA_PROVIDER_LABEL,
   endpoint: "china",
   resolveAuthCached: resolveMiniMaxChinaAuthCached,
+  getAuthDiagnostics: getMiniMaxChinaAuthDiagnostics,
 });

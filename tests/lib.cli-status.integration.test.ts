@@ -143,6 +143,7 @@ describe("status CLI integration", () => {
         attempted: true,
         entries: [{ accounting: TEST_ACCOUNTING, name: "Synthetic", percentRemaining: 75 }],
         errors: [],
+        statusDetails: [{ key: "api_key_source", value: "env:SYNTHETIC_API_KEY" }],
       }),
     });
   });
@@ -233,5 +234,57 @@ describe("status CLI integration", () => {
     expect(mocks.providers[0].isAvailable).toHaveBeenCalledTimes(2);
     expect(mocks.providers[0].fetch).toHaveBeenCalledTimes(2);
     expect(mocks.buildQuotaStatusReport).toHaveBeenCalledTimes(2);
+    expect(mocks.buildQuotaStatusReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        providerLiveProbes: [
+          expect.objectContaining({
+            providerId: "synthetic",
+            result: expect.objectContaining({
+              statusDetails: [{ key: "api_key_source", value: "env:SYNTHETIC_API_KEY" }],
+            }),
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("fetches an available but disabled provider once for provider-owned diagnostics", async () => {
+    const disabledProvider = {
+      id: "deepseek",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [],
+        errors: [],
+        statusDetails: [{ key: "api_key_source", value: "auth.json" }],
+      }),
+    };
+    mocks.providers.push(disabledProvider);
+    const stdout = createCaptureStream();
+
+    expect(
+      await runCliStatusCommand({
+        argv: [],
+        cwd: workspaceDir,
+        stdout: stdout.stream as any,
+        stderr: { write: () => true } as any,
+      }),
+    ).toBe(0);
+
+    expect(disabledProvider.fetch).toHaveBeenCalledOnce();
+    expect(mocks.buildQuotaStatusReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerAvailability: expect.arrayContaining([
+          expect.objectContaining({
+            id: "deepseek",
+            enabled: false,
+            available: true,
+          }),
+        ]),
+        providerLiveProbes: expect.arrayContaining([
+          expect.objectContaining({ providerId: "deepseek" }),
+        ]),
+      }),
+    );
   });
 });

@@ -12,9 +12,18 @@ import {
   isCursorModelId,
   isCursorProviderId,
 } from "../lib/cursor-pricing.js";
-import { inspectCursorOpenCodeIntegration } from "../lib/cursor-detection.js";
+import {
+  CURSOR_CANONICAL_PLUGIN_PACKAGE,
+  inspectCursorAuthPresence,
+  inspectCursorOpenCodeIntegration,
+} from "../lib/cursor-detection.js";
 import { getCurrentCursorUsageSummary } from "../lib/cursor-usage.js";
-import { attemptedResult, notAttemptedResult } from "./result-helpers.js";
+import {
+  attemptedResult,
+  notAttemptedResult,
+  statusDetailsFromRecord,
+  withStatusDetails,
+} from "./result-helpers.js";
 
 function buildCursorGroup(plan: string | null): string {
   return plan ? `Cursor (${plan})` : "Cursor";
@@ -57,12 +66,43 @@ export const cursorProvider: QuotaProvider = {
       plan: ctx.config.cursorPlan,
       overrideUsd: ctx.config.cursorIncludedApiUsd,
     });
-    const usage = await getCurrentCursorUsageSummary({
-      billingCycleStartDay: ctx.config.cursorBillingCycleStartDay,
+    const [usage, auth, integration] = await Promise.all([
+      getCurrentCursorUsageSummary({
+        billingCycleStartDay: ctx.config.cursorBillingCycleStartDay,
+      }),
+      inspectCursorAuthPresence(),
+      inspectCursorOpenCodeIntegration(),
+    ]);
+    const formatUsage = (costUsd: number, messageCount: number): string =>
+      `${fmtUsdAmount(costUsd)} across ${Math.trunc(messageCount).toLocaleString("en-US")} messages`;
+    const statusDetails = statusDetailsFromRecord({
+      plan: planLabel ?? "none",
+      included_api_usd:
+        typeof includedApiUsd === "number" ? fmtUsdAmount(includedApiUsd) : "(none)",
+      billing_cycle_start_day:
+        typeof ctx.config.cursorBillingCycleStartDay === "number"
+          ? String(ctx.config.cursorBillingCycleStartDay)
+          : "(calendar month)",
+      auth_state: auth.state,
+      auth_selected_path: auth.selectedPath ?? "(none)",
+      auth_present_paths: auth.presentPaths.join(" | ") || "(none)",
+      auth_candidate_paths: auth.candidatePaths.join(" | ") || "(none)",
+      auth_error: auth.error,
+      plugin_enabled: integration.pluginEnabled ? "true" : "false",
+      canonical_plugin_package: CURSOR_CANONICAL_PLUGIN_PACKAGE,
+      provider_configured: integration.providerConfigured ? "true" : "false",
+      config_matches: integration.matchedPaths.join(" | ") || "(none)",
+      config_checked_paths: integration.checkedPaths.join(" | ") || "(none)",
+      cycle_source: usage.window.source,
+      cycle_reset_at: usage.window.resetTimeIso,
+      api_usage: formatUsage(usage.api.costUsd, usage.api.messageCount),
+      auto_composer_usage: formatUsage(usage.autoComposer.costUsd, usage.autoComposer.messageCount),
+      total_cursor_usage: formatUsage(usage.total.costUsd, usage.total.messageCount),
+      unknown_cursor_models: Math.trunc(usage.unknownModels.length).toLocaleString("en-US"),
     });
 
     if (usage.total.messageCount === 0 && includedApiUsd === undefined) {
-      return notAttemptedResult();
+      return withStatusDetails(notAttemptedResult(), statusDetails);
     }
 
     const errors =
@@ -148,6 +188,6 @@ export const cursorProvider: QuotaProvider = {
       });
     }
 
-    return attemptedResult(entries, errors);
+    return withStatusDetails(attemptedResult(entries, errors), statusDetails);
   },
 };

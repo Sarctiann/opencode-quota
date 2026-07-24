@@ -7,14 +7,22 @@ import type {
 } from "../lib/entries.js";
 import {
   DEFAULT_OPENCODE_ZEN_CONFIG_CACHE_MAX_AGE_MS,
+  getOpenCodeZenConfigDiagnostics,
   resolveOpenCodeZenConfigCached,
 } from "../lib/opencode-zen-config.js";
 import {
   OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR,
   queryOpenCodeZenQuota,
 } from "../lib/opencode-zen.js";
+import { sanitizeDisplayText } from "../lib/display-sanitize.js";
 import { normalizeQuotaProviderId } from "../lib/provider-metadata.js";
-import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
+import {
+  attemptedErrorResult,
+  configStatusDetails,
+  attemptedResult,
+  notAttemptedResult,
+  withStatusDetails,
+} from "./result-helpers.js";
 
 const OPENCODE_PROVIDER_LABEL = "OpenCode";
 const OPENCODE_ZEN_GROUP = "OpenCode Zen";
@@ -47,23 +55,34 @@ export const opencodeZenProvider: QuotaProvider = {
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+    const diagnostics = await getOpenCodeZenConfigDiagnostics();
+    const statusDetails = configStatusDetails({
+      ...diagnostics,
+      error: diagnostics.error ? sanitizeDisplayText(diagnostics.error) : undefined,
+    });
     const config = await resolveOpenCodeZenConfigCached({
       maxAgeMs: DEFAULT_OPENCODE_ZEN_CONFIG_CACHE_MAX_AGE_MS,
     });
 
-    if (config.state === "none") return notAttemptedResult();
+    if (config.state === "none") return withStatusDetails(notAttemptedResult(), statusDetails);
 
     if (config.state === "incomplete") {
-      return attemptedErrorResult(
-        OPENCODE_PROVIDER_LABEL,
-        `Missing ${config.missing} (source: ${config.source})`,
+      return withStatusDetails(
+        attemptedErrorResult(
+          OPENCODE_PROVIDER_LABEL,
+          `Missing ${config.missing} (source: ${config.source})`,
+        ),
+        statusDetails,
       );
     }
 
     if (config.state === "invalid") {
-      return attemptedErrorResult(
-        OPENCODE_PROVIDER_LABEL,
-        `Invalid config (${config.source}): ${config.error}`,
+      return withStatusDetails(
+        attemptedErrorResult(
+          OPENCODE_PROVIDER_LABEL,
+          `Invalid config (${config.source}): ${config.error}`,
+        ),
+        statusDetails,
       );
     }
 
@@ -78,7 +97,10 @@ export const opencodeZenProvider: QuotaProvider = {
     );
 
     if (!result.success) {
-      return attemptedErrorResult(OPENCODE_PROVIDER_LABEL, result.error);
+      return withStatusDetails(attemptedErrorResult(OPENCODE_PROVIDER_LABEL, result.error), [
+        ...statusDetails,
+        { key: "live_fetch_error", value: result.error },
+      ]);
     }
 
     const balanceUsd = result.data.balance / OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR;
@@ -116,23 +138,19 @@ export const opencodeZenProvider: QuotaProvider = {
             value: `$${balanceUsd.toFixed(2)}`,
           };
 
-    return {
-      ...attemptedResult([entry]),
-      statusDetails: [
-        { key: "balance_usd", value: `$${balanceUsd.toFixed(2)}` },
-        {
-          key: "monthly_limit_usd",
-          value:
-            result.data.monthlyLimit === null
-              ? "(none)"
-              : `$${result.data.monthlyLimit.toFixed(2)}`,
-        },
-        {
-          key: "last_payment_usd",
-          value:
-            result.data.lastPayment === null ? "(none)" : `$${result.data.lastPayment.toFixed(2)}`,
-        },
-      ],
-    };
+    return withStatusDetails(attemptedResult([entry]), [
+      ...statusDetails,
+      { key: "balance_usd", value: `$${balanceUsd.toFixed(2)}` },
+      {
+        key: "monthly_limit_usd",
+        value:
+          result.data.monthlyLimit === null ? "(none)" : `$${result.data.monthlyLimit.toFixed(2)}`,
+      },
+      {
+        key: "last_payment_usd",
+        value:
+          result.data.lastPayment === null ? "(none)" : `$${result.data.lastPayment.toFixed(2)}`,
+      },
+    ]);
   },
 };

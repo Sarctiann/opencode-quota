@@ -5,10 +5,20 @@ import type {
   QuotaToastEntry,
 } from "../lib/entries.js";
 import { queryKimiQuota } from "../lib/kimi.js";
-import { DEFAULT_KIMI_AUTH_CACHE_MAX_AGE_MS, resolveKimiAuthCached } from "../lib/kimi-auth.js";
+import {
+  DEFAULT_KIMI_AUTH_CACHE_MAX_AGE_MS,
+  getKimiAuthDiagnostics,
+  resolveKimiAuthCached,
+} from "../lib/kimi-auth.js";
 import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 import { normalizeQuotaProviderId } from "../lib/provider-metadata.js";
-import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
+import {
+  apiKeyStatusDetails,
+  attemptedErrorResult,
+  attemptedResult,
+  notAttemptedResult,
+  withStatusDetails,
+} from "./result-helpers.js";
 
 function formatUsageRight(window: { used: number; limit: number }): string {
   return `${window.used}/${window.limit}`;
@@ -39,26 +49,36 @@ export const kimiCodeProvider: QuotaProvider = {
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+    const diagnostics = await getKimiAuthDiagnostics({
+      maxAgeMs: DEFAULT_KIMI_AUTH_CACHE_MAX_AGE_MS,
+    });
+    const authDetails = apiKeyStatusDetails(diagnostics);
     const auth = await resolveKimiAuthCached({
       maxAgeMs: DEFAULT_KIMI_AUTH_CACHE_MAX_AGE_MS,
     });
 
     if (auth.state === "none") {
-      return notAttemptedResult();
+      return withStatusDetails(notAttemptedResult(), authDetails);
     }
 
     if (auth.state === "invalid") {
-      return attemptedErrorResult("Kimi Code", auth.error);
+      return withStatusDetails(attemptedErrorResult("Kimi Code", auth.error), authDetails);
     }
 
     const result = await queryKimiQuota({ requestTimeoutMs: ctx.config?.requestTimeoutMs });
 
     if (!result) {
-      return notAttemptedResult();
+      return withStatusDetails(notAttemptedResult(), [
+        ...authDetails,
+        { key: "live_fetch_error", value: "Kimi API key became unavailable before fetch" },
+      ]);
     }
 
     if (!result.success) {
-      return attemptedErrorResult("Kimi Code", result.error);
+      return withStatusDetails(attemptedErrorResult("Kimi Code", result.error), [
+        ...authDetails,
+        { key: "live_fetch_error", value: result.error },
+      ]);
     }
 
     const entries: QuotaToastEntry[] = result.windows.map((window) => ({
@@ -76,8 +96,20 @@ export const kimiCodeProvider: QuotaProvider = {
       resetTimeIso: window.resetTimeIso,
     }));
 
-    return attemptedResult(entries, [], {
-      singleWindowDisplayName: result.label,
-    });
+    return withStatusDetails(
+      attemptedResult(entries, [], {
+        singleWindowDisplayName: result.label,
+      }),
+      [
+        ...authDetails,
+        ...result.windows.map((window) => ({
+          key: window.label.toLowerCase().replace(/\s+/g, "_"),
+          value: `used=${window.used}/${window.limit} percent_remaining=${window.percentRemaining} reset_at=${window.resetTimeIso ?? "(none)"}`,
+        })),
+        ...(result.windows.length === 0
+          ? [{ key: "live_state", value: "no reportable Kimi quota" }]
+          : []),
+      ],
+    );
   },
 };

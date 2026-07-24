@@ -28,6 +28,13 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("../src/lib/opencode-go-config.js", () => ({
   resolveOpenCodeGoConfigCached: mocks.resolveOpenCodeGoConfigCached,
+  getOpenCodeGoConfigDiagnostics: vi.fn(async () => ({
+    state: "configured",
+    source: "test",
+    missing: null,
+    error: null,
+    checkedPaths: [],
+  })),
   DEFAULT_OPENCODE_GO_CONFIG_CACHE_MAX_AGE_MS: 30_000,
 }));
 

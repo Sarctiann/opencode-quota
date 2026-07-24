@@ -15,6 +15,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../src/lib/mimo-config.js", () => ({
   DEFAULT_MIMO_CONFIG_CACHE_MAX_AGE_MS: 30_000,
   resolveMimoConfigCached: mocks.resolveMimoConfigCached,
+  getMimoConfigDiagnostics: vi.fn(async () => ({
+    state: "none",
+    source: null,
+    error: null,
+    checkedPaths: [],
+  })),
 }));
 
 vi.mock("../src/lib/mimo.js", async (importOriginal) => {
@@ -284,6 +290,11 @@ describe("Xiaomi MiMo provider", () => {
         { label: "Xiaomi MiMo", message: "usage failed" },
         { label: "Xiaomi MiMo", message: "detail failed" },
         { label: "Xiaomi MiMo", message: "balance failed" },
+      ],
+      statusDetails: [
+        { key: "config_state", value: "none" },
+        { key: "config_source", value: "(none)" },
+        { key: "config_checked_paths", value: "(none)" },
       ],
     });
   });

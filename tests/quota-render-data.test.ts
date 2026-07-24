@@ -891,6 +891,43 @@ describe("collectQuotaRenderData shared quota state", () => {
     expect(openaiProvider.fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("memoizes duplicate provider ids within one status invocation", async () => {
+    const firstProvider = {
+      id: "synthetic",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn().mockResolvedValue({ attempted: false, entries: [], errors: [] }),
+    };
+    const duplicateProvider = {
+      id: "synthetic",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [],
+        errors: [{ label: "Synthetic", message: "must not be used" }],
+      }),
+    };
+
+    const probes = await collectQuotaStatusLiveProbes({
+      client: TEST_CLIENT,
+      config: { ...DEFAULT_CONFIG, showSessionTokens: false },
+      formatStyle: "singleWindow",
+      providers: [firstProvider, duplicateProvider],
+    });
+
+    expect(probes).toEqual([
+      {
+        providerId: "synthetic",
+        result: { attempted: false, entries: [], errors: [] },
+      },
+      {
+        providerId: "synthetic",
+        result: { attempted: false, entries: [], errors: [] },
+      },
+    ]);
+    expect(firstProvider.fetch).toHaveBeenCalledOnce();
+    expect(duplicateProvider.fetch).not.toHaveBeenCalled();
+  });
+
   it("selects one limiting percent or first value row per ordered source identity", async () => {
     const accounting = (sourceId: string) => ({ ...TEST_ACCOUNTING, sourceId });
     const provider = {

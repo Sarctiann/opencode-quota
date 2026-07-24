@@ -6,6 +6,11 @@ import {
   expectReportSection,
   getReportSection,
   makeProviderAvailability,
+  makeProviderPartialProbe,
+  makeProviderProbe,
+  makeProviderSafeFailureProbe,
+  makeProviderSuccessProbe,
+  makeStatusDetails,
 } from "./helpers/quota-status-test-harness.js";
 
 const QUOTA_ACCOUNTING = {
@@ -21,165 +26,8 @@ const fsPromiseMocks = vi.hoisted(() => ({
   }),
 }));
 
-const copilotMocks = vi.hoisted(() => ({
-  getCopilotQuotaAuthDiagnostics: vi.fn(() => ({
-    pat: {
-      state: "valid",
-      checkedPaths: ["/tmp/copilot-quota-token.json"],
-      selectedPath: "/tmp/copilot-quota-token.json",
-      tokenKind: "github_pat",
-      config: {
-        token: "github_pat_123",
-        tier: "business",
-        organization: "acme-corp",
-        username: "alice",
-      },
-    },
-    oauth: {
-      configured: true,
-      keyName: "github-copilot",
-      hasRefreshToken: false,
-      hasAccessToken: true,
-      hasEnterpriseUrl: false,
-    },
-    deployment: "github.com",
-    apiHost: "api.github.com",
-    enterpriseHostSource: "none",
-    effectiveSource: "pat",
-    override: "pat_overrides_oauth",
-    billingMode: "organization_usage",
-    billingScope: "organization",
-    quotaApi: "github_ai_credit_api",
-    billingModel: "ai_credits",
-    budgetApi: "organization_budgets",
-    oauthAccountingState: "available_via_copilot_internal_user",
-    billingApiAccessLikely: true,
-    remainingTotalsState: "not_available_from_org_usage",
-    queryPeriod: {
-      year: 2026,
-      month: 1,
-    },
-    usernameFilter: "alice",
-  })),
-}));
-
 const pricingMocks = vi.hoisted(() => ({
   getPricingSnapshotSource: vi.fn(() => "bundled"),
-}));
-
-const googleMocks = vi.hoisted(() => ({
-  inspectAntigravityAccountsPresence: vi.fn(async () => ({
-    state: "missing" as const,
-    presentPaths: [],
-    candidatePaths: ["/tmp/antigravity-accounts.json"],
-    accountCount: 0,
-    validAccountCount: 0,
-  })),
-}));
-
-const googleCompanionMocks = vi.hoisted(() => ({
-  inspectAntigravityCompanionPresence: vi.fn(async () => ({
-    state: "missing" as const,
-    importSpecifier: "opencode-antigravity-auth/dist/src/constants.js",
-    error: "Install opencode-antigravity-auth separately to enable Google Antigravity quota",
-  })),
-}));
-
-const geminiCliMocks = vi.hoisted(() => ({
-  inspectGeminiCliAuthPresence: vi.fn(async () => ({
-    state: "missing" as const,
-    accountCount: 0,
-    validAccountCount: 0,
-  })),
-  inspectGeminiCliCompanionPresence: vi.fn(async () => ({
-    state: "missing" as const,
-    importSpecifier: "opencode-gemini-auth/src/constants.ts",
-    error: "Install opencode-gemini-auth separately to enable Gemini CLI quota",
-  })),
-}));
-
-const agyMocks = vi.hoisted(() => ({
-  inspectAgyAuthPresence: vi.fn(async () => ({
-    state: "missing" as const,
-    accountCount: 0,
-    validAccountCount: 0,
-  })),
-  inspectAgyCompanionPresence: vi.fn(async () => ({
-    state: "missing" as const,
-    importSpecifier: "@anthonyhaussman/opencode-agy-auth/dist/src/constants.js",
-    error: "Install @anthonyhaussman/opencode-agy-auth separately to enable Google AGY quota",
-  })),
-}));
-
-const openaiMocks = vi.hoisted(() => ({
-  resolveOpenAIOAuth: vi.fn(() => ({ state: "none" as const })),
-}));
-
-const alibabaMocks = vi.hoisted(() => ({
-  getAlibabaCodingPlanAuthDiagnostics: vi.fn(async () => ({
-    state: "none" as const,
-    source: null,
-    checkedPaths: [],
-    authPaths: ["/tmp/auth.json"],
-  })),
-  resolveAlibabaCodingPlanAuthCached: vi.fn(async () => ({ state: "none" as const })),
-}));
-
-const minimaxMocks = vi.hoisted(() => ({
-  getMiniMaxAuthDiagnostics: vi.fn(async () => ({
-    state: "none" as const,
-    source: null,
-    checkedPaths: [],
-    authPaths: ["/tmp/auth.json"],
-  })),
-  getMiniMaxChinaAuthDiagnostics: vi.fn(async () => ({
-    state: "none" as const,
-    source: null,
-    checkedPaths: [],
-    authPaths: ["/tmp/auth.json"],
-  })),
-  resolveMiniMaxAuthCached: vi.fn(async () => ({ state: "none" as const })),
-  resolveMiniMaxChinaAuthCached: vi.fn(async () => ({ state: "none" as const })),
-  queryMiniMaxQuota: vi.fn(async () => ({ success: true as const, entries: [] })),
-}));
-
-const zaiMocks = vi.hoisted(() => ({
-  getZaiAuthDiagnostics: vi.fn(async () => ({
-    state: "none" as const,
-    source: null,
-    checkedPaths: [],
-    authPaths: ["/tmp/auth.json"],
-  })),
-  queryZaiQuota: vi.fn(async () => null),
-}));
-
-const zhipuMocks = vi.hoisted(() => ({
-  getZhipuAuthDiagnostics: vi.fn(async () => ({
-    state: "none" as const,
-    source: null,
-    checkedPaths: [],
-    authPaths: ["/tmp/auth.json"],
-  })),
-  queryZhipuQuota: vi.fn(async () => null),
-}));
-
-const nanoGptMocks = vi.hoisted(() => ({
-  getNanoGptKeyDiagnostics: vi.fn(async () => ({
-    configured: false,
-    source: null,
-    checkedPaths: [],
-    authPaths: ["/tmp/auth.json"],
-  })),
-  queryNanoGptQuota: vi.fn(async () => null),
-}));
-
-const deepSeekMocks = vi.hoisted(() => ({
-  getDeepSeekKeyDiagnostics: vi.fn(async () => ({
-    configured: false,
-    source: null,
-    checkedPaths: [],
-    authPaths: ["/tmp/auth.json"],
-  })),
 }));
 
 const syntheticMocks = vi.hoisted(() => ({
@@ -189,55 +37,6 @@ const syntheticMocks = vi.hoisted(() => ({
     checkedPaths: [],
   })),
   querySyntheticQuota: vi.fn(async () => null),
-}));
-
-const openCodeGoMocks = vi.hoisted(() => ({
-  getOpenCodeGoConfigDiagnostics: vi.fn(async () => ({
-    state: "none" as const,
-    source: null,
-    missing: null,
-    error: null,
-    checkedPaths: [],
-  })),
-  resolveOpenCodeGoConfigCached: vi.fn(async () => ({ state: "none" as const })),
-  queryOpenCodeGoQuota: vi.fn(async () => null),
-}));
-
-const openCodeZenMocks = vi.hoisted(() => ({
-  getOpenCodeZenConfigDiagnostics: vi.fn(async () => ({
-    state: "none" as const,
-    source: null,
-    missing: null,
-    error: null,
-    checkedPaths: [],
-  })),
-  resolveOpenCodeZenConfigCached: vi.fn(async () => ({ state: "none" as const })),
-  queryOpenCodeZenQuota: vi.fn(async () => ({
-    success: false as const,
-    error: "not configured",
-  })),
-}));
-
-const mimoMocks = vi.hoisted(() => ({
-  getMimoConfigDiagnostics: vi.fn(async () => ({
-    state: "none" as const,
-    source: null,
-    error: null,
-    checkedPaths: [],
-  })),
-}));
-
-const anthropicMocks = vi.hoisted(() => ({
-  getAnthropicDiagnostics: vi.fn(async () => ({
-    installed: true,
-    version: "1.2.3",
-    authStatus: "authenticated",
-    quotaSupported: false,
-    quotaSource: "none",
-    checkedCommands: ["claude --version", "claude auth status --json"],
-    message:
-      "Claude CLI auth detected, but quota was unavailable from both the local CLI and Claude OAuth fallback. Claude credentials file not found at /Users/test/.claude/.credentials.json.",
-  })),
 }));
 
 vi.mock("fs/promises", () => ({
@@ -262,87 +61,9 @@ vi.mock("../src/lib/opencode-runtime-paths.js", () => ({
   }),
 }));
 
-vi.mock("../src/lib/opencode-go-config.js", () => ({
-  getOpenCodeGoConfigDiagnostics: openCodeGoMocks.getOpenCodeGoConfigDiagnostics,
-  resolveOpenCodeGoConfigCached: openCodeGoMocks.resolveOpenCodeGoConfigCached,
-  DEFAULT_OPENCODE_GO_CONFIG_CACHE_MAX_AGE_MS: 30_000,
-}));
-
-vi.mock("../src/lib/opencode-go.js", () => ({
-  queryOpenCodeGoQuota: openCodeGoMocks.queryOpenCodeGoQuota,
-}));
-
-vi.mock("../src/lib/opencode-zen-config.js", () => ({
-  getOpenCodeZenConfigDiagnostics: openCodeZenMocks.getOpenCodeZenConfigDiagnostics,
-  resolveOpenCodeZenConfigCached: openCodeZenMocks.resolveOpenCodeZenConfigCached,
-  DEFAULT_OPENCODE_ZEN_CONFIG_CACHE_MAX_AGE_MS: 30_000,
-}));
-
-vi.mock("../src/lib/opencode-zen.js", () => ({
-  OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR: 100_000_000,
-  queryOpenCodeZenQuota: openCodeZenMocks.queryOpenCodeZenQuota,
-}));
-
-vi.mock("../src/lib/mimo-config.js", () => ({
-  getMimoConfigDiagnostics: mimoMocks.getMimoConfigDiagnostics,
-}));
-
-vi.mock("../src/lib/google-token-cache.js", () => ({
-  getGoogleTokenCachePath: () => "/tmp/google-token-cache.json",
-}));
-
-vi.mock("../src/lib/google.js", () => ({
-  inspectAntigravityAccountsPresence: googleMocks.inspectAntigravityAccountsPresence,
-}));
-
-vi.mock("../src/lib/google-antigravity-companion.js", () => ({
-  inspectAntigravityCompanionPresence: googleCompanionMocks.inspectAntigravityCompanionPresence,
-}));
-
-vi.mock("../src/lib/google-gemini-cli.js", () => ({
-  inspectGeminiCliAuthPresence: geminiCliMocks.inspectGeminiCliAuthPresence,
-}));
-
-vi.mock("../src/lib/google-gemini-cli-companion.js", () => ({
-  inspectGeminiCliCompanionPresence: geminiCliMocks.inspectGeminiCliCompanionPresence,
-}));
-
-vi.mock("../src/lib/google-agy.js", () => ({
-  inspectAgyAuthPresence: agyMocks.inspectAgyAuthPresence,
-}));
-
-vi.mock("../src/lib/google-agy-companion.js", () => ({
-  inspectAgyCompanionPresence: agyMocks.inspectAgyCompanionPresence,
-}));
-
-vi.mock("../src/lib/anthropic.js", () => ({
-  getAnthropicDiagnostics: anthropicMocks.getAnthropicDiagnostics,
-}));
-
 vi.mock("../src/lib/synthetic.js", () => ({
   getSyntheticKeyDiagnostics: syntheticMocks.getSyntheticKeyDiagnostics,
   querySyntheticQuota: syntheticMocks.querySyntheticQuota,
-}));
-
-vi.mock("../src/lib/chutes.js", () => ({
-  getChutesKeyDiagnostics: vi.fn(async () => ({
-    configured: false,
-    source: null,
-    checkedPaths: [],
-  })),
-}));
-
-vi.mock("../src/lib/nanogpt.js", () => ({
-  getNanoGptKeyDiagnostics: nanoGptMocks.getNanoGptKeyDiagnostics,
-  queryNanoGptQuota: nanoGptMocks.queryNanoGptQuota,
-}));
-
-vi.mock("../src/lib/deepseek.js", () => ({
-  getDeepSeekKeyDiagnostics: deepSeekMocks.getDeepSeekKeyDiagnostics,
-}));
-
-vi.mock("../src/lib/copilot.js", () => ({
-  getCopilotQuotaAuthDiagnostics: copilotMocks.getCopilotQuotaAuthDiagnostics,
 }));
 
 vi.mock("../src/lib/qwen-local-quota.js", () => ({
@@ -362,92 +83,6 @@ vi.mock("../src/lib/qwen-local-quota.js", () => ({
   getAlibabaCodingPlanQuotaPath: () => "/tmp/alibaba-state.json",
   readQwenLocalQuotaState: vi.fn(async () => ({})),
   readAlibabaCodingPlanQuotaState: vi.fn(async () => ({})),
-}));
-
-vi.mock("../src/lib/qwen-auth.js", () => ({
-  hasQwenOAuthAuth: () => false,
-  resolveQwenLocalPlan: () => ({ state: "none" }),
-}));
-
-vi.mock("../src/lib/openai.js", () => ({
-  resolveOpenAIOAuth: openaiMocks.resolveOpenAIOAuth,
-}));
-
-vi.mock("../src/lib/alibaba-auth.js", () => ({
-  DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS: 5_000,
-  getAlibabaCodingPlanAuthDiagnostics: alibabaMocks.getAlibabaCodingPlanAuthDiagnostics,
-  resolveAlibabaCodingPlanAuthCached: alibabaMocks.resolveAlibabaCodingPlanAuthCached,
-}));
-
-vi.mock("../src/lib/minimax-auth.js", () => ({
-  DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS: 5_000,
-  getMiniMaxAuthDiagnostics: minimaxMocks.getMiniMaxAuthDiagnostics,
-  getMiniMaxChinaAuthDiagnostics: minimaxMocks.getMiniMaxChinaAuthDiagnostics,
-  resolveMiniMaxAuthCached: minimaxMocks.resolveMiniMaxAuthCached,
-  resolveMiniMaxChinaAuthCached: minimaxMocks.resolveMiniMaxChinaAuthCached,
-}));
-
-vi.mock("../src/providers/minimax-coding-plan.js", () => ({
-  queryMiniMaxQuota: minimaxMocks.queryMiniMaxQuota,
-}));
-
-vi.mock("../src/lib/zai-auth.js", () => ({
-  DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS: 5_000,
-  getZaiAuthDiagnostics: zaiMocks.getZaiAuthDiagnostics,
-}));
-
-vi.mock("../src/lib/zai.js", () => ({
-  queryZaiQuota: zaiMocks.queryZaiQuota,
-}));
-
-vi.mock("../src/lib/zhipu-auth.js", () => ({
-  DEFAULT_ZHIPU_AUTH_CACHE_MAX_AGE_MS: 5_000,
-  getZhipuAuthDiagnostics: zhipuMocks.getZhipuAuthDiagnostics,
-}));
-
-vi.mock("../src/lib/zhipu.js", () => ({
-  queryZhipuQuota: zhipuMocks.queryZhipuQuota,
-}));
-
-vi.mock("../src/lib/cursor-detection.js", () => ({
-  CURSOR_CANONICAL_PLUGIN_PACKAGE: "@playwo/opencode-cursor-oauth",
-  inspectCursorAuthPresence: vi.fn(async () => ({
-    state: "present",
-    selectedPath: "/tmp/auth.json",
-    presentPaths: ["/tmp/auth.json"],
-    candidatePaths: ["/tmp/auth.json"],
-  })),
-  inspectCursorOpenCodeIntegration: vi.fn(async () => ({
-    pluginEnabled: true,
-    providerConfigured: true,
-    matchedPaths: ["/tmp/opencode.json"],
-    checkedPaths: ["/tmp/opencode.json"],
-  })),
-}));
-
-vi.mock("../src/lib/cursor-usage.js", () => ({
-  getCurrentCursorUsageSummary: vi.fn(async () => ({
-    window: {
-      source: "calendar_month",
-      resetTimeIso: "2026-04-01T00:00:00.000Z",
-    },
-    api: {
-      costUsd: 3.5,
-      tokens: { input: 0, output: 0, reasoning: 0, cache_read: 0, cache_write: 0 },
-      messageCount: 2,
-    },
-    autoComposer: {
-      costUsd: 1.25,
-      tokens: { input: 0, output: 0, reasoning: 0, cache_read: 0, cache_write: 0 },
-      messageCount: 1,
-    },
-    total: {
-      costUsd: 4.75,
-      tokens: { input: 0, output: 0, reasoning: 0, cache_read: 0, cache_write: 0 },
-      messageCount: 3,
-    },
-    unknownModels: [],
-  })),
 }));
 
 vi.mock("../src/lib/modelsdev-pricing.js", () => ({
@@ -545,7 +180,6 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain(
       "  - /tmp/project/opencode-quota/quota-toast.json (opencode-quota/quota-toast.json) enabledProviders: unknown provider id(s): opnai",
     );
-    expect(geminiCliMocks.inspectGeminiCliAuthPresence).toHaveBeenCalledWith(geminiCliClient);
   });
 
   it("renders only safe quota-provider identity and diagnostic fields", async () => {
@@ -666,6 +300,13 @@ describe("buildQuotaStatusReport", () => {
               },
             ],
             errors: [{ label: "Qwen", message: "one local row failed" }],
+            statusDetails: makeStatusDetails({
+              local_state_path: "/tmp/qwen-state.json",
+              local_state_exists: "true",
+              local_state_health: "valid",
+              local_state_version: "1",
+              local_state_last_update: "2026-03-12T12:00:00.000Z",
+            }),
           },
         },
         {
@@ -680,6 +321,13 @@ describe("buildQuotaStatusReport", () => {
               },
             ],
             errors: [],
+            statusDetails: makeStatusDetails({
+              local_state_path: "/tmp/alibaba-state.json",
+              local_state_exists: "true",
+              local_state_health: "valid",
+              local_state_version: "1",
+              local_state_last_update: "2026-03-12T12:00:00.000Z",
+            }),
           },
         },
       ],
@@ -804,6 +452,25 @@ describe("buildQuotaStatusReport", () => {
       anthropicBinaryPath: "/opt/claude/bin/claude",
       cursorPlan: "pro",
       pricingSnapshotSource: "runtime",
+      providerLiveProbes: [
+        makeProviderSuccessProbe("copilot", {
+          deployment: "github.com",
+          api_host: "api.github.com",
+          enterprise_host_source: "none",
+          billing_mode: "organization_usage",
+          billing_scope: "organization",
+          quota_api: "github_ai_credit_api",
+          budget_api: "organization_budgets",
+          oauth_accounting_state: "available_via_copilot_internal_user",
+          billing_api_access_likely: "true",
+          remaining_totals_state: "not_available_from_org_usage",
+          billing_period: "2026-01",
+          username_filter: "alice",
+          billing_usage_note: "organization AI Credit usage for the current UTC calendar month",
+          remaining_quota_note:
+            "the usage report exposes included-pool consumption and billed usage, but no included-pool denominator; percentages require a real budget",
+        }),
+      ],
     });
 
     expect(report).toMatch(
@@ -849,55 +516,6 @@ describe("buildQuotaStatusReport", () => {
       "- selection_note: runtime config requested the local runtime snapshot, but bundled fallback is active because no valid runtime snapshot is available",
     );
     expect(report).not.toContain("- opencode data:");
-    expect(report).toContain("openai:");
-    expect(report).toContain("- auth_configured: false");
-    expect(report).toContain("- auth_source: (none)");
-    expect(report).toContain("- token_status: (none)");
-    expect(report).toContain("- token_expires_at: (none)");
-    expect(report).toContain("- account_email: (none)");
-    expect(report).toContain("- account_id: (none)");
-    expect(report).toContain("- qwen_oauth_source: (none)");
-    expect(report).toContain("- qwen_local_plan: (none)");
-    expect(report).toContain("- alibaba auth configured: false");
-    expect(report).toContain("- alibaba_api_key_source: (none)");
-    expect(report).toContain("- alibaba_api_key_checked_paths: (none)");
-    expect(report).toContain("- alibaba_api_key_auth_paths: /tmp/auth.json");
-    expect(report).toContain("- alibaba_coding_plan: (none)");
-    expect(report).toContain("anthropic:");
-    expect(report).toContain("- cli_installed: true");
-    expect(report).toContain("- cli_version: 1.2.3");
-    expect(report).toContain("- auth_status: authenticated");
-    expect(report).toContain("- quota_supported: false");
-    expect(report).toContain("- quota_source: (none)");
-    expect(report).toContain("- checked_commands: claude --version | claude auth status --json");
-    expect(report).toContain(
-      "- message: Claude CLI auth detected, but quota was unavailable from both the local CLI and Claude OAuth fallback. Claude credentials file not found at /Users/test/.claude/.credentials.json.",
-    );
-    expect(anthropicMocks.getAnthropicDiagnostics).toHaveBeenCalledWith({
-      binaryPath: "/opt/claude/bin/claude",
-    });
-    expect(report).toContain("nanogpt:");
-    expect(report).toContain("- api_key_configured: false");
-    expect(report).toContain("- api_key_source: (none)");
-    expect(report).toContain("- api_key_checked_paths: (none)");
-    expect(report).toContain("- api_key_auth_paths: /tmp/auth.json");
-    expect(report).toContain("zai:");
-    expect(report).toContain("- auth_state: none");
-    expect(report).toContain("- api_key_source: (none)");
-    expect(report).toContain("- api_key_checked_paths: (none)");
-    expect(report).toContain("- api_key_auth_paths: /tmp/auth.json");
-    expect(report).toContain("synthetic:");
-    expect(report).toContain("chutes:");
-    expect(report).toContain("cursor:");
-    expect(report).toContain("- plan: Pro");
-    expect(report).toContain("- included_api_usd: $20.00");
-    expect(report).toContain("- auth_state: present");
-    expect(report).toContain("- plugin_enabled: true");
-    expect(report).toContain("- canonical_plugin_package: @playwo/opencode-cursor-oauth");
-    expect(report).toContain("- provider_configured: true");
-    expect(report).toContain("- cycle_source: calendar_month");
-    expect(report).toContain("- api_usage: $3.50 across 2 messages");
-    expect(report).toContain("- total_cursor_usage: $4.75 across 3 messages");
     expect(report).toContain("copilot_quota_auth:");
     expect(report).toContain("- deployment: github.com");
     expect(report).toContain("- api_host: api.github.com");
@@ -914,19 +532,6 @@ describe("buildQuotaStatusReport", () => {
     expect(report).not.toContain("github_pat_123");
     expect(report).not.toContain("https://api.github.com");
     expect(report).not.toContain("?token=");
-    expect(report).toContain("google_antigravity:");
-    expect(report).toContain("- auth_state: missing");
-    expect(report).toContain("- selected_accounts_path: (none)");
-    expect(report).toContain("- present_accounts_paths: (none)");
-    expect(report).toContain("- candidate_accounts_paths: /tmp/antigravity-accounts.json");
-    expect(report).toContain("- account_count: 0");
-    expect(report).toContain("- valid_account_count: 0");
-    expect(report).toContain("- companion_package_state: missing");
-    expect(report).toContain("- companion_package_path: (none)");
-    expect(report).toContain(
-      "- companion_error: Install opencode-antigravity-auth separately to enable Google Antigravity quota",
-    );
-    expect(report).toContain("- token_cache_path: /tmp/google-token-cache.json exists=false");
     expect(report).toContain(
       "- billing_usage_note: organization AI Credit usage for the current UTC calendar month",
     );
@@ -948,27 +553,17 @@ describe("buildQuotaStatusReport", () => {
   });
 
   it("reports Anthropic quota window details when the local Claude CLI exposes them", async () => {
-    anthropicMocks.getAnthropicDiagnostics.mockResolvedValueOnce({
-      installed: true,
-      version: "1.2.4",
-      authStatus: "authenticated",
-      quotaSupported: true,
-      quotaSource: "claude-auth-status-json",
-      checkedCommands: ["claude --version", "claude auth status --json"],
-      quota: {
-        success: true,
-        five_hour: {
-          percentRemaining: 43,
-          resetTimeIso: "2026-03-25T18:00:00.000Z",
-        },
-        seven_day: {
-          percentRemaining: 88,
-          resetTimeIso: "2026-04-01T00:00:00.000Z",
-        },
-      },
+    const report = await buildProviderStatusReport("anthropic", {
+      providerLiveProbes: [
+        makeProviderSuccessProbe("anthropic", {
+          cli_version: "1.2.4",
+          quota_supported: "true",
+          quota_source: "claude-auth-status-json",
+          five_hour_remaining: "43% reset_at=2026-03-25T18:00:00.000Z",
+          seven_day_remaining: "88% reset_at=2026-04-01T00:00:00.000Z",
+        }),
+      ],
     });
-
-    const report = await buildProviderStatusReport("anthropic");
 
     expect(report).toContain("- cli_version: 1.2.4");
     expect(report).toContain("- quota_supported: true");
@@ -977,49 +572,16 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain("- seven_day_remaining: 88% reset_at=2026-04-01T00:00:00.000Z");
   });
 
-  it("reports Anthropic quota window details when the Claude OAuth fallback wins", async () => {
-    anthropicMocks.getAnthropicDiagnostics.mockResolvedValueOnce({
-      installed: true,
-      version: "1.2.5",
-      authStatus: "authenticated",
-      quotaSupported: true,
-      quotaSource: "claude-credentials-oauth-api",
-      checkedCommands: ["claude --version", "claude auth status --json"],
-      quota: {
-        success: true,
-        five_hour: {
-          percentRemaining: 65,
-          resetTimeIso: "2026-03-25T18:00:00.000Z",
-        },
-        seven_day: {
-          percentRemaining: 85,
-          resetTimeIso: "2026-04-01T00:00:00.000Z",
-        },
-      },
-    });
-
-    const report = await buildProviderStatusReport("anthropic");
-
-    expect(report).toContain("- cli_version: 1.2.5");
-    expect(report).toContain("- quota_supported: true");
-    expect(report).toContain("- quota_source: claude-credentials-oauth-api");
-    expect(report).toContain("- five_hour_remaining: 65% reset_at=2026-03-25T18:00:00.000Z");
-    expect(report).toContain("- seven_day_remaining: 85% reset_at=2026-04-01T00:00:00.000Z");
-  });
-
   it("renders Synthetic API-key diagnostics plus compact live success rows", async () => {
-    syntheticMocks.getSyntheticKeyDiagnostics.mockResolvedValueOnce({
-      configured: true,
-      source: "env:SYNTHETIC_API_KEY",
-      checkedPaths: ["env:SYNTHETIC_API_KEY"],
-    });
-
     const report = await buildSyntheticStatusReport({
       providerLiveProbes: [
         {
           providerId: "synthetic",
           result: {
             attempted: true,
+            statusDetails: makeStatusDetails({
+              "synthetic api key": "configured=true source=env:SYNTHETIC_API_KEY",
+            }),
             entries: [
               {
                 name: "Synthetic 5h",
@@ -1057,12 +619,6 @@ describe("buildQuotaStatusReport", () => {
   });
 
   it("renders Synthetic live no-data state when the shared probe returns nothing reportable", async () => {
-    syntheticMocks.getSyntheticKeyDiagnostics.mockResolvedValueOnce({
-      configured: true,
-      source: "env:SYNTHETIC_API_KEY",
-      checkedPaths: ["env:SYNTHETIC_API_KEY"],
-    });
-
     const report = await buildSyntheticStatusReport({
       providerLiveProbes: [
         {
@@ -1071,6 +627,9 @@ describe("buildQuotaStatusReport", () => {
             attempted: false,
             entries: [],
             errors: [],
+            statusDetails: makeStatusDetails({
+              "synthetic api key": "configured=true source=env:SYNTHETIC_API_KEY",
+            }),
           },
         },
       ],
@@ -1138,6 +697,7 @@ describe("buildQuotaStatusReport", () => {
           providerId: "minimax-coding-plan",
           result: {
             attempted: true,
+            statusDetails: makeStatusDetails({ auth_state: "none" }),
             entries: [
               {
                 label: "Weekly",
@@ -1170,6 +730,10 @@ describe("buildQuotaStatusReport", () => {
           providerId: "google-gemini-cli",
           result: {
             attempted: true,
+            statusDetails: makeStatusDetails({
+              auth_state: "missing",
+              companion_package_state: "missing",
+            }),
             entries: [
               {
                 label: "Pro",
@@ -1182,6 +746,10 @@ describe("buildQuotaStatusReport", () => {
             errors: [],
           },
         },
+        makeProviderSuccessProbe("google-agy", {
+          auth_state: "missing",
+          auth_source: "(none)",
+        }),
         {
           providerId: "chutes",
           result: {
@@ -1248,18 +816,6 @@ describe("buildQuotaStatusReport", () => {
 
   it("reports Google AGY auth, companion, and live quota diagnostics", async () => {
     const agyClient = { config: { get: vi.fn() } };
-    agyMocks.inspectAgyAuthPresence.mockResolvedValueOnce({
-      state: "present",
-      sourceKey: "google-agy",
-      accountCount: 2,
-      validAccountCount: 2,
-    });
-    agyMocks.inspectAgyCompanionPresence.mockResolvedValueOnce({
-      state: "present",
-      importSpecifier: "@anthonyhaussman/opencode-agy-auth/dist/src/constants.js",
-      resolvedPath: "/tmp/node_modules/@anthonyhaussman/opencode-agy-auth/dist/src/constants.js",
-    });
-
     const report = await buildProviderStatusReport("google-agy", {
       agyClient,
       providerLiveProbes: [
@@ -1267,6 +823,15 @@ describe("buildQuotaStatusReport", () => {
           providerId: "google-agy",
           result: {
             attempted: true,
+            statusDetails: makeStatusDetails({
+              auth_state: "present",
+              auth_source: "google-agy",
+              account_count: "2",
+              valid_account_count: "2",
+              companion_package_state: "present",
+              companion_package_path:
+                "/tmp/node_modules/@anthonyhaussman/opencode-agy-auth/dist/src/constants.js",
+            }),
             entries: [
               {
                 label: "Gemini Models:",
@@ -1302,16 +867,9 @@ describe("buildQuotaStatusReport", () => {
       "- live_entry_1: Gemini Models: 120 left percent_remaining=42 reset_at=2026-04-24T00:00:00.000Z",
     );
     expect(agySection).toContain("- live_error_1: secondary account unavailable");
-    expect(agyMocks.inspectAgyAuthPresence).toHaveBeenCalledWith(agyClient);
   });
 
   it("sanitizes and truncates Synthetic live probe errors", async () => {
-    syntheticMocks.getSyntheticKeyDiagnostics.mockResolvedValueOnce({
-      configured: true,
-      source: "env:SYNTHETIC_API_KEY",
-      checkedPaths: ["env:SYNTHETIC_API_KEY"],
-    });
-
     const report = await buildSyntheticStatusReport({
       providerLiveProbes: [
         {
@@ -1341,86 +899,28 @@ describe("buildQuotaStatusReport", () => {
     expect(errorLine!.length).toBeLessThanOrEqual(140);
   });
 
-  it("strips OSC and APC terminal escape sequences from Synthetic live probe errors", async () => {
-    syntheticMocks.getSyntheticKeyDiagnostics.mockResolvedValueOnce({
-      configured: true,
-      source: "env:SYNTHETIC_API_KEY",
-      checkedPaths: ["env:SYNTHETIC_API_KEY"],
-    });
-
-    const report = await buildSyntheticStatusReport({
-      providerLiveProbes: [
-        {
-          providerId: "synthetic",
-          result: {
-            attempted: true,
-            entries: [],
-            errors: [
-              {
-                label: "Synthetic",
-                message:
-                  "prefix \u001b]2;window-title\u001b\\ shown \u001b]8;;https://example.test\u0007click\u001b]8;;\u0007 \u001b_hidden\u001b\\ suffix",
-              },
-            ],
-          },
-        },
-      ],
-    });
-
-    const errorLine = report.split("\n").find((line) => line.startsWith("- live_error_1: "));
-    expect(errorLine).toBeDefined();
-    expect(errorLine).toContain("prefix shown click suffix");
-    expect(errorLine).not.toContain("\u001b]");
-    expect(errorLine).not.toContain("\u001b\\");
-    expect(errorLine).not.toContain("window-title");
-    expect(errorLine).not.toContain("https://example.test");
-    expect(errorLine).not.toContain("hidden");
-  });
-
   it("reports NanoGPT live subscription and balance diagnostics when configured", async () => {
-    nanoGptMocks.getNanoGptKeyDiagnostics.mockResolvedValueOnce({
-      configured: true,
-      source: "env:NANOGPT_API_KEY",
-      checkedPaths: ["env:NANOGPT_API_KEY"],
-      authPaths: ["/tmp/auth.json"],
-    });
-    nanoGptMocks.queryNanoGptQuota.mockResolvedValueOnce({
-      success: true,
-      subscription: {
-        active: false,
-        state: "grace",
-        enforceDailyLimit: true,
-        daily: {
-          used: 5,
-          limit: 5000,
-          remaining: 4995,
-          percentRemaining: 100,
-          resetTimeIso: "2026-01-02T00:00:00.000Z",
-        },
-        monthly: {
-          used: 45,
-          limit: 60000,
-          remaining: 59955,
-          percentRemaining: 100,
-          resetTimeIso: "2026-02-01T00:00:00.000Z",
-        },
-        currentPeriodEndIso: "2026-02-13T23:59:59.000Z",
-        graceUntilIso: "2026-01-09T00:00:00.000Z",
-      },
-      balance: {
-        usdBalance: 129.46956147,
-        usdBalanceRaw: "129.46956147",
-        nanoBalanceRaw: "26.71801147",
-      },
-      endpointErrors: [
-        {
-          endpoint: "balance",
-          message: "NanoGPT API error 401: Unauthorized",
-        },
+    const report = await buildProviderStatusReport("nanogpt", {
+      providerLiveProbes: [
+        makeProviderSuccessProbe("nanogpt", {
+          api_key_configured: "true",
+          api_key_source: "env:NANOGPT_API_KEY",
+          api_key_auth_paths: "/tmp/auth.json",
+          subscription_active: "false",
+          subscription_state: "grace",
+          enforce_daily_limit: "true",
+          daily_usage:
+            "5/5000 remaining=4995 percent_remaining=100 reset_at=2026-01-02T00:00:00.000Z",
+          monthly_usage:
+            "45/60000 remaining=59955 percent_remaining=100 reset_at=2026-02-01T00:00:00.000Z",
+          billing_period_end: "2026-02-13T23:59:59.000Z",
+          grace_until: "2026-01-09T00:00:00.000Z",
+          balance_usd: "$129.47",
+          balance_nano: "26.71801147",
+          live_error_balance: "NanoGPT API error 401: Unauthorized",
+        }),
       ],
     });
-
-    const report = await buildProviderStatusReport("nanogpt");
 
     expect(report).toContain("nanogpt:");
     expect(report).toContain("- api_key_configured: true");
@@ -1443,14 +943,16 @@ describe("buildQuotaStatusReport", () => {
   });
 
   it("reports DeepSeek API key diagnostics", async () => {
-    deepSeekMocks.getDeepSeekKeyDiagnostics.mockResolvedValueOnce({
-      configured: true,
-      source: "env:DEEPSEEK_API_KEY",
-      checkedPaths: ["env:DEEPSEEK_API_KEY"],
-      authPaths: ["/tmp/auth.json"],
+    const report = await buildProviderStatusReport("deepseek", {
+      providerLiveProbes: [
+        makeProviderSuccessProbe("deepseek", {
+          api_key_configured: "true",
+          api_key_source: "env:DEEPSEEK_API_KEY",
+          api_key_checked_paths: "env:DEEPSEEK_API_KEY",
+          api_key_auth_paths: "/tmp/auth.json",
+        }),
+      ],
     });
-
-    const report = await buildProviderStatusReport("deepseek");
 
     expect(report).toContain("deepseek:");
     expect(report).toContain("- api_key_configured: true");
@@ -1489,42 +991,21 @@ describe("buildQuotaStatusReport", () => {
   });
 
   it("reports OpenCode Go rolling, weekly, and monthly live usage when configured", async () => {
-    openCodeGoMocks.getOpenCodeGoConfigDiagnostics.mockResolvedValueOnce({
-      state: "configured",
-      source: "env",
-      missing: null,
-      error: null,
-      checkedPaths: ["env:OPENCODE_GO_WORKSPACE_ID", "env:OPENCODE_GO_AUTH_COOKIE"],
-    });
-    openCodeGoMocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
-      state: "configured",
-      source: "env",
-      config: { workspaceId: "ws-123", authCookie: "cookie-abc" },
-    });
-    openCodeGoMocks.queryOpenCodeGoQuota.mockResolvedValueOnce({
-      success: true,
-      rolling: {
-        usagePercent: 7,
-        percentRemaining: 93,
-        resetInSec: 18000,
-        resetTimeIso: "2026-03-12T17:45:00.000Z",
-      },
-      weekly: {
-        usagePercent: 22,
-        percentRemaining: 78,
-        resetInSec: 540000,
-        resetTimeIso: "2026-03-18T18:45:00.000Z",
-      },
-      monthly: {
-        usagePercent: 64,
-        percentRemaining: 36,
-        resetInSec: 2480000,
-        resetTimeIso: "2026-04-10T05:38:20.000Z",
-      },
-    });
-
     const report = await buildOpenCodeGoStatusReport({
       providerAvailability: [makeProviderAvailability("opencode-go")],
+      providerLiveProbes: [
+        makeProviderSuccessProbe("opencode-go", {
+          config_state: "configured",
+          config_source: "env",
+          selected_windows: "rolling,weekly,monthly",
+          rolling_usage:
+            "percent_used=7 percent_remaining=93 reset_in_sec=18000 reset_at=2026-03-12T17:45:00.000Z",
+          weekly_usage:
+            "percent_used=22 percent_remaining=78 reset_in_sec=540000 reset_at=2026-03-18T18:45:00.000Z",
+          monthly_usage:
+            "percent_used=64 percent_remaining=36 reset_in_sec=2480000 reset_at=2026-04-10T05:38:20.000Z",
+        }),
+      ],
     });
 
     expect(report).toContain("opencode_go:");
@@ -1540,181 +1021,41 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain(
       "- monthly_usage: percent_used=64 percent_remaining=36 reset_in_sec=2480000 reset_at=2026-04-10T05:38:20.000Z",
     );
-    expect(openCodeGoMocks.resolveOpenCodeGoConfigCached).toHaveBeenCalledWith({
-      maxAgeMs: 30_000,
-    });
-    expect(openCodeGoMocks.queryOpenCodeGoQuota).toHaveBeenCalledWith("ws-123", "cookie-abc");
-  });
-
-  it("reports available OpenCode Go live usage without failing when a default window is absent", async () => {
-    openCodeGoMocks.getOpenCodeGoConfigDiagnostics.mockResolvedValueOnce({
-      state: "configured",
-      source: "env",
-      missing: null,
-      error: null,
-      checkedPaths: ["env:OPENCODE_GO_WORKSPACE_ID", "env:OPENCODE_GO_AUTH_COOKIE"],
-    });
-    openCodeGoMocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
-      state: "configured",
-      source: "env",
-      config: { workspaceId: "ws-123", authCookie: "cookie-abc" },
-    });
-    openCodeGoMocks.queryOpenCodeGoQuota.mockResolvedValueOnce({
-      success: true,
-      rolling: {
-        usagePercent: 7,
-        percentRemaining: 93,
-        resetInSec: 18000,
-        resetTimeIso: "2026-03-12T17:45:00.000Z",
-      },
-      weekly: {
-        usagePercent: 22,
-        percentRemaining: 78,
-        resetInSec: 540000,
-        resetTimeIso: "2026-03-18T18:45:00.000Z",
-      },
-    });
-
-    const report = await buildOpenCodeGoStatusReport();
-
-    expect(report).toContain("- selected_windows: rolling,weekly,monthly");
-    expect(report).toContain(
-      "- rolling_usage: percent_used=7 percent_remaining=93 reset_in_sec=18000 reset_at=2026-03-12T17:45:00.000Z",
-    );
-    expect(report).toContain(
-      "- weekly_usage: percent_used=22 percent_remaining=78 reset_in_sec=540000 reset_at=2026-03-18T18:45:00.000Z",
-    );
-    expect(report).not.toContain("- monthly_usage:");
-    expect(report).not.toContain("- live_fetch_error:");
-  });
-
-  it("does not report an OpenCode Go status error when a reordered full selection is missing a window", async () => {
-    openCodeGoMocks.getOpenCodeGoConfigDiagnostics.mockResolvedValueOnce({
-      state: "configured",
-      source: "env",
-      missing: null,
-      error: null,
-      checkedPaths: ["env:OPENCODE_GO_WORKSPACE_ID", "env:OPENCODE_GO_AUTH_COOKIE"],
-    });
-    openCodeGoMocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
-      state: "configured",
-      source: "env",
-      config: { workspaceId: "ws-123", authCookie: "cookie-abc" },
-    });
-    openCodeGoMocks.queryOpenCodeGoQuota.mockResolvedValueOnce({
-      success: true,
-      rolling: {
-        usagePercent: 7,
-        percentRemaining: 93,
-        resetInSec: 18000,
-        resetTimeIso: "2026-03-12T17:45:00.000Z",
-      },
-      monthly: {
-        usagePercent: 64,
-        percentRemaining: 36,
-        resetInSec: 2480000,
-        resetTimeIso: "2026-04-10T05:38:20.000Z",
-      },
-    });
-
-    const report = await buildOpenCodeGoStatusReport({
-      opencodeGoWindows: ["weekly", "monthly", "rolling"],
-    });
-
-    expect(report).toContain("- selected_windows: weekly,monthly,rolling");
-    expect(report).toContain(
-      "- rolling_usage: percent_used=7 percent_remaining=93 reset_in_sec=18000 reset_at=2026-03-12T17:45:00.000Z",
-    );
-    expect(report).toContain(
-      "- monthly_usage: percent_used=64 percent_remaining=36 reset_in_sec=2480000 reset_at=2026-04-10T05:38:20.000Z",
-    );
-    expect(report).not.toContain("- live_fetch_error:");
-  });
-
-  it("reports a clear OpenCode Go status error when a selected window is absent", async () => {
-    openCodeGoMocks.getOpenCodeGoConfigDiagnostics.mockResolvedValueOnce({
-      state: "configured",
-      source: "env",
-      missing: null,
-      error: null,
-      checkedPaths: ["env:OPENCODE_GO_WORKSPACE_ID", "env:OPENCODE_GO_AUTH_COOKIE"],
-    });
-    openCodeGoMocks.resolveOpenCodeGoConfigCached.mockResolvedValueOnce({
-      state: "configured",
-      source: "env",
-      config: { workspaceId: "ws-123", authCookie: "cookie-abc" },
-    });
-    openCodeGoMocks.queryOpenCodeGoQuota.mockResolvedValueOnce({
-      success: true,
-      rolling: {
-        usagePercent: 7,
-        percentRemaining: 93,
-        resetInSec: 18000,
-        resetTimeIso: "2026-03-12T17:45:00.000Z",
-      },
-      monthly: {
-        usagePercent: 64,
-        percentRemaining: 36,
-        resetInSec: 2480000,
-        resetTimeIso: "2026-04-10T05:38:20.000Z",
-      },
-    });
-
-    const report = await buildOpenCodeGoStatusReport({ opencodeGoWindows: ["weekly"] });
-
-    expect(report).toContain("- selected_windows: weekly");
-    expect(report).toContain(
-      "- rolling_usage: percent_used=7 percent_remaining=93 reset_in_sec=18000 reset_at=2026-03-12T17:45:00.000Z",
-    );
-    expect(report).toContain(
-      "- live_fetch_error: Selected OpenCode Go dashboard window(s) missing: weekly (weeklyUsage)",
-    );
   });
 
   it("reports OpenCode Go invalid config details without attempting a live fetch", async () => {
-    openCodeGoMocks.getOpenCodeGoConfigDiagnostics.mockResolvedValueOnce({
-      state: "invalid",
-      source: "/tmp/config/opencode-quota/opencode-go.json",
-      missing: null,
-      error: "Config file must contain a JSON object",
-      checkedPaths: ["/tmp/config/opencode-quota/opencode-go.json"],
+    const report = await buildOpenCodeGoStatusReport({
+      providerLiveProbes: [
+        makeProviderProbe("opencode-go", {
+          statusDetails: makeStatusDetails({
+            config_state: "invalid",
+            config_source: "/tmp/config/opencode-quota/opencode-go.json",
+            config_error: "Config file must contain a JSON object",
+            config_checked_paths: "/tmp/config/opencode-quota/opencode-go.json",
+          }),
+        }),
+      ],
     });
-
-    const report = await buildOpenCodeGoStatusReport();
 
     expect(report).toContain("opencode_go:");
     expect(report).toContain("- config_state: invalid");
     expect(report).toContain("- config_source: /tmp/config/opencode-quota/opencode-go.json");
     expect(report).toContain("- config_error: Config file must contain a JSON object");
     expect(report).toContain("- config_checked_paths: /tmp/config/opencode-quota/opencode-go.json");
-    expect(openCodeGoMocks.resolveOpenCodeGoConfigCached).not.toHaveBeenCalled();
-    expect(openCodeGoMocks.queryOpenCodeGoQuota).not.toHaveBeenCalled();
   });
 
   it("reports OpenCode Zen config and live billing details without exposing credentials", async () => {
-    openCodeZenMocks.getOpenCodeZenConfigDiagnostics.mockResolvedValueOnce({
-      state: "configured",
-      source: "env(OPENCODE_*)",
-      missing: null,
-      error: null,
-      checkedPaths: ["/tmp/config/opencode-quota/opencode.json"],
+    const report = await buildOpenCodeZenStatusReport({
+      providerLiveProbes: [
+        makeProviderSuccessProbe("opencode", {
+          config_state: "configured",
+          config_source: "env(OPENCODE_*)",
+          balance_usd: "$42.50",
+          monthly_limit_usd: "$50.00",
+          last_payment_usd: "$20.00",
+        }),
+      ],
     });
-    openCodeZenMocks.resolveOpenCodeZenConfigCached.mockResolvedValueOnce({
-      state: "configured",
-      source: "env(OPENCODE_*)",
-      config: { workspaceId: "wrk-secret", authCookie: "cookie-secret" },
-    });
-    openCodeZenMocks.queryOpenCodeZenQuota.mockResolvedValueOnce({
-      success: true,
-      data: {
-        balance: 4_250_000_000,
-        monthlyLimit: 50,
-        monthlyUsage: 750_000_000,
-        lastPayment: 20,
-      },
-    });
-
-    const report = await buildOpenCodeZenStatusReport();
 
     expect(report).toContain("opencode_zen:");
     expect(report).toContain("- config_state: configured");
@@ -1723,108 +1064,9 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain("- monthly_limit_usd: $50.00");
     expect(report).toContain("- last_payment_usd: $20.00");
     expect(report).not.toContain("wrk-secret");
-    expect(report).not.toContain("cookie-secret");
   });
-
-  it("reuses the OpenCode Zen live probe instead of fetching billing twice", async () => {
-    openCodeZenMocks.getOpenCodeZenConfigDiagnostics.mockResolvedValueOnce({
-      state: "configured",
-      source: "env(OPENCODE_*)",
-      missing: null,
-      error: null,
-      checkedPaths: ["/tmp/config/opencode-quota/opencode.json"],
-    });
-
-    const report = await buildOpenCodeZenStatusReport({
-      providerLiveProbes: [
-        {
-          providerId: "opencode",
-          result: {
-            attempted: true,
-            entries: [
-              {
-                accounting: {
-                  resultType: "budget",
-                  acquisitionMethod: "dashboard_scrape",
-                  ownership: "maintained",
-                  authority: "locally_derived",
-                },
-                name: "",
-                group: "OpenCode Zen",
-                percentRemaining: 92.5,
-              },
-            ],
-            errors: [],
-            statusDetails: [
-              { key: "balance_usd", value: "$42.50" },
-              { key: "monthly_limit_usd", value: "$50.00" },
-              { key: "last_payment_usd", value: "$20.00" },
-            ],
-          },
-        },
-      ],
-    });
-
-    expect(report).toContain("- balance_usd: $42.50");
-    expect(report).toContain("- monthly_limit_usd: $50.00");
-    expect(report).toContain("- last_payment_usd: $20.00");
-    expect(report).toContain("- live_probe: success");
-    expect(openCodeZenMocks.resolveOpenCodeZenConfigCached).not.toHaveBeenCalled();
-    expect(openCodeZenMocks.queryOpenCodeZenQuota).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["empty", []],
-    [
-      "unrelated",
-      [
-        {
-          providerId: "synthetic",
-          result: { attempted: true, entries: [], errors: [] },
-        },
-      ],
-    ],
-  ])(
-    "fetches OpenCode Zen details once when live probes are %s",
-    async (_label, providerLiveProbes) => {
-      openCodeZenMocks.getOpenCodeZenConfigDiagnostics.mockResolvedValueOnce({
-        state: "configured",
-        source: "env(OPENCODE_*)",
-        missing: null,
-        error: null,
-        checkedPaths: ["/tmp/config/opencode-quota/opencode.json"],
-      });
-      openCodeZenMocks.resolveOpenCodeZenConfigCached.mockResolvedValueOnce({
-        state: "configured",
-        source: "env(OPENCODE_*)",
-        config: { workspaceId: "wrk", authCookie: "cookie" },
-      });
-      openCodeZenMocks.queryOpenCodeZenQuota.mockResolvedValueOnce({
-        success: true,
-        data: {
-          balance: 4_250_000_000,
-          monthlyLimit: 50,
-          monthlyUsage: 750_000_000,
-          lastPayment: 20,
-        },
-      });
-
-      const report = await buildOpenCodeZenStatusReport({ providerLiveProbes });
-
-      expect(report).toContain("- balance_usd: $42.50");
-      expect(openCodeZenMocks.queryOpenCodeZenQuota).toHaveBeenCalledOnce();
-    },
-  );
 
   it("does not retry a failed OpenCode Zen live probe", async () => {
-    openCodeZenMocks.getOpenCodeZenConfigDiagnostics.mockResolvedValueOnce({
-      state: "configured",
-      source: "env(OPENCODE_*)",
-      missing: null,
-      error: null,
-      checkedPaths: ["/tmp/config/opencode-quota/opencode.json"],
-    });
-
     const report = await buildOpenCodeZenStatusReport({
       providerLiveProbes: [
         {
@@ -1833,47 +1075,47 @@ describe("buildQuotaStatusReport", () => {
             attempted: true,
             entries: [],
             errors: [{ label: "OpenCode", message: "Request timeout after 10s" }],
+            statusDetails: makeStatusDetails({
+              config_state: "configured",
+              config_source: "env(OPENCODE_*)",
+            }),
           },
         },
       ],
     });
 
     expect(report).toContain("- live_probe: error");
-    expect(openCodeZenMocks.queryOpenCodeZenQuota).not.toHaveBeenCalled();
   });
 
   it("reports a fixed OpenCode Zen parse error without attempting a live fetch", async () => {
-    openCodeZenMocks.getOpenCodeZenConfigDiagnostics.mockResolvedValueOnce({
-      state: "invalid",
-      source: "/tmp/config/opencode-quota/opencode.json",
-      missing: null,
-      error: "Failed to parse JSON",
-      checkedPaths: ["/tmp/config/opencode-quota/opencode.json"],
+    const report = await buildOpenCodeZenStatusReport({
+      providerLiveProbes: [
+        makeProviderProbe("opencode", {
+          statusDetails: makeStatusDetails({
+            config_state: "invalid",
+            config_error: "Failed to parse JSON",
+          }),
+        }),
+      ],
     });
-
-    const report = await buildOpenCodeZenStatusReport();
 
     expect(report).toContain("opencode_zen:");
     expect(report).toContain("- config_state: invalid");
     expect(report).toContain("- config_error: Failed to parse JSON");
-    expect(openCodeZenMocks.resolveOpenCodeZenConfigCached).not.toHaveBeenCalled();
-    expect(openCodeZenMocks.queryOpenCodeZenQuota).not.toHaveBeenCalled();
   });
 
   it("reports safe Xiaomi config and partial live summaries without exposing cookie data", async () => {
-    mimoMocks.getMimoConfigDiagnostics.mockResolvedValueOnce({
-      state: "configured",
-      source: "env:MIMO_USAGE_COOKIE",
-      error: null,
-      checkedPaths: ["/tmp/config/opencode-quota/mimo.json"],
-    });
-
     const report = await buildXiaomiStatusReport({
       providerLiveProbes: [
         {
           providerId: "xiaomi",
           result: {
             attempted: true,
+            statusDetails: makeStatusDetails({
+              config_state: "configured",
+              config_source: "env:MIMO_USAGE_COOKIE",
+              config_checked_paths: "/tmp/config/opencode-quota/mimo.json",
+            }),
             entries: [
               {
                 accounting: {
@@ -1926,39 +1168,20 @@ describe("buildQuotaStatusReport", () => {
   });
 
   it("reports MiniMax auth diagnostics and live quota details when configured", async () => {
-    minimaxMocks.getMiniMaxAuthDiagnostics.mockResolvedValueOnce({
-      state: "configured",
-      source: "auth.json",
-      endpoint: "international",
-      checkedPaths: [],
-      authPaths: ["/tmp/auth.json"],
-    });
-    minimaxMocks.resolveMiniMaxAuthCached.mockResolvedValueOnce({
-      state: "configured",
-      apiKey: "test-key",
-      endpoint: "international",
-    });
-    minimaxMocks.queryMiniMaxQuota.mockResolvedValueOnce({
-      success: true,
-      entries: [
-        {
-          window: "five_hour",
-          name: "Renamed MiniMax 5h",
-          right: "70/4500",
-          percentRemaining: 98,
-          resetTimeIso: "2026-03-25T18:00:00.000Z",
-        },
-        {
-          window: "weekly",
-          name: "Renamed MiniMax Weekly",
-          right: "105/45000",
-          percentRemaining: 100,
-          resetTimeIso: "2026-04-01T00:00:00.000Z",
-        },
+    const report = await buildMiniMaxStatusReport({
+      providerLiveProbes: [
+        makeProviderSuccessProbe("minimax-coding-plan", {
+          auth_state: "configured",
+          api_key_configured: "true",
+          api_key_source: "auth.json",
+          api_key_checked_paths: "(none)",
+          api_key_auth_paths: "/tmp/auth.json",
+          five_hour_usage: "70/4500 percent_remaining=98 reset_at=2026-03-25T18:00:00.000Z",
+          weekly_usage: "105/45000 percent_remaining=100 reset_at=2026-04-01T00:00:00.000Z",
+        }),
+        makeProviderProbe("minimax-china-coding-plan"),
       ],
     });
-
-    const report = await buildMiniMaxStatusReport();
 
     expect(report).toContain("minimax:");
     expect(report).toContain("- auth_state: configured");
@@ -1972,192 +1195,27 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain(
       "- weekly_usage: 105/45000 percent_remaining=100 reset_at=2026-04-01T00:00:00.000Z",
     );
-    expect(minimaxMocks.resolveMiniMaxAuthCached).toHaveBeenCalledWith({ maxAgeMs: 5_000 });
-    expect(minimaxMocks.queryMiniMaxQuota).toHaveBeenCalledWith("test-key", {
-      endpoint: "international",
-      label: "MiniMax Coding Plan",
-    });
-  });
-
-  it("reports MiniMax auth errors", async () => {
-    minimaxMocks.getMiniMaxAuthDiagnostics.mockResolvedValueOnce({
-      state: "invalid",
-      source: "auth.json",
-      checkedPaths: [],
-      authPaths: ["/tmp/auth.json"],
-      error: 'Unsupported MiniMax auth type: "oauth"',
-    });
-
-    const invalidReport = await buildMiniMaxStatusReport();
-
-    expect(invalidReport).toContain("minimax:");
-    expect(invalidReport).toContain("- auth_state: invalid");
-    expect(invalidReport).toContain("- api_key_configured: false");
-    expect(invalidReport).toContain("- api_key_source: auth.json");
-    expect(invalidReport).toContain("- api_key_checked_paths: (none)");
-    expect(invalidReport).toContain("- api_key_auth_paths: /tmp/auth.json");
-    expect(invalidReport).toContain('- auth_error: Unsupported MiniMax auth type: "oauth"');
-    expect(minimaxMocks.resolveMiniMaxAuthCached).not.toHaveBeenCalled();
-    expect(minimaxMocks.queryMiniMaxQuota).not.toHaveBeenCalled();
-  });
-
-  it("reports MiniMax API errors", async () => {
-    minimaxMocks.getMiniMaxAuthDiagnostics.mockResolvedValueOnce({
-      state: "configured",
-      source: "auth.json",
-      endpoint: "international",
-      checkedPaths: [],
-      authPaths: ["/tmp/auth.json"],
-    });
-    minimaxMocks.resolveMiniMaxAuthCached.mockResolvedValueOnce({
-      state: "configured",
-      apiKey: "test-key",
-      endpoint: "international",
-    });
-    minimaxMocks.queryMiniMaxQuota.mockResolvedValueOnce({
-      success: false,
-      error: "MiniMax API error 401: Unauthorized",
-    });
-
-    const fetchErrorReport = await buildMiniMaxStatusReport();
-
-    expect(fetchErrorReport).toContain("- live_fetch_error: MiniMax API error 401: Unauthorized");
-  });
-
-  describe.each([
-    {
-      name: "Z.ai",
-      sectionTitle: "zai:",
-      getAuthDiagnostics: zaiMocks.getZaiAuthDiagnostics,
-      queryQuota: zaiMocks.queryZaiQuota,
-      buildStatusReport: buildZaiStatusReport,
-      unsupportedAuthError: 'Unsupported Z.ai auth type: "oauth"',
-      endpointError: "Z.ai API error 401: Unauthorized",
-    },
-    {
-      name: "Zhipu",
-      sectionTitle: "zhipu:",
-      getAuthDiagnostics: zhipuMocks.getZhipuAuthDiagnostics,
-      queryQuota: zhipuMocks.queryZhipuQuota,
-      buildStatusReport: buildZhipuStatusReport,
-      unsupportedAuthError: 'Unsupported Zhipu auth type: "oauth"',
-      endpointError: "Zhipu API error 401: Unauthorized",
-    },
-  ])("$name status diagnostics", (provider) => {
-    it("reports auth diagnostics and live quota details when configured", async () => {
-      provider.getAuthDiagnostics.mockResolvedValueOnce({
-        state: "configured",
-        source: "auth.json",
-        checkedPaths: [],
-        authPaths: ["/tmp/auth.json"],
-      });
-      provider.queryQuota.mockResolvedValueOnce({
-        success: true,
-        label: provider.name,
-        windows: {
-          fiveHour: { percentRemaining: 67, resetTimeIso: "2026-03-25T18:00:00.000Z" },
-          weekly: { percentRemaining: 44, resetTimeIso: "2026-04-01T00:00:00.000Z" },
-          mcp: { percentRemaining: 90, resetTimeIso: "2026-04-10T00:00:00.000Z" },
-        },
-      });
-
-      const report = await provider.buildStatusReport();
-
-      expect(report).toContain(provider.sectionTitle);
-      expect(report).toContain("- auth_state: configured");
-      expect(report).toContain("- api_key_configured: true");
-      expect(report).toContain("- api_key_source: auth.json");
-      expect(report).toContain("- api_key_checked_paths: (none)");
-      expect(report).toContain("- api_key_auth_paths: /tmp/auth.json");
-      expect(report).toContain("- five_hour_remaining: 67% reset_at=2026-03-25T18:00:00.000Z");
-      expect(report).toContain("- weekly_remaining: 44% reset_at=2026-04-01T00:00:00.000Z");
-      expect(report).toContain("- mcp_remaining: 90% reset_at=2026-04-10T00:00:00.000Z");
-    });
-
-    it("reports auth errors", async () => {
-      provider.getAuthDiagnostics.mockResolvedValueOnce({
-        state: "invalid",
-        source: "auth.json",
-        checkedPaths: [],
-        authPaths: ["/tmp/auth.json"],
-        error: provider.unsupportedAuthError,
-      });
-
-      const report = await provider.buildStatusReport();
-
-      expect(report).toContain(provider.sectionTitle);
-      expect(report).toContain("- auth_state: invalid");
-      expect(report).toContain("- api_key_configured: false");
-      expect(report).toContain("- api_key_source: auth.json");
-      expect(report).toContain("- api_key_checked_paths: (none)");
-      expect(report).toContain("- api_key_auth_paths: /tmp/auth.json");
-      expect(report).toContain(`- auth_error: ${provider.unsupportedAuthError}`);
-      expect(provider.queryQuota).not.toHaveBeenCalled();
-    });
-
-    it("reports endpoint errors", async () => {
-      provider.getAuthDiagnostics.mockResolvedValueOnce({
-        state: "configured",
-        source: "auth.json",
-        checkedPaths: [],
-        authPaths: ["/tmp/auth.json"],
-      });
-      provider.queryQuota.mockResolvedValueOnce({
-        success: false,
-        error: provider.endpointError,
-      });
-
-      const report = await provider.buildStatusReport();
-
-      expect(report).toContain(`- live_fetch_error: ${provider.endpointError}`);
-    });
   });
 
   it("reports enterprise billing scope and token compatibility notes", async () => {
-    copilotMocks.getCopilotQuotaAuthDiagnostics.mockReturnValueOnce({
-      pat: {
-        state: "valid",
-        checkedPaths: ["/tmp/copilot-quota-token.json"],
-        selectedPath: "/tmp/copilot-quota-token.json",
-        tokenKind: "github_pat",
-        config: {
-          token: "github_pat_123",
-          tier: "enterprise",
-          enterprise: "acme-enterprise",
-          organization: "acme-corp",
-          username: "alice",
-        },
-      },
-      oauth: {
-        configured: false,
-        keyName: null,
-        hasRefreshToken: false,
-        hasAccessToken: false,
-        hasEnterpriseUrl: false,
-      },
-      deployment: "github.com",
-      apiHost: "api.github.com",
-      enterpriseHostSource: "none",
-      effectiveSource: "pat",
-      override: "none",
-      billingMode: "enterprise_usage",
-      billingScope: "enterprise",
-      quotaApi: "github_ai_credit_api",
-      billingModel: "ai_credits",
-      budgetApi: "enterprise_budgets",
-      oauthAccountingState: "not_configured",
-      billingApiAccessLikely: false,
-      remainingTotalsState: "not_available_from_enterprise_usage",
-      queryPeriod: {
-        year: 2026,
-        month: 1,
-      },
-      usernameFilter: "alice",
-      tokenCompatibilityError:
-        "GitHub\'s enterprise billing reports do not support fine-grained PATs or GitHub App access tokens. Use a classic PAT held by an enterprise admin or billing manager.",
+    const report = await buildProviderStatusReport("copilot", {
+      providerLiveProbes: [
+        makeProviderSuccessProbe("copilot", {
+          pat_enterprise: "acme-enterprise",
+          billing_mode: "enterprise_usage",
+          billing_scope: "enterprise",
+          quota_api: "github_ai_credit_api",
+          budget_api: "enterprise_budgets",
+          billing_api_access_likely: "false",
+          remaining_totals_state: "not_available_from_enterprise_usage",
+          billing_usage_note: "enterprise AI Credit usage for the current UTC calendar month",
+          remaining_quota_note:
+            "the usage report exposes included-pool consumption and billed usage, but no included-pool denominator; percentages require a real budget",
+          token_compatibility_error:
+            "GitHub\'s enterprise billing reports do not support fine-grained PATs or GitHub App access tokens.",
+        }),
+      ],
     });
-
-    const report = await buildProviderStatusReport("copilot");
 
     expect(report).toContain("- pat_enterprise: acme-enterprise");
     expect(report).toContain("- billing_mode: enterprise_usage");
@@ -2177,8 +1235,72 @@ describe("buildQuotaStatusReport", () => {
     );
   });
 
+  it("does not invoke provider query modules when a status probe is absent", async () => {
+    const report = await buildProviderStatusReport("synthetic");
+
+    expect(getReportSection(report, "synthetic:")).toBe("synthetic:\n");
+    expect(syntheticMocks.getSyntheticKeyDiagnostics).not.toHaveBeenCalled();
+    expect(syntheticMocks.querySyntheticQuota).not.toHaveBeenCalled();
+  });
+
+  it("renders provider-owned status details without changing their row contract", async () => {
+    const report = await buildSyntheticStatusReport({
+      providerLiveProbes: [
+        makeProviderSuccessProbe("synthetic", [
+          {
+            key: "diagnostic",
+            value: "safe value",
+          },
+        ]),
+      ],
+    });
+
+    const section = getReportSection(report, "synthetic:");
+    expect(section).toContain("- diagnostic: safe value");
+    expect(section).not.toContain("live_error");
+  });
+
   it("locks the early /quota_status section layout after the shared report-document migration", async () => {
-    const report = await buildProviderStatusReport("copilot", { configSource: "defaults" });
+    const report = await buildProviderStatusReport("copilot", {
+      configSource: "defaults",
+      providerLiveProbes: [
+        makeProviderSuccessProbe("qwen-code", {
+          "qwen oauth auth configured": "false",
+          qwen_oauth_source: "(none)",
+          qwen_local_plan: "(none)",
+        }),
+        makeProviderSuccessProbe("alibaba-coding-plan", {
+          "alibaba auth configured": "false",
+          alibaba_api_key_source: "(none)",
+          alibaba_api_key_checked_paths: "(none)",
+          alibaba_api_key_auth_paths: "/tmp/auth.json",
+          alibaba_coding_plan: "(none)",
+        }),
+        makeProviderSuccessProbe("openai", {
+          auth_configured: "false",
+          auth_source: "(none)",
+          token_status: "(none)",
+          token_expires_at: "(none)",
+          account_email: "(none)",
+          account_id: "(none)",
+        }),
+        makeProviderSuccessProbe("anthropic", {
+          cli_installed: "true",
+          cli_version: "1.2.3",
+          auth_status: "authenticated",
+          quota_supported: "false",
+          quota_source: "(none)",
+          checked_commands: "claude --version | claude auth status --json",
+          message:
+            "Claude CLI auth detected, but quota was unavailable from both the local CLI and Claude OAuth fallback. Claude credentials file not found at /Users/test/.claude/.credentials.json.",
+        }),
+        makeProviderSuccessProbe("cursor", {
+          plan: "none",
+          included_api_usd: "(none)",
+          billing_cycle_start_day: "(calendar month)",
+        }),
+      ],
+    });
 
     const [heading, blank, ...body] = report.split("\n");
     expect(heading).toMatch(

@@ -1,6 +1,10 @@
 /** Z.ai provider wrapper. */
 import { queryZaiQuota } from "../lib/zai.js";
-import { DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS, resolveZaiAuthCached } from "../lib/zai-auth.js";
+import {
+  DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS,
+  getZaiAuthDiagnostics,
+  resolveZaiAuthCached,
+} from "../lib/zai-auth.js";
 import { createGlmCodingPlanProvider } from "./glm-coding-plan-provider.js";
 
 export const zaiProvider = createGlmCodingPlanProvider({
@@ -9,6 +13,7 @@ export const zaiProvider = createGlmCodingPlanProvider({
   errorLabel: "Z.ai",
   authCacheMaxAgeMs: DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS,
   resolveAuth: resolveZaiAuthCached,
+  getAuthDiagnostics: getZaiAuthDiagnostics,
   queryQuota: queryZaiQuota,
   matchesCurrentModel(model) {
     const lower = model.toLowerCase();

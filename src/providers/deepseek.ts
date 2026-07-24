@@ -13,12 +13,18 @@ import type {
 } from "../lib/entries.js";
 import {
   formatDeepSeekBalanceValue,
+  getDeepSeekKeyDiagnostics,
   hasDeepSeekApiKeyConfigured,
   queryDeepSeekBalance,
 } from "../lib/deepseek.js";
 import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 import { modelProviderIncludesAny } from "../lib/provider-model-matching.js";
-import { attemptedResult, mapNullableProviderResult } from "./result-helpers.js";
+import {
+  attemptedResult,
+  mapNullableProviderResult,
+  simpleApiKeyStatusDetails,
+  withStatusDetails,
+} from "./result-helpers.js";
 
 function buildDeepSeekEntries(
   result: Extract<NonNullable<Awaited<ReturnType<typeof queryDeepSeekBalance>>>, { success: true }>,
@@ -84,11 +90,17 @@ export const deepseekProvider: QuotaProvider = {
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+    const diagnostics = await getDeepSeekKeyDiagnostics().catch(() => ({
+      configured: false,
+      source: null,
+      checkedPaths: [],
+      authPaths: [],
+    }));
     const result = await queryDeepSeekBalance({ requestTimeoutMs: ctx.config?.requestTimeoutMs });
-
-    return mapNullableProviderResult(result, {
+    const providerResult = mapNullableProviderResult(result, {
       errorLabel: "DeepSeek",
       onSuccess: (result) => attemptedResult(buildDeepSeekEntries(result)),
     });
+    return withStatusDetails(providerResult, simpleApiKeyStatusDetails(diagnostics));
   },
 };

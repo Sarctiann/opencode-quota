@@ -12,7 +12,12 @@ import type {
   QuotaProviderResult,
   QuotaToastEntry,
 } from "../lib/entries.js";
-import { hasCopilotQuotaRuntimeAvailable, queryCopilotQuota } from "../lib/copilot.js";
+import {
+  getCopilotQuotaAuthDiagnostics,
+  hasCopilotQuotaRuntimeAvailable,
+  queryCopilotQuota,
+} from "../lib/copilot.js";
+import { readAuthFileCached } from "../lib/opencode-auth.js";
 import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 import { modelIncludesAny, modelProviderIncludesAny } from "../lib/provider-model-matching.js";
 import type {
@@ -22,7 +27,13 @@ import type {
   CopilotPlanResult,
   CopilotQuotaResult,
 } from "../lib/types.js";
-import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
+import {
+  attemptedErrorResult,
+  attemptedResult,
+  notAttemptedResult,
+  statusDetailsFromRecord,
+  withStatusDetails,
+} from "./result-helpers.js";
 
 function remoteAccounting(
   resultType: AccountingMetadata["resultType"],
@@ -190,6 +201,50 @@ function personalEntries(result: CopilotQuotaResult): QuotaToastEntry[] {
   return entries;
 }
 
+async function getCopilotStatusDetails() {
+  const diagnostics = getCopilotQuotaAuthDiagnostics(await readAuthFileCached({ maxAgeMs: 5_000 }));
+  const managedBilling =
+    diagnostics.billingMode === "organization_usage" ||
+    diagnostics.billingMode === "enterprise_usage";
+  return statusDetailsFromRecord({
+    pat_state: diagnostics.pat.state,
+    pat_path: diagnostics.pat.selectedPath,
+    pat_token_kind: diagnostics.pat.tokenKind,
+    pat_tier: diagnostics.pat.config?.tier,
+    billing_model: diagnostics.billingModel,
+    pat_organization: diagnostics.pat.config?.organization,
+    pat_enterprise: diagnostics.pat.config?.enterprise,
+    deployment: diagnostics.deployment,
+    api_host: diagnostics.apiHost ?? "(none)",
+    enterprise_host_source: diagnostics.enterpriseHostSource,
+    enterprise_host_error: diagnostics.enterpriseHostError,
+    billing_mode: diagnostics.billingMode,
+    billing_scope: diagnostics.billingScope,
+    quota_api: diagnostics.quotaApi,
+    budget_api: diagnostics.budgetApi,
+    billing_api_access_likely: diagnostics.billingApiAccessLikely ? "true" : "false",
+    remaining_totals_state: diagnostics.remainingTotalsState,
+    billing_period: diagnostics.queryPeriod
+      ? formatBillingPeriod(diagnostics.queryPeriod)
+      : undefined,
+    username_filter: diagnostics.usernameFilter,
+    billing_usage_note: managedBilling
+      ? `${diagnostics.billingMode === "organization_usage" ? "organization" : "enterprise"} AI Credit usage for the current UTC calendar month`
+      : undefined,
+    remaining_quota_note: managedBilling
+      ? "the usage report exposes included-pool consumption and billed usage, but no included-pool denominator; percentages require a real budget"
+      : undefined,
+    billing_target_error: diagnostics.billingTargetError,
+    token_compatibility_error: diagnostics.tokenCompatibilityError,
+    pat_error: diagnostics.pat.error,
+    pat_checked_paths: diagnostics.pat.checkedPaths.join(" | ") || "(none)",
+    oauth_configured: `${diagnostics.oauth.configured ? "true" : "false"} key=${diagnostics.oauth.keyName ?? "(none)"} refresh=${diagnostics.oauth.hasRefreshToken ? "true" : "false"} access=${diagnostics.oauth.hasAccessToken ? "true" : "false"} enterprise_host=${diagnostics.oauth.hasEnterpriseUrl ? "true" : "false"}`,
+    effective_source: diagnostics.effectiveSource,
+    oauth_accounting_state: diagnostics.oauthAccountingState,
+    override: diagnostics.override,
+  });
+}
+
 function managedEntries(
   result: CopilotOrganizationUsageResult | CopilotEnterpriseUsageResult,
 ): QuotaToastEntry[] {
@@ -235,9 +290,12 @@ export const copilotProvider: QuotaProvider = {
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+    const statusDetails = await getCopilotStatusDetails();
     const result = await queryCopilotQuota({ requestTimeoutMs: ctx.config?.requestTimeoutMs });
-    if (!result) return notAttemptedResult();
-    if (!result.success) return attemptedErrorResult("Copilot", result.error);
+    if (!result) return withStatusDetails(notAttemptedResult(), statusDetails);
+    if (!result.success) {
+      return withStatusDetails(attemptedErrorResult("Copilot", result.error), statusDetails);
+    }
 
     const entries =
       result.mode === "user_plan"
@@ -256,6 +314,6 @@ export const copilotProvider: QuotaProvider = {
           ? { singleWindowDisplayName: `Copilot Org (${result.organization})` }
           : undefined;
 
-    return attemptedResult(entries, errors, presentation);
+    return withStatusDetails(attemptedResult(entries, errors, presentation), statusDetails);
   },
 };

@@ -3,10 +3,13 @@
  */
 
 import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult } from "../lib/entries.js";
+import { sanitizeDisplayText } from "../lib/display-sanitize.js";
+import { readAuthFileCached } from "../lib/opencode-auth.js";
 import {
   DEFAULT_OPENAI_AUTH_CACHE_MAX_AGE_MS,
   hasOpenAIOAuthCached,
   queryOpenAIQuota,
+  resolveOpenAIOAuth,
 } from "../lib/openai.js";
 import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 import { modelProviderIncludesAny } from "../lib/provider-model-matching.js";
@@ -14,6 +17,8 @@ import {
   attemptedResult,
   groupedPercentWindowEntries,
   mapNullableProviderResult,
+  statusDetailsFromRecord,
+  withStatusDetails,
 } from "./result-helpers.js";
 
 export const openaiProvider: QuotaProvider = {
@@ -39,9 +44,9 @@ export const openaiProvider: QuotaProvider = {
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+    const auth = resolveOpenAIOAuth(await readAuthFileCached({ maxAgeMs: 5_000 }));
     const result = await queryOpenAIQuota({ requestTimeoutMs: ctx.config?.requestTimeoutMs });
-
-    return mapNullableProviderResult(result, {
+    const providerResult = mapNullableProviderResult(result, {
       errorLabel: "OpenAI",
       onSuccess: (result) =>
         attemptedResult(
@@ -66,5 +71,22 @@ export const openaiProvider: QuotaProvider = {
           },
         ),
     });
+    const configured = auth.state === "configured";
+    const expiresAt = configured ? auth.expiresAt : undefined;
+    return withStatusDetails(
+      providerResult,
+      statusDetailsFromRecord({
+        auth_configured: configured ? "true" : "false",
+        auth_source: configured ? auth.sourceKey : "(none)",
+        token_status: !configured
+          ? "(none)"
+          : expiresAt && expiresAt < Date.now()
+            ? "expired"
+            : "valid",
+        token_expires_at: expiresAt ? new Date(expiresAt).toISOString() : "(none)",
+        account_email: configured && auth.email ? sanitizeDisplayText(auth.email) : "(none)",
+        account_id: configured && auth.accountId ? sanitizeDisplayText(auth.accountId) : "(none)",
+      }),
+    );
   },
 };

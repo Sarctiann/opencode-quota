@@ -12,6 +12,19 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../src/lib/google-agy.js", () => ({
   hasAgyQuotaRuntimeAvailable: vi.fn(async () => true),
   queryGoogleAgyQuota: mocks.queryGoogleAgyQuota,
+  inspectAgyAuthPresence: vi.fn(async () => ({
+    state: "missing",
+    sourceKey: null,
+    accountCount: 0,
+    validAccountCount: 0,
+  })),
+}));
+
+vi.mock("../src/lib/google-agy-companion.js", () => ({
+  inspectAgyCompanionPresence: vi.fn(async () => ({
+    state: "missing",
+    error: "companion unavailable",
+  })),
 }));
 
 describe("Google AGY provider surfaces", () => {

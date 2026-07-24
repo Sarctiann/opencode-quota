@@ -10,6 +10,21 @@ import { googleAntigravityProvider } from "../src/providers/google-antigravity.j
 vi.mock("../src/lib/google.js", () => ({
   hasAntigravityQuotaRuntimeAvailable: vi.fn(),
   queryGoogleQuota: vi.fn(),
+  inspectAntigravityAccountsPresence: vi.fn(async () => ({
+    state: "missing",
+    selectedPath: null,
+    presentPaths: [],
+    candidatePaths: [],
+    accountCount: 0,
+    validAccountCount: 0,
+  })),
+}));
+
+vi.mock("../src/lib/google-antigravity-companion.js", () => ({
+  inspectAntigravityCompanionPresence: vi.fn(async () => ({
+    state: "missing",
+    error: "companion unavailable",
+  })),
 }));
 
 describe("google antigravity provider", () => {

@@ -541,14 +541,9 @@ export async function buildStatusReportData(params: {
     );
   }
 
-  const providersById = new Map(providers.map((provider) => [provider.id, provider] as const));
-  const liveProbeProviders = availability.flatMap((item) => {
-    if (!item.enabled || !item.available) {
-      return [];
-    }
-    const provider = providersById.get(item.id);
-    return provider ? [provider] : [];
-  });
+  // Status diagnostics belong to provider results, including missing or disabled
+  // providers. Provider fetch implementations must keep unconfigured cases local.
+  const liveProbeProviders = providers;
 
   let providerLiveProbes: QuotaStatusLiveProbe[] = [];
   if (liveProbeProviders.length > 0) {

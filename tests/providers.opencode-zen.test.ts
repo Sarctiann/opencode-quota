@@ -22,6 +22,13 @@ vi.mock("../src/lib/opencode-zen.js", async (importOriginal) => {
 vi.mock("../src/lib/opencode-zen-config.js", () => ({
   DEFAULT_OPENCODE_ZEN_CONFIG_CACHE_MAX_AGE_MS: 30_000,
   resolveOpenCodeZenConfigCached: mocks.resolveOpenCodeZenConfigCached,
+  getOpenCodeZenConfigDiagnostics: vi.fn(async () => ({
+    state: "configured",
+    source: "test",
+    missing: null,
+    error: null,
+    checkedPaths: [],
+  })),
 }));
 
 import { opencodeZenProvider } from "../src/providers/opencode-zen.js";
@@ -168,6 +175,9 @@ describe("opencode Zen provider", () => {
       },
     ]);
     expect(result.statusDetails).toEqual([
+      { key: "config_state", value: "configured" },
+      { key: "config_source", value: "test" },
+      { key: "config_checked_paths", value: "(none)" },
       { key: "balance_usd", value: "$42.50" },
       { key: "monthly_limit_usd", value: "$100.00" },
       { key: "last_payment_usd", value: "(none)" },

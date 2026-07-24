@@ -11,6 +11,19 @@ import { googleGeminiCliProvider } from "../src/providers/google-gemini-cli.js";
 vi.mock("../src/lib/google-gemini-cli.js", () => ({
   hasGeminiCliQuotaRuntimeAvailable: vi.fn(),
   queryGeminiCliQuota: vi.fn(),
+  inspectGeminiCliAuthPresence: vi.fn(async () => ({
+    state: "missing",
+    sourceKey: null,
+    accountCount: 0,
+    validAccountCount: 0,
+  })),
+}));
+
+vi.mock("../src/lib/google-gemini-cli-companion.js", () => ({
+  inspectGeminiCliCompanionPresence: vi.fn(async () => ({
+    state: "missing",
+    error: "companion unavailable",
+  })),
 }));
 
 describe("google gemini cli provider", () => {

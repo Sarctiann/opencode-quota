@@ -7,6 +7,7 @@ import type {
 } from "../lib/entries.js";
 import {
   DEFAULT_MIMO_CONFIG_CACHE_MAX_AGE_MS,
+  getMimoConfigDiagnostics,
   resolveMimoConfigCached,
 } from "../lib/mimo-config.js";
 import type {
@@ -18,7 +19,13 @@ import type {
 import { queryMimoDashboard } from "../lib/mimo.js";
 import { sanitizeSingleLineDisplaySnippet } from "../lib/display-sanitize.js";
 import { getQuotaProviderRuntimeIds } from "../lib/provider-metadata.js";
-import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
+import {
+  attemptedErrorResult,
+  configStatusDetails,
+  attemptedResult,
+  notAttemptedResult,
+  withStatusDetails,
+} from "./result-helpers.js";
 
 const MIMO_LABEL = "Xiaomi MiMo";
 const MIMO_RUNTIME_IDS = new Set(getQuotaProviderRuntimeIds("xiaomi"));
@@ -112,13 +119,23 @@ export const xiaomiProvider: QuotaProvider = {
   },
 
   async fetch(ctx: QuotaProviderContext) {
+    const diagnostics = await getMimoConfigDiagnostics();
+    const statusDetails = configStatusDetails({
+      ...diagnostics,
+      error: diagnostics.error
+        ? sanitizeSingleLineDisplaySnippet(diagnostics.error, 120)
+        : undefined,
+    });
     const config = await resolveMimoConfigCached({
       maxAgeMs: DEFAULT_MIMO_CONFIG_CACHE_MAX_AGE_MS,
     });
 
-    if (config.state === "none") return notAttemptedResult();
+    if (config.state === "none") return withStatusDetails(notAttemptedResult(), statusDetails);
     if (config.state === "invalid") {
-      return attemptedErrorResult(MIMO_LABEL, `Invalid config (${config.source}): ${config.error}`);
+      return withStatusDetails(
+        attemptedErrorResult(MIMO_LABEL, `Invalid config (${config.source}): ${config.error}`),
+        statusDetails,
+      );
     }
 
     const result = await queryMimoDashboard(config.config.cookie, {
@@ -148,6 +165,6 @@ export const xiaomiProvider: QuotaProvider = {
       entries.push(...buildBalanceEntries(result.balance.data, group));
     }
 
-    return attemptedResult(entries, endpointErrors(result));
+    return withStatusDetails(attemptedResult(entries, endpointErrors(result)), statusDetails);
   },
 };

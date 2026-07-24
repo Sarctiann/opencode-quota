@@ -20,6 +20,12 @@ const authMocks = vi.hoisted(() => ({
 vi.mock("../src/lib/zhipu-auth.js", () => ({
   DEFAULT_ZHIPU_AUTH_CACHE_MAX_AGE_MS: 5_000,
   resolveZhipuAuthCached: authMocks.resolveZhipuAuthCached,
+  getZhipuAuthDiagnostics: vi.fn(async () => ({
+    state: "none",
+    source: null,
+    checkedPaths: [],
+    authPaths: [],
+  })),
 }));
 
 describe("zhipu provider", () => {

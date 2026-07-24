@@ -308,12 +308,22 @@ export async function collectQuotaStatusLiveProbes(params: {
     },
   });
 
-  const results = await fetchProviderResults({
-    providers: params.providers,
-    ctx,
-    ttlMs: 0,
-    bypassCache: true,
-  });
+  const resultsByProviderId = new Map<string, Promise<QuotaProviderResult>>();
+  const results = await Promise.all(
+    params.providers.map((provider) => {
+      let result = resultsByProviderId.get(provider.id);
+      if (!result) {
+        result = fetchProviderWithCache({
+          provider,
+          ctx,
+          ttlMs: 0,
+          bypassCache: true,
+        }).catch(() => makeProviderFetchFailure(provider));
+        resultsByProviderId.set(provider.id, result);
+      }
+      return result;
+    }),
+  );
 
   return params.providers.map((provider, index) => ({
     providerId: provider.id,
@@ -324,6 +334,9 @@ export async function collectQuotaStatusLiveProbes(params: {
         params.formatStyle ?? DEFAULT_QUOTA_FORMAT_STYLE,
       ),
       errors: results[index]!.errors.map((error) => ({ ...error })),
+      ...(results[index]!.statusDetails
+        ? { statusDetails: results[index]!.statusDetails!.map((detail) => ({ ...detail })) }
+        : {}),
       ...(results[index]!.presentation
         ? { presentation: { ...results[index]!.presentation } }
         : {}),

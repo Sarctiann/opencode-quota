@@ -4,13 +4,24 @@ import type {
   QuotaProviderResult,
   QuotaToastEntry,
 } from "../lib/entries.js";
-import { computeQwenQuota, readQwenLocalQuotaState } from "../lib/qwen-local-quota.js";
+import {
+  QWEN_LOCAL_QUOTA_STATE_VERSION,
+  computeQwenQuota,
+  getQwenLocalQuotaPath,
+  readQwenLocalQuotaState,
+} from "../lib/qwen-local-quota.js";
 import {
   DEFAULT_QWEN_AUTH_CACHE_MAX_AGE_MS,
   isQwenCodeModelId,
   resolveQwenLocalPlanCached,
 } from "../lib/qwen-auth.js";
-import { attemptedResult, notAttemptedResult } from "./result-helpers.js";
+import {
+  attemptedResult,
+  inspectGeneratedCounterFile,
+  notAttemptedResult,
+  statusDetailsFromRecord,
+  withStatusDetails,
+} from "./result-helpers.js";
 import { findQuotaProviderDefinition } from "../lib/quota-providers.js";
 
 export const qwenCodeProvider: QuotaProvider = {
@@ -33,8 +44,23 @@ export const qwenCodeProvider: QuotaProvider = {
     const plan = await resolveQwenLocalPlanCached({
       maxAgeMs: DEFAULT_QWEN_AUTH_CACHE_MAX_AGE_MS,
     });
+    const statePath = getQwenLocalQuotaPath();
+    const state = await inspectGeneratedCounterFile(statePath, QWEN_LOCAL_QUOTA_STATE_VERSION);
+    const lastUpdate =
+      state.lastUpdatedAt === null ? "(none)" : new Date(state.lastUpdatedAt).toISOString();
+    const statusDetails = statusDetailsFromRecord({
+      "qwen oauth auth configured": plan.state === "qwen_free" ? "true" : "false",
+      qwen_oauth_source: plan.state === "qwen_free" ? plan.sourceKey : "(none)",
+      qwen_local_plan: plan.state === "qwen_free" ? "qwen-code/free" : "(none)",
+      "qwen free local quota": `path=${statePath} exists=${state.exists ? "true" : "false"} health=${state.health} version=${state.version ?? "(none)"} last_update=${lastUpdate}`,
+      local_state_path: statePath,
+      local_state_exists: state.exists ? "true" : "false",
+      local_state_health: state.health,
+      local_state_version: String(state.version ?? "(none)"),
+      local_state_last_update: lastUpdate,
+    });
     if (plan.state !== "qwen_free") {
-      return notAttemptedResult();
+      return withStatusDetails(notAttemptedResult(), statusDetails);
     }
 
     const tuning = findQuotaProviderDefinition(ctx.config.quotaProviders ?? [], "qwen-code");
@@ -52,8 +78,8 @@ export const qwenCodeProvider: QuotaProvider = {
       ...(rpm ? { rpmLimit: rpm.requestLimit } : {}),
     });
 
-    return attemptedResult(
-      [
+    return withStatusDetails(
+      attemptedResult([
         {
           accounting: {
             resultType: "quota",
@@ -82,8 +108,8 @@ export const qwenCodeProvider: QuotaProvider = {
           percentRemaining: quota.rpm.percentRemaining,
           resetTimeIso: quota.rpm.resetTimeIso,
         },
-      ],
-      [],
+      ]),
+      statusDetails,
     );
   },
 };

@@ -11,6 +11,19 @@ import { googleAgyProvider } from "../src/providers/google-agy.js";
 vi.mock("../src/lib/google-agy.js", () => ({
   hasAgyQuotaRuntimeAvailable: vi.fn(),
   queryGoogleAgyQuota: vi.fn(),
+  inspectAgyAuthPresence: vi.fn(async () => ({
+    state: "missing",
+    sourceKey: null,
+    accountCount: 0,
+    validAccountCount: 0,
+  })),
+}));
+
+vi.mock("../src/lib/google-agy-companion.js", () => ({
+  inspectAgyCompanionPresence: vi.fn(async () => ({
+    state: "missing",
+    error: "companion unavailable",
+  })),
 }));
 
 function bucket(overrides: Record<string, unknown> = {}) {

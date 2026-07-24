@@ -11,6 +11,11 @@ import { syntheticProvider } from "../src/providers/synthetic.js";
 vi.mock("../src/lib/synthetic.js", () => ({
   querySyntheticQuota: vi.fn(),
   hasSyntheticApiKeyConfigured: vi.fn(),
+  getSyntheticKeyDiagnostics: vi.fn(async () => ({
+    configured: false,
+    source: null,
+    checkedPaths: [],
+  })),
 }));
 
 vi.mock("../src/lib/provider-availability.js", () => ({

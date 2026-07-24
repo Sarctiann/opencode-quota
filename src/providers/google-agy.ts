@@ -6,10 +6,21 @@ import type {
 } from "../lib/entries.js";
 import type { GoogleAgyQuotaBucket } from "../lib/types.js";
 import { sanitizeDisplayText } from "../lib/display-sanitize.js";
-import { hasAgyQuotaRuntimeAvailable, queryGoogleAgyQuota } from "../lib/google-agy.js";
+import { inspectAgyCompanionPresence } from "../lib/google-agy-companion.js";
+import {
+  hasAgyQuotaRuntimeAvailable,
+  inspectAgyAuthPresence,
+  queryGoogleAgyQuota,
+} from "../lib/google-agy.js";
 import { parseProviderModelRef } from "../lib/provider-model-matching.js";
 import { formatGoogleAccountErrors, formatGoogleAccountLabel } from "./google-account-format.js";
-import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
+import {
+  attemptedErrorResult,
+  attemptedResult,
+  notAttemptedResult,
+  statusDetailsFromRecord,
+  withStatusDetails,
+} from "./result-helpers.js";
 
 function isAgyModel(model: string): boolean {
   const { providerId } = parseProviderModelRef(model);
@@ -98,6 +109,24 @@ export const googleAgyProvider: QuotaProvider = {
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+    const [auth, companion] = await Promise.all([
+      inspectAgyAuthPresence(ctx.client),
+      inspectAgyCompanionPresence(),
+    ]);
+    const statusDetails = statusDetailsFromRecord({
+      auth_state: auth.state,
+      auth_source: auth.sourceKey ?? "(none)",
+      account_count: String(auth.accountCount),
+      valid_account_count: String(auth.validAccountCount),
+      companion_package_state: companion.state,
+      companion_package_path:
+        companion.state === "present" || companion.state === "invalid"
+          ? (companion.resolvedPath ?? "(none)")
+          : "(none)",
+      auth_error: auth.state === "invalid" ? sanitizeDisplayText(auth.error) : undefined,
+      companion_error:
+        companion.state !== "present" ? sanitizeDisplayText(companion.error) : undefined,
+    });
     const result = await queryGoogleAgyQuota(ctx.client, {
       requestTimeoutMs: ctx.config?.requestTimeoutMsConfigured
         ? ctx.config.requestTimeoutMs
@@ -105,11 +134,11 @@ export const googleAgyProvider: QuotaProvider = {
     });
 
     if (!result) {
-      return notAttemptedResult();
+      return withStatusDetails(notAttemptedResult(), statusDetails);
     }
 
     if (!result.success) {
-      return attemptedErrorResult("Google AGY", result.error);
+      return withStatusDetails(attemptedErrorResult("Google AGY", result.error), statusDetails);
     }
 
     const sortedBuckets = [...result.buckets].sort(compareBuckets);
@@ -135,8 +164,11 @@ export const googleAgyProvider: QuotaProvider = {
       };
     });
 
-    return attemptedResult(entries, formatGoogleAccountErrors(result.errors, "domainHint"), {
-      singleWindowShowRight: true,
-    });
+    return withStatusDetails(
+      attemptedResult(entries, formatGoogleAccountErrors(result.errors, "domainHint"), {
+        singleWindowShowRight: true,
+      }),
+      statusDetails,
+    );
   },
 };

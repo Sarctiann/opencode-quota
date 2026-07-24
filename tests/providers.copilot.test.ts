@@ -12,6 +12,28 @@ import { copilotProvider } from "../src/providers/copilot.js";
 vi.mock("../src/lib/copilot.js", () => ({
   hasCopilotQuotaRuntimeAvailable: vi.fn(async () => false),
   queryCopilotQuota: vi.fn(),
+  getCopilotQuotaAuthDiagnostics: vi.fn(() => ({
+    pat: { state: "missing", checkedPaths: [] },
+    oauth: {
+      configured: false,
+      keyName: null,
+      hasRefreshToken: false,
+      hasAccessToken: false,
+      hasEnterpriseUrl: false,
+    },
+    deployment: "github.com",
+    apiHost: null,
+    enterpriseHostSource: "none",
+    effectiveSource: "none",
+    override: "none",
+    billingMode: "none",
+    billingScope: "none",
+    quotaApi: "none",
+    budgetApi: "none",
+    oauthAccountingState: "not_configured",
+    billingApiAccessLikely: false,
+    remainingTotalsState: "not_available",
+  })),
 }));
 
 describe("copilot provider", () => {

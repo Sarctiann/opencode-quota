@@ -1,49 +1,7 @@
-import { readFile, stat } from "fs/promises";
+import { stat } from "fs/promises";
 
-import { getAuthPath, getAuthPaths, readAuthFileCached } from "./opencode-auth.js";
+import { getAuthPath, getAuthPaths } from "./opencode-auth.js";
 import { getOpencodeRuntimeDirs } from "./opencode-runtime-paths.js";
-import { getGoogleTokenCachePath } from "./google-token-cache.js";
-import { inspectAntigravityCompanionPresence } from "./google-antigravity-companion.js";
-import { inspectGeminiCliCompanionPresence } from "./google-gemini-cli-companion.js";
-import { inspectGeminiCliAuthPresence } from "./google-gemini-cli.js";
-import { inspectAntigravityAccountsPresence } from "./google.js";
-import { inspectAgyCompanionPresence } from "./google-agy-companion.js";
-import { inspectAgyAuthPresence } from "./google-agy.js";
-import { getAnthropicDiagnostics } from "./anthropic.js";
-import { getChutesKeyDiagnostics } from "./chutes.js";
-import { getNanoGptKeyDiagnostics, queryNanoGptQuota } from "./nanogpt.js";
-import { getDeepSeekKeyDiagnostics } from "./deepseek.js";
-import { getSyntheticKeyDiagnostics } from "./synthetic.js";
-import { getCopilotQuotaAuthDiagnostics } from "./copilot.js";
-import {
-  ALIBABA_CODING_PLAN_STATE_VERSION,
-  QWEN_LOCAL_QUOTA_STATE_VERSION,
-  getAlibabaCodingPlanQuotaPath,
-  getQwenLocalQuotaPath,
-} from "./qwen-local-quota.js";
-import {
-  DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS,
-  getAlibabaCodingPlanAuthDiagnostics,
-  resolveAlibabaCodingPlanAuthCached,
-} from "./alibaba-auth.js";
-import { hasQwenOAuthAuth, resolveQwenLocalPlan } from "./qwen-auth.js";
-import { resolveOpenAIOAuth } from "./openai.js";
-import {
-  DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
-  getMiniMaxAuthDiagnostics,
-  getMiniMaxChinaAuthDiagnostics,
-  resolveMiniMaxAuthCached,
-  resolveMiniMaxChinaAuthCached,
-} from "./minimax-auth.js";
-import { getMiniMaxQuotaEndpoint } from "./minimax-endpoints.js";
-import { DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS, getZaiAuthDiagnostics } from "./zai-auth.js";
-import { DEFAULT_ZHIPU_AUTH_CACHE_MAX_AGE_MS, getZhipuAuthDiagnostics } from "./zhipu-auth.js";
-import {
-  DEFAULT_KIMI_AUTH_CACHE_MAX_AGE_MS,
-  getKimiAuthDiagnostics,
-  resolveKimiAuthCached,
-} from "./kimi-auth.js";
-import { queryKimiQuota } from "./kimi.js";
 import {
   getPricingSnapshotHealth,
   getPricingRefreshPolicy,
@@ -64,19 +22,11 @@ import {
   getOpenCodeDbStats,
 } from "./opencode-storage.js";
 import { aggregateUsage } from "./quota-stats.js";
-import { fmtUsdAmount } from "./format-utils.js";
 import { renderPlainTextReport, type ReportKvRow, type ReportSection } from "./report-document.js";
 import { totalTokenBuckets } from "./token-buckets.js";
 import {
-  CURSOR_CANONICAL_PLUGIN_PACKAGE,
-  inspectCursorAuthPresence,
-  inspectCursorOpenCodeIntegration,
-} from "./cursor-detection.js";
-import { getCurrentCursorUsageSummary } from "./cursor-usage.js";
-import {
   sanitizeSingleLineDisplaySnippet,
   sanitizeSingleLineDisplayText,
-  sanitizeDisplayText,
   sanitizeQuotaProviderResult,
 } from "./display-sanitize.js";
 import {
@@ -84,7 +34,6 @@ import {
   type LoadConfigIssue,
   type QuotaToastSettingSources,
 } from "./config.js";
-import { getCursorPlanDisplayName, getEffectiveCursorIncludedApiUsd } from "./cursor-pricing.js";
 import { getQuotaProviderDisplayLabel } from "./provider-metadata.js";
 import type {
   QuotaProviderDiagnostic,
@@ -94,32 +43,14 @@ import type {
 } from "./entries.js";
 import type { QuotaProviderDefinition } from "./quota-providers.js";
 import { isMaintainedQuotaProviderTuning } from "./quota-providers.js";
-import { inspectLocalQuotaProviderState } from "./quota-providers-local.js";
 import { isValueEntry } from "./entries.js";
 import type {
   CursorQuotaPlan,
   MaintainerAnnouncementsConfig,
-  OpenCodeGoWindow,
   OpenCodeGoWindowKey,
   PricingSnapshotSource,
 } from "./types.js";
 import type { MaintainerAnnouncementsSummary } from "./maintainer-announcements.js";
-import { queryMiniMaxQuota } from "../providers/minimax-coding-plan.js";
-import { queryZaiQuota } from "./zai.js";
-import { queryZhipuQuota } from "./zhipu.js";
-import {
-  getOpenCodeGoConfigDiagnostics,
-  resolveOpenCodeGoConfigCached,
-  DEFAULT_OPENCODE_GO_CONFIG_CACHE_MAX_AGE_MS,
-} from "./opencode-go-config.js";
-import { queryOpenCodeGoQuota } from "./opencode-go.js";
-import {
-  DEFAULT_OPENCODE_ZEN_CONFIG_CACHE_MAX_AGE_MS,
-  getOpenCodeZenConfigDiagnostics,
-  resolveOpenCodeZenConfigCached,
-} from "./opencode-zen-config.js";
-import { OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR, queryOpenCodeZenQuota } from "./opencode-zen.js";
-import { getMimoConfigDiagnostics } from "./mimo-config.js";
 
 /** Session token fetch error info for status report */
 export interface SessionTokenError {
@@ -128,66 +59,12 @@ export interface SessionTokenError {
   checkedPath?: string;
 }
 
-type BasicApiKeyDiagnostics = {
-  configured: boolean;
-  source: string | null;
-  checkedPaths: string[];
-};
-
-type ApiKeyDiagnosticsWithAuthPaths = BasicApiKeyDiagnostics & {
-  authPaths: string[];
-};
-
 async function pathExists(path: string): Promise<boolean> {
   try {
     await stat(path);
     return true;
   } catch {
     return false;
-  }
-}
-
-async function inspectGeneratedCounterFile(
-  path: string,
-  expectedVersion: number,
-): Promise<{
-  exists: boolean;
-  health: "missing" | "healthy" | "malformed" | "version_mismatch";
-  version: number | null;
-  lastUpdatedAt: number | null;
-}> {
-  try {
-    const parsed = JSON.parse(await readFile(path, "utf8")) as unknown;
-    const record =
-      parsed && typeof parsed === "object" && !Array.isArray(parsed)
-        ? (parsed as Record<string, unknown>)
-        : null;
-    const version = typeof record?.version === "number" ? record.version : null;
-    const updatedAt =
-      typeof record?.updatedAt === "number" && Number.isFinite(record.updatedAt)
-        ? record.updatedAt
-        : null;
-    return {
-      exists: true,
-      health:
-        !record || version === null || updatedAt === null
-          ? "malformed"
-          : version === expectedVersion
-            ? "healthy"
-            : "version_mismatch",
-      version,
-      lastUpdatedAt: updatedAt,
-    };
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      String((error as { code?: unknown }).code) === "ENOENT"
-    ) {
-      return { exists: false, health: "missing", version: null, lastUpdatedAt: null };
-    }
-    return { exists: true, health: "malformed", version: null, lastUpdatedAt: null };
   }
 }
 
@@ -211,42 +88,19 @@ const STATUS_SAMPLE_LIMIT = 5;
 const STATUS_LIVE_ENTRY_LIMIT = 2;
 const STATUS_LIVE_ERROR_LIMIT = 2;
 const STATUS_LIVE_ROW_MAX_LENGTH = 120;
-const OPENCODE_GO_STATUS_WINDOW_ORDER: OpenCodeGoWindowKey[] = ["rolling", "weekly", "monthly"];
-const OPENCODE_GO_STATUS_WINDOW_FIELDS: Record<OpenCodeGoWindowKey, string> = {
-  rolling: "rollingUsage",
-  weekly: "weeklyUsage",
-  monthly: "monthlyUsage",
-};
-
 type ProviderLiveProbe = {
   providerId: string;
   result: QuotaProviderResult;
 };
+type ProviderAvailability = {
+  id: string;
+  enabled: boolean;
+  available: boolean;
+  matchesCurrentModel?: boolean;
+};
 
 function joinOrNone(values: string[]): string {
   return values.length > 0 ? values.join(" | ") : "(none)";
-}
-
-function formatOpenCodeGoWindowSelection(windows: OpenCodeGoWindowKey[]): string {
-  return windows.join(",");
-}
-
-function isDefaultOpenCodeGoStatusWindowSelection(windows: OpenCodeGoWindowKey[]): boolean {
-  const selected = new Set(windows);
-  return (
-    selected.size === OPENCODE_GO_STATUS_WINDOW_ORDER.length &&
-    OPENCODE_GO_STATUS_WINDOW_ORDER.every((window) => selected.has(window))
-  );
-}
-
-function formatOpenCodeGoMissingWindows(windows: OpenCodeGoWindowKey[]): string {
-  return windows
-    .map((window) => `${window} (${OPENCODE_GO_STATUS_WINDOW_FIELDS[window]})`)
-    .join(", ");
-}
-
-function formatOpenCodeGoUsage(window: OpenCodeGoWindow): string {
-  return `percent_used=${window.usagePercent} percent_remaining=${window.percentRemaining} reset_in_sec=${window.resetInSec} reset_at=${window.resetTimeIso}`;
 }
 
 function formatSettingSources(sources: QuotaToastSettingSources | undefined): string {
@@ -270,28 +124,6 @@ function getConfigPrecedenceLabel(configSource: string): string {
     default:
       return configSource;
   }
-}
-
-function getDefaultBasicApiKeyDiagnostics(): BasicApiKeyDiagnostics {
-  return {
-    configured: false,
-    source: null,
-    checkedPaths: [],
-  };
-}
-
-async function readBasicApiKeyDiagnostics(
-  read: () => Promise<BasicApiKeyDiagnostics>,
-): Promise<BasicApiKeyDiagnostics> {
-  try {
-    return await read();
-  } catch {
-    return getDefaultBasicApiKeyDiagnostics();
-  }
-}
-
-function formatInlineApiKeyDiagnosticsValue(diagnostics: BasicApiKeyDiagnostics): string {
-  return `configured=${diagnostics.configured ? "true" : "false"}${diagnostics.source ? ` source=${diagnostics.source}` : ""}${diagnostics.checkedPaths.length > 0 ? ` checked=${diagnostics.checkedPaths.join(" | ")}` : ""}`;
 }
 
 function createKvSection(id: string, title: string, rows: ReportKvRow[]): ReportSection {
@@ -333,6 +165,35 @@ function findProviderLiveProbe(
   return probes?.find((probe) => probe.providerId === providerId);
 }
 
+function getProviderStatusDetails(
+  providerId: string,
+  probes?: ProviderLiveProbe[],
+): QuotaProviderResult["statusDetails"] {
+  const probe = findProviderLiveProbe(providerId, probes);
+  return probe ? sanitizeQuotaProviderResult(probe.result).statusDetails : undefined;
+}
+
+function appendProviderStatusDetailRows(
+  rows: ReportKvRow[],
+  providerId: string,
+  probes?: ProviderLiveProbe[],
+  keys?: ReadonlySet<string>,
+): void {
+  for (const detail of getProviderStatusDetails(providerId, probes) ?? []) {
+    if (!keys || keys.has(detail.key)) {
+      rows.push({ key: detail.key, value: detail.value });
+    }
+  }
+}
+
+function findProviderStatusDetail(
+  providerId: string,
+  key: string,
+  probes?: ProviderLiveProbe[],
+): string | undefined {
+  return getProviderStatusDetails(providerId, probes)?.find((detail) => detail.key === key)?.value;
+}
+
 function getLiveProbeState(probe?: ProviderLiveProbe): string {
   if (!probe) return "unavailable";
   if (probe.result.entries.length > 0 && probe.result.errors.length > 0) return "partial";
@@ -344,8 +205,11 @@ function getLiveProbeState(probe?: ProviderLiveProbe): string {
 function appendProviderCompactLiveProbeRows(
   rows: ReportKvRow[],
   providerId: string,
-  probes?: ProviderLiveProbe[],
+  probes: ProviderLiveProbe[] | undefined,
+  availability: ProviderAvailability[],
 ): void {
+  const provider = availability.find((item) => item.id === providerId);
+  if (!provider?.enabled || !provider.available) return;
   appendCompactLiveProbeRows(rows, providerId, findProviderLiveProbe(providerId, probes));
 }
 
@@ -354,7 +218,10 @@ function createCompactLiveProbeOnlySection(params: {
   title: string;
   providerId: string;
   probes?: ProviderLiveProbe[];
+  availability: ProviderAvailability[];
 }): ReportSection | null {
+  const provider = params.availability.find((item) => item.id === params.providerId);
+  if (!provider?.enabled || !provider.available) return null;
   const probe = findProviderLiveProbe(params.providerId, params.probes);
   if (!probe) {
     return null;
@@ -362,6 +229,22 @@ function createCompactLiveProbeOnlySection(params: {
 
   const rows: ReportKvRow[] = [];
   appendCompactLiveProbeRows(rows, params.providerId, probe);
+  return createKvSection(params.id, params.title, rows);
+}
+
+function createProviderStatusSection(params: {
+  id: string;
+  title: string;
+  providerId: string;
+  probes?: ProviderLiveProbe[];
+  availability: ProviderAvailability[];
+  includeDetails?: boolean;
+}): ReportSection {
+  const rows: ReportKvRow[] = [];
+  if (params.includeDetails !== false) {
+    appendProviderStatusDetailRows(rows, params.providerId, params.probes);
+  }
+  appendProviderCompactLiveProbeRows(rows, params.providerId, params.probes, params.availability);
   return createKvSection(params.id, params.title, rows);
 }
 
@@ -434,10 +317,10 @@ function getQuotaProviderCredentialCategory(
   }
 }
 
-async function createQuotaProvidersSection(params: {
+function createQuotaProvidersSection(params: {
   definitions: readonly QuotaProviderDefinition[];
   probes?: ProviderLiveProbe[];
-}): Promise<ReportSection | null> {
+}): ReportSection | null {
   if (params.definitions.length === 0) return null;
 
   const diagnostics =
@@ -451,18 +334,28 @@ async function createQuotaProvidersSection(params: {
     const diagnostic = diagnosticsBySource.get(definition.id);
     const coverage = definition.modelIds ? definition.modelIds.join(",") : "all_models";
     if (definition.mode === "local-estimate" && isMaintainedQuotaProviderTuning(definition)) {
-      const maintained =
-        definition.id === "qwen-code"
-          ? {
-              path: getQwenLocalQuotaPath(),
-              version: QWEN_LOCAL_QUOTA_STATE_VERSION,
-            }
-          : {
-              path: getAlibabaCodingPlanQuotaPath(),
-              version: ALIBABA_CODING_PLAN_STATE_VERSION,
-            };
-      const state = await inspectGeneratedCounterFile(maintained.path, maintained.version);
       const probe = findProviderLiveProbe(definition.id, params.probes);
+      const statePath = findProviderStatusDetail(definition.id, "local_state_path", params.probes);
+      const stateExists = findProviderStatusDetail(
+        definition.id,
+        "local_state_exists",
+        params.probes,
+      );
+      const stateHealth = findProviderStatusDetail(
+        definition.id,
+        "local_state_health",
+        params.probes,
+      );
+      const stateVersion = findProviderStatusDetail(
+        definition.id,
+        "local_state_version",
+        params.probes,
+      );
+      const stateLastUpdate = findProviderStatusDetail(
+        definition.id,
+        "local_state_last_update",
+        params.probes,
+      );
       rows.push({
         key: `provider_${definition.id}`,
         value: [
@@ -471,11 +364,11 @@ async function createQuotaProvidersSection(params: {
           `coverage=${coverage}`,
           `outcome=${getLiveProbeState(probe)}`,
           `limits=${definition.windows.map((window) => `${window.id}:${window.requestLimit}`).join(",")}`,
-          `state_path=${maintained.path}`,
-          `state_exists=${state.exists ? "true" : "false"}`,
-          `state_health=${state.health}`,
-          `state_version=${state.version ?? "(none)"}`,
-          `state_last_update=${state.lastUpdatedAt === null ? "(none)" : new Date(state.lastUpdatedAt).toISOString()}`,
+          `state_path=${statePath ?? "(none)"}`,
+          `state_exists=${stateExists ?? "false"}`,
+          `state_health=${stateHealth ?? "missing"}`,
+          `state_version=${stateVersion ?? "(none)"}`,
+          `state_last_update=${stateLastUpdate ?? "(none)"}`,
         ]
           .map((part) => sanitizeSingleLineDisplayText(part))
           .join(" "),
@@ -484,7 +377,7 @@ async function createQuotaProvidersSection(params: {
     }
 
     if (definition.mode === "local-estimate") {
-      const state = await inspectLocalQuotaProviderState(definition);
+      const stateHealth = diagnostic?.stateHealth ?? "missing";
       rows.push({
         key: `provider_${definition.id}`,
         value: [
@@ -492,11 +385,11 @@ async function createQuotaProvidersSection(params: {
           "mode=local-estimate",
           `coverage=${coverage}`,
           `outcome=${diagnostic?.outcome ?? "unavailable"}`,
-          `state_path=${state.path}`,
-          `state_exists=${state.exists ? "true" : "false"}`,
-          `state_health=${state.health}`,
-          `state_version=${state.version ?? "(none)"}`,
-          `state_last_update=${state.lastUpdatedAt === null ? "(none)" : new Date(state.lastUpdatedAt).toISOString()}`,
+          `state_path=${diagnostic?.statePath ?? "(none)"}`,
+          `state_exists=${diagnostic?.statePath && stateHealth !== "missing" ? "true" : "false"}`,
+          `state_health=${stateHealth}`,
+          `state_version=${diagnostic?.stateVersion ?? "(none)"}`,
+          `state_last_update=${diagnostic?.stateLastUpdatedAt == null ? "(none)" : new Date(diagnostic.stateLastUpdatedAt).toISOString()}`,
         ]
           .map((part) => sanitizeSingleLineDisplayText(part))
           .join(" "),
@@ -571,29 +464,6 @@ function appendCompactLiveProbeRows(
       value: `+${suppressedCount} additional rows suppressed`,
     });
   }
-}
-
-function getDefaultApiKeyDiagnosticsWithAuthPaths(): ApiKeyDiagnosticsWithAuthPaths {
-  return {
-    ...getDefaultBasicApiKeyDiagnostics(),
-    authPaths: [],
-  };
-}
-
-async function readApiKeyDiagnosticsWithAuthPaths(
-  read: () => Promise<ApiKeyDiagnosticsWithAuthPaths>,
-): Promise<ApiKeyDiagnosticsWithAuthPaths> {
-  try {
-    return await read();
-  } catch {
-    return getDefaultApiKeyDiagnosticsWithAuthPaths();
-  }
-}
-
-function fmtNanoGptMetric(value: number): string {
-  if (!Number.isFinite(value)) return "0";
-  if (Number.isInteger(value)) return String(Math.trunc(value));
-  return value.toFixed(2).replace(/\.?0+$/, "");
 }
 
 function computePricingCoverageFromAgg(agg: Awaited<ReturnType<typeof aggregateUsage>>): {
@@ -811,12 +681,7 @@ export async function buildQuotaStatusReport(params: {
   currentModel?: string;
   /** Whether a session was available for model lookup */
   sessionModelLookup?: "ok" | "not_found" | "no_session";
-  providerAvailability: Array<{
-    id: string;
-    enabled: boolean;
-    available: boolean;
-    matchesCurrentModel?: boolean;
-  }>;
+  providerAvailability: ProviderAvailability[];
   providerLiveProbes?: ProviderLiveProbe[];
   quotaProviders?: readonly QuotaProviderDefinition[];
   googleRefresh?: {
@@ -897,7 +762,7 @@ export async function buildQuotaStatusReport(params: {
   }
   sections.push(createLinesSection("toast", "toast:", toastLines));
 
-  const quotaProvidersSection = await createQuotaProvidersSection({
+  const quotaProvidersSection = createQuotaProvidersSection({
     definitions: params.quotaProviders ?? [],
     probes: params.providerLiveProbes,
   });
@@ -945,261 +810,64 @@ export async function buildQuotaStatusReport(params: {
     value: `preferred=${getAuthPath()} present=${joinOrNone(authPresent)} candidates=${joinOrNone(authCandidates)}`,
   });
 
-  const authData = await readAuthFileCached({ maxAgeMs: 5_000 });
-  const qwenAuthConfigured = hasQwenOAuthAuth(authData);
-  const qwenLocalPlan = resolveQwenLocalPlan(authData);
-  const openaiAuth = resolveOpenAIOAuth(authData);
-  const alibabaAuthDiagnostics = await getAlibabaCodingPlanAuthDiagnostics({
-    maxAgeMs: DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS,
-    fallbackTier: "lite",
-  });
-  const alibabaCodingPlanAuth = await resolveAlibabaCodingPlanAuthCached({
-    maxAgeMs: DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS,
-    fallbackTier: "lite",
-  });
-  pathsRows.push({
-    key: "qwen oauth auth configured",
-    value: qwenAuthConfigured ? "true" : "false",
-  });
-  pathsRows.push({
-    key: "qwen_oauth_source",
-    value: qwenLocalPlan.state === "qwen_free" ? qwenLocalPlan.sourceKey : "(none)",
-  });
-  pathsRows.push({
-    key: "qwen_local_plan",
-    value: qwenLocalPlan.state === "qwen_free" ? "qwen-code/free" : "(none)",
-  });
-  pathsRows.push({
-    key: "alibaba auth configured",
-    value: alibabaAuthDiagnostics.state === "none" ? "false" : "true",
-  });
-  pathsRows.push({
-    key: "alibaba_api_key_source",
-    value: alibabaAuthDiagnostics.source ?? "(none)",
-  });
-  pathsRows.push({
-    key: "alibaba_api_key_checked_paths",
-    value: joinOrNone(alibabaAuthDiagnostics.checkedPaths),
-  });
-  pathsRows.push({
-    key: "alibaba_api_key_auth_paths",
-    value: joinOrNone(alibabaAuthDiagnostics.authPaths),
-  });
-  pathsRows.push({
-    key: "alibaba_coding_plan",
-    value:
-      alibabaAuthDiagnostics.state === "configured"
-        ? alibabaAuthDiagnostics.tier
-        : alibabaAuthDiagnostics.state === "invalid"
-          ? "invalid"
-          : "(none)",
-  });
-  if (alibabaAuthDiagnostics.state === "invalid") {
-    pathsRows.push({
-      key: "alibaba_auth_error",
-      value: sanitizeDisplayText(alibabaAuthDiagnostics.error),
-    });
-  }
+  appendProviderStatusDetailRows(
+    pathsRows,
+    "qwen-code",
+    params.providerLiveProbes,
+    new Set(["qwen oauth auth configured", "qwen_oauth_source", "qwen_local_plan"]),
+  );
+  appendProviderStatusDetailRows(
+    pathsRows,
+    "alibaba-coding-plan",
+    params.providerLiveProbes,
+    new Set([
+      "alibaba auth configured",
+      "alibaba_api_key_source",
+      "alibaba_api_key_checked_paths",
+      "alibaba_api_key_auth_paths",
+      "alibaba_coding_plan",
+      "alibaba_auth_error",
+    ]),
+  );
   sections.push(createKvSection("paths", "paths:", pathsRows));
 
-  // === openai ===
-  const openaiRows: ReportKvRow[] = [
-    { key: "auth_configured", value: openaiAuth.state === "configured" ? "true" : "false" },
-    {
-      key: "auth_source",
-      value: openaiAuth.state === "configured" ? openaiAuth.sourceKey : "(none)",
-    },
-  ];
-  const openaiTokenStatus =
-    openaiAuth.state !== "configured"
-      ? "(none)"
-      : openaiAuth.expiresAt && openaiAuth.expiresAt < Date.now()
-        ? "expired"
-        : "valid";
-  openaiRows.push({ key: "token_status", value: openaiTokenStatus });
-  openaiRows.push({
-    key: "token_expires_at",
-    value:
-      openaiAuth.state === "configured" && openaiAuth.expiresAt
-        ? new Date(openaiAuth.expiresAt).toISOString()
-        : "(none)",
-  });
-  openaiRows.push({
-    key: "account_email",
-    value:
-      openaiAuth.state === "configured" && openaiAuth.email
-        ? sanitizeDisplayText(openaiAuth.email)
-        : "(none)",
-  });
-  openaiRows.push({
-    key: "account_id",
-    value:
-      openaiAuth.state === "configured" && openaiAuth.accountId
-        ? sanitizeDisplayText(openaiAuth.accountId)
-        : "(none)",
-  });
-  appendProviderCompactLiveProbeRows(openaiRows, "openai", params.providerLiveProbes);
-  sections.push(createKvSection("openai", "openai:", openaiRows));
-
-  // === anthropic ===
-  const anthropicRows: ReportKvRow[] = [];
-  try {
-    const anthropicDiagnostics = await getAnthropicDiagnostics({
-      binaryPath: params.anthropicBinaryPath,
-    });
-    anthropicRows.push({
-      key: "cli_installed",
-      value: anthropicDiagnostics.installed ? "true" : "false",
-    });
-    anthropicRows.push({ key: "cli_version", value: anthropicDiagnostics.version ?? "(none)" });
-    anthropicRows.push({ key: "auth_status", value: anthropicDiagnostics.authStatus });
-    anthropicRows.push({
-      key: "quota_supported",
-      value: anthropicDiagnostics.quotaSupported ? "true" : "false",
-    });
-    anthropicRows.push({
-      key: "quota_source",
-      value:
-        anthropicDiagnostics.quotaSource === "none" ? "(none)" : anthropicDiagnostics.quotaSource,
-    });
-    anthropicRows.push({
-      key: "checked_commands",
-      value:
-        anthropicDiagnostics.checkedCommands.length > 0
-          ? anthropicDiagnostics.checkedCommands.join(" | ")
-          : "(none)",
-    });
-    if (anthropicDiagnostics.message) {
-      anthropicRows.push({ key: "message", value: anthropicDiagnostics.message });
-    }
-    if (anthropicDiagnostics.quotaSupported && anthropicDiagnostics.quota) {
-      anthropicRows.push({
-        key: "five_hour_remaining",
-        value: `${anthropicDiagnostics.quota.five_hour.percentRemaining}% reset_at=${anthropicDiagnostics.quota.five_hour.resetTimeIso ?? "(none)"}`,
-      });
-      anthropicRows.push({
-        key: "seven_day_remaining",
-        value: `${anthropicDiagnostics.quota.seven_day.percentRemaining}% reset_at=${anthropicDiagnostics.quota.seven_day.resetTimeIso ?? "(none)"}`,
-      });
-    }
-  } catch (err) {
-    anthropicRows.push({ key: "cli_installed", value: "false" });
-    anthropicRows.push({
-      key: "message",
-      value: `failed to probe Claude CLI${
-        err ? `: ${sanitizeDisplayText(err instanceof Error ? err.message : String(err))}` : ""
-      }`,
-    });
+  for (const [id, providerId] of [
+    ["openai", "openai"],
+    ["anthropic", "anthropic"],
+  ] as const) {
+    sections.push(
+      createProviderStatusSection({
+        id,
+        title: `${id}:`,
+        providerId,
+        probes: params.providerLiveProbes,
+        availability: params.providerAvailability,
+      }),
+    );
   }
-  appendProviderCompactLiveProbeRows(anthropicRows, "anthropic", params.providerLiveProbes);
-  sections.push(createKvSection("anthropic", "anthropic:", anthropicRows));
 
   // === cursor ===
-  const cursorPlanLabel = getCursorPlanDisplayName(params.cursorPlan);
-  const cursorIncludedApiUsd = getEffectiveCursorIncludedApiUsd({
-    plan: params.cursorPlan,
-    overrideUsd: params.cursorIncludedApiUsd,
-  });
-  const cursorAuth = await inspectCursorAuthPresence();
-  const cursorIntegration = await inspectCursorOpenCodeIntegration();
-  const cursorRows: ReportKvRow[] = [
-    { key: "plan", value: cursorPlanLabel ?? "none" },
-    {
-      key: "included_api_usd",
-      value:
-        typeof cursorIncludedApiUsd === "number" ? fmtUsdAmount(cursorIncludedApiUsd) : "(none)",
-    },
-    {
-      key: "billing_cycle_start_day",
-      value:
-        typeof params.cursorBillingCycleStartDay === "number"
-          ? String(params.cursorBillingCycleStartDay)
-          : "(calendar month)",
-    },
-    { key: "auth_state", value: cursorAuth.state },
-    { key: "auth_selected_path", value: cursorAuth.selectedPath ?? "(none)" },
-    { key: "auth_present_paths", value: joinOrNone(cursorAuth.presentPaths) },
-    { key: "auth_candidate_paths", value: joinOrNone(cursorAuth.candidatePaths) },
-  ];
-  if (cursorAuth.error) {
-    cursorRows.push({ key: "auth_error", value: cursorAuth.error });
-  }
-  cursorRows.push({
-    key: "plugin_enabled",
-    value: cursorIntegration.pluginEnabled ? "true" : "false",
-  });
-  cursorRows.push({ key: "canonical_plugin_package", value: CURSOR_CANONICAL_PLUGIN_PACKAGE });
-  cursorRows.push({
-    key: "provider_configured",
-    value: cursorIntegration.providerConfigured ? "true" : "false",
-  });
-  cursorRows.push({ key: "config_matches", value: joinOrNone(cursorIntegration.matchedPaths) });
-  cursorRows.push({
-    key: "config_checked_paths",
-    value: joinOrNone(cursorIntegration.checkedPaths),
-  });
-  try {
-    const cursorUsage = await getCurrentCursorUsageSummary({
-      billingCycleStartDay: params.cursorBillingCycleStartDay,
-    });
-    cursorRows.push({ key: "cycle_source", value: cursorUsage.window.source });
-    cursorRows.push({ key: "cycle_reset_at", value: cursorUsage.window.resetTimeIso });
-    cursorRows.push({
-      key: "api_usage",
-      value: `${fmtUsdAmount(cursorUsage.api.costUsd)} across ${fmtInt(cursorUsage.api.messageCount)} messages`,
-    });
-    cursorRows.push({
-      key: "auto_composer_usage",
-      value: `${fmtUsdAmount(cursorUsage.autoComposer.costUsd)} across ${fmtInt(cursorUsage.autoComposer.messageCount)} messages`,
-    });
-    cursorRows.push({
-      key: "total_cursor_usage",
-      value: `${fmtUsdAmount(cursorUsage.total.costUsd)} across ${fmtInt(cursorUsage.total.messageCount)} messages`,
-    });
-    cursorRows.push({
-      key: "unknown_cursor_models",
-      value: fmtInt(cursorUsage.unknownModels.length),
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    cursorRows.push({ key: "usage_error", value: msg });
-  }
+  const cursorRows: ReportKvRow[] = [];
+  appendProviderStatusDetailRows(cursorRows, "cursor", params.providerLiveProbes);
 
-  const qwenLocalQuotaPath = getQwenLocalQuotaPath();
-  const qwenCounter = await inspectGeneratedCounterFile(
-    qwenLocalQuotaPath,
-    QWEN_LOCAL_QUOTA_STATE_VERSION,
+  appendProviderStatusDetailRows(
+    cursorRows,
+    "qwen-code",
+    params.providerLiveProbes,
+    new Set(["qwen free local quota"]),
   );
-  cursorRows.push({
-    key: "qwen free local quota",
-    value: [
-      `path=${qwenLocalQuotaPath}`,
-      `exists=${qwenCounter.exists ? "true" : "false"}`,
-      `health=${qwenCounter.health}`,
-      `version=${qwenCounter.version ?? "(none)"}`,
-      `last_update=${qwenCounter.lastUpdatedAt === null ? "(none)" : new Date(qwenCounter.lastUpdatedAt).toISOString()}`,
-    ].join(" "),
-  });
-
-  const alibabaLocalQuotaPath = getAlibabaCodingPlanQuotaPath();
-  const alibabaCounter = await inspectGeneratedCounterFile(
-    alibabaLocalQuotaPath,
-    ALIBABA_CODING_PLAN_STATE_VERSION,
+  appendProviderStatusDetailRows(
+    cursorRows,
+    "alibaba-coding-plan",
+    params.providerLiveProbes,
+    new Set(["alibaba coding plan local quota", "alibaba coding plan error"]),
   );
-  cursorRows.push({
-    key: "alibaba coding plan local quota",
-    value: [
-      `path=${alibabaLocalQuotaPath}`,
-      `exists=${alibabaCounter.exists ? "true" : "false"}`,
-      `health=${alibabaCounter.health}`,
-      `version=${alibabaCounter.version ?? "(none)"}`,
-      `last_update=${alibabaCounter.lastUpdatedAt === null ? "(none)" : new Date(alibabaCounter.lastUpdatedAt).toISOString()}`,
-    ].join(" "),
-  });
-  if (alibabaCodingPlanAuth.state === "invalid") {
-    cursorRows.push({ key: "alibaba coding plan error", value: alibabaCodingPlanAuth.error });
-  }
-  appendProviderCompactLiveProbeRows(cursorRows, "cursor", params.providerLiveProbes);
+  appendProviderCompactLiveProbeRows(
+    cursorRows,
+    "cursor",
+    params.providerLiveProbes,
+    params.providerAvailability,
+  );
   sections.push(createKvSection("cursor", "cursor:", cursorRows));
 
   const qwenCodeLiveProbeSection = createCompactLiveProbeOnlySection({
@@ -1207,6 +875,7 @@ export async function buildQuotaStatusReport(params: {
     title: "qwen_code:",
     providerId: "qwen-code",
     probes: params.providerLiveProbes,
+    availability: params.providerAvailability,
   });
   if (qwenCodeLiveProbeSection) {
     sections.push(qwenCodeLiveProbeSection);
@@ -1217,604 +886,46 @@ export async function buildQuotaStatusReport(params: {
     title: "alibaba_coding_plan:",
     providerId: "alibaba-coding-plan",
     probes: params.providerLiveProbes,
+    availability: params.providerAvailability,
   });
   if (alibabaCodingPlanLiveProbeSection) {
     sections.push(alibabaCodingPlanLiveProbeSection);
   }
 
-  async function appendMiniMaxSection(section: {
-    id: string;
-    title: string;
-    providerId: "minimax-coding-plan" | "minimax-china-coding-plan";
-    label: string;
-    getDiagnostics: typeof getMiniMaxAuthDiagnostics;
-    resolveAuth: typeof resolveMiniMaxAuthCached;
-  }): Promise<void> {
-    const minimaxRows: ReportKvRow[] = [];
-    const minimaxAuth = await section.getDiagnostics({
-      maxAgeMs: DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
-    });
-    minimaxRows.push({ key: "auth_state", value: minimaxAuth.state });
-    minimaxRows.push({
-      key: "api_key_configured",
-      value: minimaxAuth.state === "configured" ? "true" : "false",
-    });
-    minimaxRows.push({ key: "api_key_source", value: minimaxAuth.source ?? "(none)" });
-    if (minimaxAuth.state === "configured") {
-      const endpoint = getMiniMaxQuotaEndpoint(minimaxAuth.endpoint);
-      minimaxRows.push({ key: "api_endpoint", value: endpoint.id });
-      minimaxRows.push({ key: "api_base_url", value: endpoint.apiBaseUrl });
-    }
-    minimaxRows.push({ key: "api_key_checked_paths", value: joinOrNone(minimaxAuth.checkedPaths) });
-    minimaxRows.push({ key: "api_key_auth_paths", value: joinOrNone(minimaxAuth.authPaths) });
-    if (minimaxAuth.state === "invalid") {
-      minimaxRows.push({ key: "auth_error", value: sanitizeDisplayText(minimaxAuth.error) });
-    }
-    if (minimaxAuth.state === "configured") {
-      const resolvedMiniMaxAuth = await section.resolveAuth({
-        maxAgeMs: DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS,
-      });
-      if (resolvedMiniMaxAuth.state !== "configured") {
-        minimaxRows.push({
-          key: "live_fetch_error",
-          value: `${section.label} API key became unavailable before fetch`,
-        });
-      } else {
-        const minimaxQuota = await queryMiniMaxQuota(resolvedMiniMaxAuth.apiKey, {
-          endpoint: resolvedMiniMaxAuth.endpoint,
-          label: section.label,
-        });
-        if (!minimaxQuota.success) {
-          minimaxRows.push({ key: "live_fetch_error", value: minimaxQuota.error });
-        } else {
-          const fiveHourEntry = minimaxQuota.entries.find((entry) => entry.window === "five_hour");
-          const weeklyEntry = minimaxQuota.entries.find((entry) => entry.window === "weekly");
-          if (fiveHourEntry) {
-            minimaxRows.push({
-              key: "five_hour_usage",
-              value: `${fiveHourEntry.right ?? "(none)"} percent_remaining=${fiveHourEntry.percentRemaining} reset_at=${fiveHourEntry.resetTimeIso ?? "(none)"}`,
-            });
-          }
-          if (weeklyEntry) {
-            minimaxRows.push({
-              key: "weekly_usage",
-              value: `${weeklyEntry.right ?? "(none)"} percent_remaining=${weeklyEntry.percentRemaining} reset_at=${weeklyEntry.resetTimeIso ?? "(none)"}`,
-            });
-          }
-          if (!fiveHourEntry && !weeklyEntry) {
-            minimaxRows.push({ key: "live_state", value: `no reportable ${section.label} quota` });
-          }
-        }
-      }
-    }
-    appendProviderCompactLiveProbeRows(minimaxRows, section.providerId, params.providerLiveProbes);
-    sections.push(createKvSection(section.id, section.title, minimaxRows));
-  }
-
-  // === minimax ===
-  await appendMiniMaxSection({
-    id: "minimax",
-    title: "minimax:",
-    providerId: "minimax-coding-plan",
-    label: "MiniMax Coding Plan",
-    getDiagnostics: getMiniMaxAuthDiagnostics,
-    resolveAuth: resolveMiniMaxAuthCached,
-  });
-  await appendMiniMaxSection({
-    id: "minimax_china",
-    title: "minimax_china:",
-    providerId: "minimax-china-coding-plan",
-    label: "MiniMax Coding Plan (CN)",
-    getDiagnostics: getMiniMaxChinaAuthDiagnostics,
-    resolveAuth: resolveMiniMaxChinaAuthCached,
-  });
-
-  // === kimi ===
-  const kimiRows: ReportKvRow[] = [];
-  const kimiAuth = await getKimiAuthDiagnostics({
-    maxAgeMs: DEFAULT_KIMI_AUTH_CACHE_MAX_AGE_MS,
-  });
-  kimiRows.push({ key: "auth_state", value: kimiAuth.state });
-  kimiRows.push({
-    key: "api_key_configured",
-    value: kimiAuth.state === "configured" ? "true" : "false",
-  });
-  kimiRows.push({ key: "api_key_source", value: kimiAuth.source ?? "(none)" });
-  kimiRows.push({ key: "api_key_checked_paths", value: joinOrNone(kimiAuth.checkedPaths) });
-  kimiRows.push({ key: "api_key_auth_paths", value: joinOrNone(kimiAuth.authPaths) });
-  if (kimiAuth.state === "invalid") {
-    kimiRows.push({ key: "auth_error", value: sanitizeDisplayText(kimiAuth.error) });
-  }
-  if (kimiAuth.state === "configured") {
-    const kimiQuota = await queryKimiQuota();
-    if (!kimiQuota) {
-      kimiRows.push({
-        key: "live_fetch_error",
-        value: "Kimi API key became unavailable before fetch",
-      });
-    } else if (!kimiQuota.success) {
-      kimiRows.push({ key: "live_fetch_error", value: kimiQuota.error });
-    } else {
-      for (const window of kimiQuota.windows) {
-        kimiRows.push({
-          key: window.label.toLowerCase().replace(/\s+/g, "_"),
-          value: `used=${window.used}/${window.limit} percent_remaining=${window.percentRemaining} reset_at=${window.resetTimeIso ?? "(none)"}`,
-        });
-      }
-      if (kimiQuota.windows.length === 0) {
-        kimiRows.push({ key: "live_state", value: "no reportable Kimi quota" });
-      }
-    }
-  }
-  appendProviderCompactLiveProbeRows(kimiRows, "kimi-for-coding", params.providerLiveProbes);
-  sections.push(createKvSection("kimi", "kimi:", kimiRows));
-
-  // === opencode_go ===
-  const openCodeGoRows: ReportKvRow[] = [];
-  const openCodeGoDiag = await getOpenCodeGoConfigDiagnostics();
-  openCodeGoRows.push({ key: "config_state", value: openCodeGoDiag.state });
-  openCodeGoRows.push({ key: "config_source", value: openCodeGoDiag.source ?? "(none)" });
-  if (openCodeGoDiag.missing) {
-    openCodeGoRows.push({ key: "config_missing", value: openCodeGoDiag.missing });
-  }
-  if (openCodeGoDiag.error) {
-    openCodeGoRows.push({ key: "config_error", value: sanitizeDisplayText(openCodeGoDiag.error) });
-  }
-  openCodeGoRows.push({
-    key: "config_checked_paths",
-    value: joinOrNone(openCodeGoDiag.checkedPaths),
-  });
-  const openCodeGoSelectedWindows = params.opencodeGoWindows ?? OPENCODE_GO_STATUS_WINDOW_ORDER;
-  openCodeGoRows.push({
-    key: "selected_windows",
-    value: formatOpenCodeGoWindowSelection(openCodeGoSelectedWindows),
-  });
-  if (openCodeGoDiag.state === "configured") {
-    const openCodeGoConfig = await resolveOpenCodeGoConfigCached({
-      maxAgeMs: DEFAULT_OPENCODE_GO_CONFIG_CACHE_MAX_AGE_MS,
-    });
-    if (openCodeGoConfig.state !== "configured") {
-      openCodeGoRows.push({
-        key: "live_fetch_error",
-        value: "OpenCode Go config became unavailable before fetch",
-      });
-    } else {
-      const openCodeGoQuota = await queryOpenCodeGoQuota(
-        openCodeGoConfig.config.workspaceId,
-        openCodeGoConfig.config.authCookie,
-      );
-      if (!openCodeGoQuota) {
-        openCodeGoRows.push({ key: "live_fetch_error", value: "OpenCode Go returned null" });
-      } else if (!openCodeGoQuota.success) {
-        openCodeGoRows.push({ key: "live_fetch_error", value: openCodeGoQuota.error });
-      } else {
-        for (const window of OPENCODE_GO_STATUS_WINDOW_ORDER) {
-          const usage = openCodeGoQuota[window];
-          if (!usage) continue;
-
-          openCodeGoRows.push({
-            key: `${window}_usage`,
-            value: formatOpenCodeGoUsage(usage),
-          });
-        }
-
-        const missingSelectedWindows = openCodeGoSelectedWindows.filter(
-          (window) => !openCodeGoQuota[window],
-        );
-        if (
-          missingSelectedWindows.length > 0 &&
-          !isDefaultOpenCodeGoStatusWindowSelection(openCodeGoSelectedWindows)
-        ) {
-          openCodeGoRows.push({
-            key: "live_fetch_error",
-            value: `Selected OpenCode Go dashboard window(s) missing: ${formatOpenCodeGoMissingWindows(missingSelectedWindows)}`,
-          });
-        }
-      }
-    }
-  }
-  appendProviderCompactLiveProbeRows(openCodeGoRows, "opencode-go", params.providerLiveProbes);
-  sections.push(createKvSection("opencode_go", "opencode_go:", openCodeGoRows));
-
-  // === opencode_zen ===
-  const openCodeZenRows: ReportKvRow[] = [];
-  const openCodeZenDiag = await getOpenCodeZenConfigDiagnostics();
-  openCodeZenRows.push({ key: "config_state", value: openCodeZenDiag.state });
-  openCodeZenRows.push({ key: "config_source", value: openCodeZenDiag.source ?? "(none)" });
-  if (openCodeZenDiag.missing) {
-    openCodeZenRows.push({ key: "config_missing", value: openCodeZenDiag.missing });
-  }
-  if (openCodeZenDiag.error) {
-    openCodeZenRows.push({
-      key: "config_error",
-      value: sanitizeDisplayText(openCodeZenDiag.error),
-    });
-  }
-  openCodeZenRows.push({
-    key: "config_checked_paths",
-    value: joinOrNone(openCodeZenDiag.checkedPaths),
-  });
-  const openCodeZenLiveProbe = findProviderLiveProbe("opencode", params.providerLiveProbes);
-  if (openCodeZenLiveProbe?.result.statusDetails) {
-    openCodeZenRows.push(
-      ...openCodeZenLiveProbe.result.statusDetails.map((detail) => ({
-        key: detail.key,
-        value: detail.value,
-      })),
+  for (const section of [
+    { id: "minimax", title: "minimax:", providerId: "minimax-coding-plan" },
+    {
+      id: "minimax_china",
+      title: "minimax_china:",
+      providerId: "minimax-china-coding-plan",
+    },
+    { id: "kimi", title: "kimi:", providerId: "kimi-for-coding" },
+    { id: "opencode_go", title: "opencode_go:", providerId: "opencode-go" },
+    { id: "opencode_zen", title: "opencode_zen:", providerId: "opencode" },
+    { id: "xiaomi", title: "xiaomi:", providerId: "xiaomi" },
+    { id: "zai", title: "zai:", providerId: "zai" },
+    { id: "zhipu", title: "zhipu:", providerId: "zhipu" },
+    { id: "synthetic", title: "synthetic:", providerId: "synthetic" },
+    { id: "chutes", title: "chutes:", providerId: "chutes" },
+    { id: "deepseek", title: "deepseek:", providerId: "deepseek" },
+    { id: "xai", title: "xai:", providerId: "xai", includeDetails: false },
+    { id: "nanogpt", title: "nanogpt:", providerId: "nanogpt" },
+    {
+      id: "copilot_quota_auth",
+      title: "copilot_quota_auth:",
+      providerId: "copilot",
+    },
+  ] as const) {
+    sections.push(
+      createProviderStatusSection({
+        ...section,
+        probes: params.providerLiveProbes,
+        availability: params.providerAvailability,
+      }),
     );
   }
-  const openCodeZenIsInScope =
-    params.providerAvailability === undefined ||
-    params.providerAvailability.some(
-      (provider) => provider.id === "opencode" && provider.enabled && provider.available,
-    );
-  if (openCodeZenDiag.state === "configured" && !openCodeZenLiveProbe && openCodeZenIsInScope) {
-    const openCodeZenConfig = await resolveOpenCodeZenConfigCached({
-      maxAgeMs: DEFAULT_OPENCODE_ZEN_CONFIG_CACHE_MAX_AGE_MS,
-    });
-    if (openCodeZenConfig.state !== "configured") {
-      openCodeZenRows.push({
-        key: "live_fetch_error",
-        value: "OpenCode Zen config became unavailable before fetch",
-      });
-    } else {
-      const openCodeZenQuota = await queryOpenCodeZenQuota(
-        openCodeZenConfig.config.workspaceId,
-        openCodeZenConfig.config.authCookie,
-      );
-      if (!openCodeZenQuota.success) {
-        openCodeZenRows.push({ key: "live_fetch_error", value: openCodeZenQuota.error });
-      } else {
-        const data = openCodeZenQuota.data;
-        openCodeZenRows.push({
-          key: "balance_usd",
-          value: `$${(data.balance / OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR).toFixed(2)}`,
-        });
-        openCodeZenRows.push({
-          key: "monthly_limit_usd",
-          value: data.monthlyLimit === null ? "(none)" : `$${data.monthlyLimit.toFixed(2)}`,
-        });
-        openCodeZenRows.push({
-          key: "last_payment_usd",
-          value: data.lastPayment === null ? "(none)" : `$${data.lastPayment.toFixed(2)}`,
-        });
-      }
-    }
-  }
-  appendProviderCompactLiveProbeRows(openCodeZenRows, "opencode", params.providerLiveProbes);
-  sections.push(createKvSection("opencode_zen", "opencode_zen:", openCodeZenRows));
-
-  // === xiaomi ===
-  const xiaomiRows: ReportKvRow[] = [];
-  const xiaomiDiag = await getMimoConfigDiagnostics();
-  xiaomiRows.push({ key: "config_state", value: xiaomiDiag.state });
-  xiaomiRows.push({ key: "config_source", value: xiaomiDiag.source ?? "(none)" });
-  if (xiaomiDiag.error) {
-    xiaomiRows.push({ key: "config_error", value: sanitizeDisplayText(xiaomiDiag.error) });
-  }
-  xiaomiRows.push({
-    key: "config_checked_paths",
-    value: joinOrNone(xiaomiDiag.checkedPaths),
-  });
-  appendProviderCompactLiveProbeRows(xiaomiRows, "xiaomi", params.providerLiveProbes);
-  sections.push(createKvSection("xiaomi", "xiaomi:", xiaomiRows));
-
-  // === zai ===
-  const zaiRows: ReportKvRow[] = [];
-  const zaiAuth = await getZaiAuthDiagnostics({
-    maxAgeMs: DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS,
-  });
-  zaiRows.push({ key: "auth_state", value: zaiAuth.state });
-  zaiRows.push({
-    key: "api_key_configured",
-    value: zaiAuth.state === "configured" ? "true" : "false",
-  });
-  zaiRows.push({ key: "api_key_source", value: zaiAuth.source ?? "(none)" });
-  zaiRows.push({ key: "api_key_checked_paths", value: joinOrNone(zaiAuth.checkedPaths) });
-  zaiRows.push({ key: "api_key_auth_paths", value: joinOrNone(zaiAuth.authPaths) });
-  if (zaiAuth.state === "invalid") {
-    zaiRows.push({ key: "auth_error", value: sanitizeDisplayText(zaiAuth.error) });
-  }
-  if (zaiAuth.state === "configured") {
-    const zaiQuota = await queryZaiQuota();
-    if (!zaiQuota) {
-      zaiRows.push({
-        key: "live_fetch_error",
-        value: "Z.ai API key became unavailable before fetch",
-      });
-    } else if (!zaiQuota.success) {
-      zaiRows.push({ key: "live_fetch_error", value: zaiQuota.error });
-    } else {
-      if (zaiQuota.windows.fiveHour) {
-        zaiRows.push({
-          key: "five_hour_remaining",
-          value: `${zaiQuota.windows.fiveHour.percentRemaining}% reset_at=${zaiQuota.windows.fiveHour.resetTimeIso ?? "(none)"}`,
-        });
-      }
-      if (zaiQuota.windows.weekly) {
-        zaiRows.push({
-          key: "weekly_remaining",
-          value: `${zaiQuota.windows.weekly.percentRemaining}% reset_at=${zaiQuota.windows.weekly.resetTimeIso ?? "(none)"}`,
-        });
-      }
-      if (zaiQuota.windows.mcp) {
-        zaiRows.push({
-          key: "mcp_remaining",
-          value: `${zaiQuota.windows.mcp.percentRemaining}% reset_at=${zaiQuota.windows.mcp.resetTimeIso ?? "(none)"}`,
-        });
-      }
-      if (!zaiQuota.windows.fiveHour && !zaiQuota.windows.weekly && !zaiQuota.windows.mcp) {
-        zaiRows.push({ key: "live_state", value: "no reportable Z.ai quota windows" });
-      }
-    }
-  }
-  appendProviderCompactLiveProbeRows(zaiRows, "zai", params.providerLiveProbes);
-  sections.push(createKvSection("zai", "zai:", zaiRows));
-
-  // === zhipu ===
-  const zhipuRows: ReportKvRow[] = [];
-  const zhipuAuth = await getZhipuAuthDiagnostics({
-    maxAgeMs: DEFAULT_ZHIPU_AUTH_CACHE_MAX_AGE_MS,
-  });
-  zhipuRows.push({ key: "auth_state", value: zhipuAuth.state });
-  zhipuRows.push({
-    key: "api_key_configured",
-    value: zhipuAuth.state === "configured" ? "true" : "false",
-  });
-  zhipuRows.push({ key: "api_key_source", value: zhipuAuth.source ?? "(none)" });
-  zhipuRows.push({ key: "api_key_checked_paths", value: joinOrNone(zhipuAuth.checkedPaths) });
-  zhipuRows.push({ key: "api_key_auth_paths", value: joinOrNone(zhipuAuth.authPaths) });
-  if (zhipuAuth.state === "invalid") {
-    zhipuRows.push({ key: "auth_error", value: sanitizeDisplayText(zhipuAuth.error) });
-  }
-  if (zhipuAuth.state === "configured") {
-    const zhipuQuota = await queryZhipuQuota();
-    if (!zhipuQuota) {
-      zhipuRows.push({
-        key: "live_fetch_error",
-        value: "Zhipu API key became unavailable before fetch",
-      });
-    } else if (!zhipuQuota.success) {
-      zhipuRows.push({ key: "live_fetch_error", value: zhipuQuota.error });
-    } else {
-      if (zhipuQuota.windows.fiveHour) {
-        zhipuRows.push({
-          key: "five_hour_remaining",
-          value: `${zhipuQuota.windows.fiveHour.percentRemaining}% reset_at=${zhipuQuota.windows.fiveHour.resetTimeIso ?? "(none)"}`,
-        });
-      }
-      if (zhipuQuota.windows.weekly) {
-        zhipuRows.push({
-          key: "weekly_remaining",
-          value: `${zhipuQuota.windows.weekly.percentRemaining}% reset_at=${zhipuQuota.windows.weekly.resetTimeIso ?? "(none)"}`,
-        });
-      }
-      if (zhipuQuota.windows.mcp) {
-        zhipuRows.push({
-          key: "mcp_remaining",
-          value: `${zhipuQuota.windows.mcp.percentRemaining}% reset_at=${zhipuQuota.windows.mcp.resetTimeIso ?? "(none)"}`,
-        });
-      }
-      if (!zhipuQuota.windows.fiveHour && !zhipuQuota.windows.weekly && !zhipuQuota.windows.mcp) {
-        zhipuRows.push({ key: "live_state", value: "no reportable Zhipu quota windows" });
-      }
-    }
-  }
-  appendProviderCompactLiveProbeRows(zhipuRows, "zhipu", params.providerLiveProbes);
-  sections.push(createKvSection("zhipu", "zhipu:", zhipuRows));
-
-  // === simple API key sections ===
-  const syntheticDiag = await readBasicApiKeyDiagnostics(getSyntheticKeyDiagnostics);
-  const syntheticRows: ReportKvRow[] = [
-    {
-      key: "synthetic api key",
-      value: formatInlineApiKeyDiagnosticsValue(syntheticDiag),
-    },
-  ];
-  appendProviderCompactLiveProbeRows(syntheticRows, "synthetic", params.providerLiveProbes);
-  sections.push(createKvSection("synthetic", "synthetic:", syntheticRows));
-
-  const chutesDiag = await readBasicApiKeyDiagnostics(getChutesKeyDiagnostics);
-  const chutesRows: ReportKvRow[] = [
-    {
-      key: "chutes api key",
-      value: formatInlineApiKeyDiagnosticsValue(chutesDiag),
-    },
-  ];
-  appendProviderCompactLiveProbeRows(chutesRows, "chutes", params.providerLiveProbes);
-  sections.push(createKvSection("chutes", "chutes:", chutesRows));
-
-  const deepSeekDiag = await readApiKeyDiagnosticsWithAuthPaths(getDeepSeekKeyDiagnostics);
-  const deepSeekRows: ReportKvRow[] = [
-    { key: "api_key_configured", value: deepSeekDiag.configured ? "true" : "false" },
-    { key: "api_key_source", value: deepSeekDiag.source ?? "(none)" },
-    { key: "api_key_checked_paths", value: joinOrNone(deepSeekDiag.checkedPaths) },
-    { key: "api_key_auth_paths", value: joinOrNone(deepSeekDiag.authPaths) },
-  ];
-  appendProviderCompactLiveProbeRows(deepSeekRows, "deepseek", params.providerLiveProbes);
-  sections.push(createKvSection("deepseek", "deepseek:", deepSeekRows));
-
-  // === xai ===
-  const xaiRows: ReportKvRow[] = [];
-  appendProviderCompactLiveProbeRows(xaiRows, "xai", params.providerLiveProbes);
-  sections.push(createKvSection("xai", "xai:", xaiRows));
-
-  // === nanogpt ===
-  const nanoGptDiag = await readApiKeyDiagnosticsWithAuthPaths(getNanoGptKeyDiagnostics);
-  const nanoGptRows: ReportKvRow[] = [
-    { key: "api_key_configured", value: nanoGptDiag.configured ? "true" : "false" },
-    { key: "api_key_source", value: nanoGptDiag.source ?? "(none)" },
-    { key: "api_key_checked_paths", value: joinOrNone(nanoGptDiag.checkedPaths) },
-    { key: "api_key_auth_paths", value: joinOrNone(nanoGptDiag.authPaths) },
-  ];
-  if (nanoGptDiag.configured) {
-    try {
-      const nanoGptQuota = await queryNanoGptQuota();
-      if (!nanoGptQuota) {
-        nanoGptRows.push({
-          key: "live_fetch_error",
-          value: "NanoGPT API key became unavailable before fetch",
-        });
-      } else if (!nanoGptQuota.success) {
-        nanoGptRows.push({ key: "live_fetch_error", value: nanoGptQuota.error });
-      } else {
-        if (nanoGptQuota.subscription) {
-          nanoGptRows.push({
-            key: "subscription_active",
-            value: nanoGptQuota.subscription.active ? "true" : "false",
-          });
-          nanoGptRows.push({ key: "subscription_state", value: nanoGptQuota.subscription.state });
-          nanoGptRows.push({
-            key: "enforce_daily_limit",
-            value: nanoGptQuota.subscription.enforceDailyLimit ? "true" : "false",
-          });
-          if (nanoGptQuota.subscription.daily) {
-            const daily = nanoGptQuota.subscription.daily;
-            nanoGptRows.push({
-              key: "daily_usage",
-              value: `${fmtNanoGptMetric(daily.used)}/${fmtNanoGptMetric(daily.limit)} remaining=${fmtNanoGptMetric(daily.remaining)} percent_remaining=${daily.percentRemaining} reset_at=${daily.resetTimeIso ?? "(none)"}`,
-            });
-          }
-          if (nanoGptQuota.subscription.monthly) {
-            const monthly = nanoGptQuota.subscription.monthly;
-            nanoGptRows.push({
-              key: "monthly_usage",
-              value: `${fmtNanoGptMetric(monthly.used)}/${fmtNanoGptMetric(monthly.limit)} remaining=${fmtNanoGptMetric(monthly.remaining)} percent_remaining=${monthly.percentRemaining} reset_at=${monthly.resetTimeIso ?? "(none)"}`,
-            });
-          }
-          nanoGptRows.push({
-            key: "billing_period_end",
-            value: nanoGptQuota.subscription.currentPeriodEndIso ?? "(none)",
-          });
-          if (nanoGptQuota.subscription.graceUntilIso) {
-            nanoGptRows.push({
-              key: "grace_until",
-              value: nanoGptQuota.subscription.graceUntilIso,
-            });
-          }
-        }
-        nanoGptRows.push({
-          key: "balance_usd",
-          value:
-            typeof nanoGptQuota.balance?.usdBalance === "number"
-              ? fmtUsdAmount(nanoGptQuota.balance.usdBalance)
-              : "(none)",
-        });
-        nanoGptRows.push({
-          key: "balance_nano",
-          value: nanoGptQuota.balance?.nanoBalanceRaw ?? "(none)",
-        });
-        for (const entry of nanoGptQuota.endpointErrors ?? []) {
-          nanoGptRows.push({ key: `live_error_${entry.endpoint}`, value: entry.message });
-        }
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      nanoGptRows.push({ key: "live_fetch_error", value: msg });
-    }
-  }
-  appendProviderCompactLiveProbeRows(nanoGptRows, "nanogpt", params.providerLiveProbes);
-  sections.push(createKvSection("nanogpt", "nanogpt:", nanoGptRows));
-
-  // === copilot auth ===
-  const copilotDiag = getCopilotQuotaAuthDiagnostics(authData);
-  const copilotRows: ReportKvRow[] = [{ key: "pat_state", value: copilotDiag.pat.state }];
-  if (copilotDiag.pat.selectedPath) {
-    copilotRows.push({ key: "pat_path", value: copilotDiag.pat.selectedPath });
-  }
-  if (copilotDiag.pat.tokenKind) {
-    copilotRows.push({ key: "pat_token_kind", value: copilotDiag.pat.tokenKind });
-  }
-  if (copilotDiag.pat.config?.tier) {
-    copilotRows.push({ key: "pat_tier", value: copilotDiag.pat.config.tier });
-  }
-  if (copilotDiag.billingModel) {
-    copilotRows.push({ key: "billing_model", value: copilotDiag.billingModel });
-  }
-  if (copilotDiag.pat.config?.organization) {
-    copilotRows.push({ key: "pat_organization", value: copilotDiag.pat.config.organization });
-  }
-  if (copilotDiag.pat.config?.enterprise) {
-    copilotRows.push({ key: "pat_enterprise", value: copilotDiag.pat.config.enterprise });
-  }
-  copilotRows.push({ key: "deployment", value: copilotDiag.deployment });
-  copilotRows.push({ key: "api_host", value: copilotDiag.apiHost ?? "(none)" });
-  copilotRows.push({ key: "enterprise_host_source", value: copilotDiag.enterpriseHostSource });
-  if (copilotDiag.enterpriseHostError) {
-    copilotRows.push({ key: "enterprise_host_error", value: copilotDiag.enterpriseHostError });
-  }
-  copilotRows.push({ key: "billing_mode", value: copilotDiag.billingMode });
-  copilotRows.push({ key: "billing_scope", value: copilotDiag.billingScope });
-  copilotRows.push({ key: "quota_api", value: copilotDiag.quotaApi });
-  copilotRows.push({ key: "budget_api", value: copilotDiag.budgetApi });
-  copilotRows.push({
-    key: "billing_api_access_likely",
-    value: copilotDiag.billingApiAccessLikely ? "true" : "false",
-  });
-  copilotRows.push({ key: "remaining_totals_state", value: copilotDiag.remainingTotalsState });
-  if (copilotDiag.queryPeriod) {
-    copilotRows.push({
-      key: "billing_period",
-      value: `${copilotDiag.queryPeriod.year}-${String(copilotDiag.queryPeriod.month).padStart(2, "0")}`,
-    });
-  }
-  if (copilotDiag.usernameFilter) {
-    copilotRows.push({ key: "username_filter", value: copilotDiag.usernameFilter });
-  }
-  if (copilotDiag.billingMode === "organization_usage") {
-    copilotRows.push({
-      key: "billing_usage_note",
-      value: "organization AI Credit usage for the current UTC calendar month",
-    });
-    copilotRows.push({
-      key: "remaining_quota_note",
-      value:
-        "the usage report exposes included-pool consumption and billed usage, but no included-pool denominator; percentages require a real budget",
-    });
-  }
-  if (copilotDiag.billingMode === "enterprise_usage") {
-    copilotRows.push({
-      key: "billing_usage_note",
-      value: "enterprise AI Credit usage for the current UTC calendar month",
-    });
-    copilotRows.push({
-      key: "remaining_quota_note",
-      value:
-        "the usage report exposes included-pool consumption and billed usage, but no included-pool denominator; percentages require a real budget",
-    });
-  }
-  if (copilotDiag.billingTargetError) {
-    copilotRows.push({ key: "billing_target_error", value: copilotDiag.billingTargetError });
-  }
-  if (copilotDiag.tokenCompatibilityError) {
-    copilotRows.push({
-      key: "token_compatibility_error",
-      value: copilotDiag.tokenCompatibilityError,
-    });
-  }
-  if (copilotDiag.pat.error) {
-    copilotRows.push({ key: "pat_error", value: copilotDiag.pat.error });
-  }
-  copilotRows.push({
-    key: "pat_checked_paths",
-    value: copilotDiag.pat.checkedPaths.length
-      ? copilotDiag.pat.checkedPaths.join(" | ")
-      : "(none)",
-  });
-  copilotRows.push({
-    key: "oauth_configured",
-    value: `${copilotDiag.oauth.configured ? "true" : "false"} key=${copilotDiag.oauth.keyName ?? "(none)"} refresh=${copilotDiag.oauth.hasRefreshToken ? "true" : "false"} access=${copilotDiag.oauth.hasAccessToken ? "true" : "false"} enterprise_host=${copilotDiag.oauth.hasEnterpriseUrl ? "true" : "false"}`,
-  });
-  copilotRows.push({ key: "effective_source", value: copilotDiag.effectiveSource });
-  copilotRows.push({ key: "oauth_accounting_state", value: copilotDiag.oauthAccountingState });
-  copilotRows.push({ key: "override", value: copilotDiag.override });
-  appendProviderCompactLiveProbeRows(copilotRows, "copilot", params.providerLiveProbes);
-  sections.push(createKvSection("copilot_quota_auth", "copilot_quota_auth:", copilotRows));
 
   // === google antigravity + db path ===
-  const googleTokenCachePath = getGoogleTokenCachePath();
-  const googleAuthPresence = await inspectAntigravityAccountsPresence();
-  const googleCompanionPresence = await inspectAntigravityCompanionPresence();
   const dbCandidates = getOpenCodeDbPathCandidates();
   const dbSelected = getOpenCodeDbPath();
   const dbPresent: string[] = [];
@@ -1823,103 +934,34 @@ export async function buildQuotaStatusReport(params: {
       if (await pathExists(p)) dbPresent.push(p);
     }),
   );
-  const googleRows: ReportKvRow[] = [
-    { key: "auth_state", value: googleAuthPresence.state },
-    { key: "selected_accounts_path", value: googleAuthPresence.selectedPath ?? "(none)" },
-    { key: "present_accounts_paths", value: joinOrNone(googleAuthPresence.presentPaths) },
-    { key: "candidate_accounts_paths", value: joinOrNone(googleAuthPresence.candidatePaths) },
-    { key: "account_count", value: String(googleAuthPresence.accountCount) },
-    { key: "valid_account_count", value: String(googleAuthPresence.validAccountCount) },
-    { key: "companion_package_state", value: googleCompanionPresence.state },
-    {
-      key: "companion_package_path",
-      value:
-        googleCompanionPresence.state === "present" || googleCompanionPresence.state === "invalid"
-          ? (googleCompanionPresence.resolvedPath ?? "(none)")
-          : "(none)",
-    },
-  ];
-  if (googleCompanionPresence.state !== "present") {
-    googleRows.push({
-      key: "companion_error",
-      value: sanitizeDisplayText(googleCompanionPresence.error),
-    });
-  }
-  googleRows.push({
-    key: "token_cache_path",
-    value: `${googleTokenCachePath} exists=${(await pathExists(googleTokenCachePath)) ? "true" : "false"}`,
-  });
-  if (googleAuthPresence.state === "invalid" && googleAuthPresence.error) {
-    googleRows.push({ key: "auth_error", value: sanitizeDisplayText(googleAuthPresence.error) });
-  }
+  const googleRows: ReportKvRow[] = [];
+  appendProviderStatusDetailRows(googleRows, "google-antigravity", params.providerLiveProbes);
   googleRows.push({
     key: "opencode db",
     value: `preferred=${dbSelected} present=${joinOrNone(dbPresent)} candidates=${joinOrNone(dbCandidates)}`,
   });
-  appendProviderCompactLiveProbeRows(googleRows, "google-antigravity", params.providerLiveProbes);
+  appendProviderCompactLiveProbeRows(
+    googleRows,
+    "google-antigravity",
+    params.providerLiveProbes,
+    params.providerAvailability,
+  );
   sections.push(createKvSection("google_antigravity", "google_antigravity:", googleRows));
 
-  // === google gemini cli ===
-  const geminiCliAuthPresence = await inspectGeminiCliAuthPresence(params.geminiCliClient);
-  const geminiCliCompanionPresence = await inspectGeminiCliCompanionPresence();
-  const geminiCliRows: ReportKvRow[] = [
-    { key: "auth_state", value: geminiCliAuthPresence.state },
-    { key: "auth_source", value: geminiCliAuthPresence.sourceKey ?? "(none)" },
-    { key: "account_count", value: String(geminiCliAuthPresence.accountCount) },
-    { key: "valid_account_count", value: String(geminiCliAuthPresence.validAccountCount) },
-    { key: "companion_package_state", value: geminiCliCompanionPresence.state },
-    {
-      key: "companion_package_path",
-      value:
-        geminiCliCompanionPresence.state === "present" ||
-        geminiCliCompanionPresence.state === "invalid"
-          ? (geminiCliCompanionPresence.resolvedPath ?? "(none)")
-          : "(none)",
-    },
-  ];
-  if (geminiCliAuthPresence.state === "invalid") {
-    geminiCliRows.push({
-      key: "auth_error",
-      value: sanitizeDisplayText(geminiCliAuthPresence.error),
-    });
+  for (const [id, providerId] of [
+    ["google_gemini_cli", "google-gemini-cli"],
+    ["google_agy", "google-agy"],
+  ] as const) {
+    sections.push(
+      createProviderStatusSection({
+        id,
+        title: `${id}:`,
+        providerId,
+        probes: params.providerLiveProbes,
+        availability: params.providerAvailability,
+      }),
+    );
   }
-  if (geminiCliCompanionPresence.state !== "present") {
-    geminiCliRows.push({
-      key: "companion_error",
-      value: sanitizeDisplayText(geminiCliCompanionPresence.error),
-    });
-  }
-  appendProviderCompactLiveProbeRows(geminiCliRows, "google-gemini-cli", params.providerLiveProbes);
-  sections.push(createKvSection("google_gemini_cli", "google_gemini_cli:", geminiCliRows));
-
-  // Google AGY
-  const agyAuthPresence = await inspectAgyAuthPresence(params.agyClient);
-  const agyCompanionPresence = await inspectAgyCompanionPresence();
-  const agyRows: ReportKvRow[] = [
-    { key: "auth_state", value: agyAuthPresence.state },
-    { key: "auth_source", value: agyAuthPresence.sourceKey ?? "(none)" },
-    { key: "account_count", value: String(agyAuthPresence.accountCount) },
-    { key: "valid_account_count", value: String(agyAuthPresence.validAccountCount) },
-    { key: "companion_package_state", value: agyCompanionPresence.state },
-    {
-      key: "companion_package_path",
-      value:
-        agyCompanionPresence.state === "present" || agyCompanionPresence.state === "invalid"
-          ? (agyCompanionPresence.resolvedPath ?? "(none)")
-          : "(none)",
-    },
-  ];
-  if (agyAuthPresence.state === "invalid") {
-    agyRows.push({ key: "auth_error", value: sanitizeDisplayText(agyAuthPresence.error) });
-  }
-  if (agyCompanionPresence.state !== "present") {
-    agyRows.push({
-      key: "companion_error",
-      value: sanitizeDisplayText(agyCompanionPresence.error),
-    });
-  }
-  appendProviderCompactLiveProbeRows(agyRows, "google-agy", params.providerLiveProbes);
-  sections.push(createKvSection("google_agy", "google_agy:", agyRows));
 
   if (params.googleRefresh?.attempted) {
     const googleRefreshRows: ReportKvRow[] = [];

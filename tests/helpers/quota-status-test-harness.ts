@@ -4,6 +4,9 @@ import type { buildQuotaStatusReport } from "../../src/lib/quota-status.js";
 
 type QuotaStatusReportParams = Parameters<typeof buildQuotaStatusReport>[0];
 type ProviderAvailability = QuotaStatusReportParams["providerAvailability"][number];
+type ProviderLiveProbe = NonNullable<QuotaStatusReportParams["providerLiveProbes"]>[number];
+type ProviderResult = ProviderLiveProbe["result"];
+type StatusDetail = NonNullable<ProviderResult["statusDetails"]>[number];
 
 export const DEFAULT_QUOTA_STATUS_REPORT_GENERATED_AT_MS = Date.UTC(2026, 2, 12, 12, 45, 0);
 
@@ -24,6 +27,59 @@ export function makeProviderAvailabilityList(
   overridesByProviderId: Record<string, Partial<Omit<ProviderAvailability, "id">>> = {},
 ): ProviderAvailability[] {
   return providerIds.map((id) => makeProviderAvailability(id, overridesByProviderId[id]));
+}
+
+export function makeStatusDetails(
+  details: Readonly<Record<string, string>> | readonly StatusDetail[],
+): StatusDetail[] {
+  return Array.isArray(details)
+    ? details.map(({ key, value }) => ({ key, value }))
+    : Object.entries(details).map(([key, value]) => ({ key, value }));
+}
+
+export function makeProviderProbe(
+  providerId: string,
+  result: Partial<ProviderResult> = {},
+): ProviderLiveProbe {
+  return {
+    providerId,
+    result: {
+      attempted: false,
+      entries: [],
+      errors: [],
+      ...result,
+    },
+  };
+}
+
+export function makeProviderSuccessProbe(
+  providerId: string,
+  details: Readonly<Record<string, string>> | readonly StatusDetail[] = {},
+  result: Partial<ProviderResult> = {},
+): ProviderLiveProbe {
+  return makeProviderProbe(providerId, {
+    attempted: true,
+    statusDetails: makeStatusDetails(details),
+    ...result,
+  });
+}
+
+export function makeProviderPartialProbe(
+  providerId: string,
+  details: Readonly<Record<string, string>> | readonly StatusDetail[],
+  result: Partial<ProviderResult>,
+): ProviderLiveProbe {
+  return makeProviderSuccessProbe(providerId, details, result);
+}
+
+export function makeProviderSafeFailureProbe(
+  providerId: string,
+  details: Readonly<Record<string, string>> | readonly StatusDetail[],
+  message = "Failed to read quota data",
+): ProviderLiveProbe {
+  return makeProviderSuccessProbe(providerId, details, {
+    errors: [{ label: providerId, message }],
+  });
 }
 
 export function makeQuotaStatusReportParams(

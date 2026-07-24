@@ -14,11 +14,18 @@ import type {
 import type { OpenCodeGoResult, OpenCodeGoWindowKey } from "../lib/types.js";
 import {
   DEFAULT_OPENCODE_GO_CONFIG_CACHE_MAX_AGE_MS,
+  getOpenCodeGoConfigDiagnostics,
   resolveOpenCodeGoConfigCached,
 } from "../lib/opencode-go-config.js";
 import { queryOpenCodeGoQuota } from "../lib/opencode-go.js";
 import { normalizeQuotaProviderId } from "../lib/provider-metadata.js";
-import { attemptedErrorResult, attemptedResult, notAttemptedResult } from "./result-helpers.js";
+import {
+  attemptedErrorResult,
+  configStatusDetails,
+  attemptedResult,
+  notAttemptedResult,
+  withStatusDetails,
+} from "./result-helpers.js";
 
 const OPENCODE_GO_PROVIDER_LABEL = "OpenCode Go";
 const OPENCODE_GO_WINDOW_ORDER: OpenCodeGoWindowKey[] = ["rolling", "weekly", "monthly"];
@@ -105,25 +112,37 @@ export const opencodeGoProvider: QuotaProvider = {
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+    const diagnostics = await getOpenCodeGoConfigDiagnostics();
+    const windows = ctx.config.opencodeGoWindows ?? OPENCODE_GO_WINDOW_ORDER;
+    const statusDetails = [
+      ...configStatusDetails(diagnostics),
+      { key: "selected_windows", value: windows.join(",") },
+    ];
     const config = await resolveOpenCodeGoConfigCached({
       maxAgeMs: DEFAULT_OPENCODE_GO_CONFIG_CACHE_MAX_AGE_MS,
     });
 
     if (config.state === "none") {
-      return notAttemptedResult();
+      return withStatusDetails(notAttemptedResult(), statusDetails);
     }
 
     if (config.state === "incomplete") {
-      return attemptedErrorResult(
-        OPENCODE_GO_PROVIDER_LABEL,
-        `Missing ${config.missing} (source: ${config.source})`,
+      return withStatusDetails(
+        attemptedErrorResult(
+          OPENCODE_GO_PROVIDER_LABEL,
+          `Missing ${config.missing} (source: ${config.source})`,
+        ),
+        statusDetails,
       );
     }
 
     if (config.state === "invalid") {
-      return attemptedErrorResult(
-        OPENCODE_GO_PROVIDER_LABEL,
-        `Invalid config (${config.source}): ${config.error}`,
+      return withStatusDetails(
+        attemptedErrorResult(
+          OPENCODE_GO_PROVIDER_LABEL,
+          `Invalid config (${config.source}): ${config.error}`,
+        ),
+        statusDetails,
       );
     }
 
@@ -134,26 +153,41 @@ export const opencodeGoProvider: QuotaProvider = {
     });
 
     if (!result) {
-      return notAttemptedResult();
-    }
-
-    if (!result.success) {
-      return attemptedErrorResult(OPENCODE_GO_PROVIDER_LABEL, result.error);
-    }
-
-    const windows = ctx.config.opencodeGoWindows ?? OPENCODE_GO_WINDOW_ORDER;
-    const entries = buildOpenCodeGoEntries(result, windows);
-    const missingSelectedWindows = windows.filter((window) => !result[window]);
-
-    if (missingSelectedWindows.length > 0 && !isDefaultOpenCodeGoWindowSelection(windows)) {
-      return attemptedResult(entries, [
-        {
-          label: OPENCODE_GO_PROVIDER_LABEL,
-          message: `Selected OpenCode Go dashboard window(s) missing: ${formatMissingWindowList(missingSelectedWindows)}`,
-        },
+      return withStatusDetails(notAttemptedResult(), [
+        ...statusDetails,
+        { key: "live_fetch_error", value: "OpenCode Go returned null" },
       ]);
     }
 
-    return attemptedResult(entries);
+    if (!result.success) {
+      return withStatusDetails(attemptedErrorResult(OPENCODE_GO_PROVIDER_LABEL, result.error), [
+        ...statusDetails,
+        { key: "live_fetch_error", value: result.error },
+      ]);
+    }
+
+    const entries = buildOpenCodeGoEntries(result, windows);
+    const missingSelectedWindows = windows.filter((window) => !result[window]);
+
+    const liveDetails = OPENCODE_GO_WINDOW_ORDER.flatMap((window) => {
+      const usage = result[window];
+      return usage
+        ? [
+            {
+              key: `${window}_usage`,
+              value: `percent_used=${usage.usagePercent} percent_remaining=${usage.percentRemaining} reset_in_sec=${usage.resetInSec} reset_at=${usage.resetTimeIso}`,
+            },
+          ]
+        : [];
+    });
+    if (missingSelectedWindows.length > 0 && !isDefaultOpenCodeGoWindowSelection(windows)) {
+      const message = `Selected OpenCode Go dashboard window(s) missing: ${formatMissingWindowList(missingSelectedWindows)}`;
+      return withStatusDetails(
+        attemptedResult(entries, [{ label: OPENCODE_GO_PROVIDER_LABEL, message }]),
+        [...statusDetails, ...liveDetails, { key: "live_fetch_error", value: message }],
+      );
+    }
+
+    return withStatusDetails(attemptedResult(entries), [...statusDetails, ...liveDetails]);
   },
 };

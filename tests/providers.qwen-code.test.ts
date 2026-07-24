@@ -9,6 +9,8 @@ vi.mock("../src/lib/opencode-auth.js", () => ({
 }));
 
 vi.mock("../src/lib/qwen-local-quota.js", () => ({
+  QWEN_LOCAL_QUOTA_STATE_VERSION: 1,
+  getQwenLocalQuotaPath: () => "/tmp/qwen-quota.json",
   readQwenLocalQuotaState: vi.fn(),
   computeQwenQuota: vi.fn(),
 }));

@@ -10,11 +10,19 @@ import type {
 } from "../lib/entries.js";
 import {
   formatNanoGptBalanceValue,
+  getNanoGptKeyDiagnostics,
   hasNanoGptApiKeyConfigured,
   queryNanoGptQuota,
 } from "../lib/nanogpt.js";
+import { fmtUsdAmount } from "../lib/format-utils.js";
 import { modelProviderMatchesRuntimeId } from "../lib/provider-model-matching.js";
-import { attemptedResult, mapNullableProviderResult } from "./result-helpers.js";
+import {
+  attemptedResult,
+  mapNullableProviderResult,
+  simpleApiKeyStatusDetails,
+  statusDetailsFromRecord,
+  withStatusDetails,
+} from "./result-helpers.js";
 
 function formatUsageAmount(value: number): string {
   if (!Number.isFinite(value)) return "0";
@@ -105,7 +113,38 @@ function mapNanoGptSuccess(result: NanoGptQuotaSuccess): QuotaProviderResult {
     });
   }
 
-  return attemptedResult(entries, errors);
+  const formatSubscriptionUsage = (
+    usage: NonNullable<typeof subscription>["daily"],
+  ): string | undefined =>
+    usage
+      ? `${formatUsageAmount(usage.used)}/${formatUsageAmount(usage.limit)} remaining=${formatUsageAmount(usage.remaining)} percent_remaining=${usage.percentRemaining} reset_at=${usage.resetTimeIso ?? "(none)"}`
+      : undefined;
+  const statusDetails = [
+    ...statusDetailsFromRecord({
+      subscription_active: subscription ? (subscription.active ? "true" : "false") : undefined,
+      subscription_state: subscription?.state,
+      enforce_daily_limit: subscription
+        ? subscription.enforceDailyLimit
+          ? "true"
+          : "false"
+        : undefined,
+      daily_usage: formatSubscriptionUsage(subscription?.daily),
+      monthly_usage: formatSubscriptionUsage(subscription?.monthly),
+      billing_period_end: subscription ? (subscription.currentPeriodEndIso ?? "(none)") : undefined,
+      grace_until: subscription?.graceUntilIso,
+      balance_usd:
+        typeof result.balance?.usdBalance === "number"
+          ? fmtUsdAmount(result.balance.usdBalance)
+          : "(none)",
+      balance_nano: result.balance?.nanoBalanceRaw ?? "(none)",
+    }),
+    ...(result.endpointErrors ?? []).map((endpointError) => ({
+      key: `live_error_${endpointError.endpoint}`,
+      value: endpointError.message,
+    })),
+  ];
+
+  return withStatusDetails(attemptedResult(entries, errors), statusDetails);
 }
 
 export const nanoGptProvider: QuotaProvider = {
@@ -120,11 +159,20 @@ export const nanoGptProvider: QuotaProvider = {
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
+    const diagnostics = await getNanoGptKeyDiagnostics().catch(() => ({
+      configured: false,
+      source: null,
+      checkedPaths: [],
+      authPaths: [],
+    }));
     const result = await queryNanoGptQuota({ requestTimeoutMs: ctx.config?.requestTimeoutMs });
-
-    return mapNullableProviderResult(result, {
+    const providerResult = mapNullableProviderResult(result, {
       errorLabel: "NanoGPT",
       onSuccess: mapNanoGptSuccess,
     });
+    return withStatusDetails(providerResult, [
+      ...simpleApiKeyStatusDetails(diagnostics),
+      ...(providerResult.statusDetails ?? []),
+    ]);
   },
 };

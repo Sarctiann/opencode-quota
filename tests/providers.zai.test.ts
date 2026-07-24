@@ -20,6 +20,12 @@ const authMocks = vi.hoisted(() => ({
 vi.mock("../src/lib/zai-auth.js", () => ({
   DEFAULT_ZAI_AUTH_CACHE_MAX_AGE_MS: 5_000,
   resolveZaiAuthCached: authMocks.resolveZaiAuthCached,
+  getZaiAuthDiagnostics: vi.fn(async () => ({
+    state: "none",
+    source: null,
+    checkedPaths: [],
+    authPaths: [],
+  })),
 }));
 
 describe("zai provider", () => {

@@ -11,6 +11,12 @@ import { deepseekProvider } from "../src/providers/deepseek.js";
 vi.mock("../src/lib/deepseek.js", () => ({
   queryDeepSeekBalance: vi.fn(),
   hasDeepSeekApiKeyConfigured: vi.fn(),
+  getDeepSeekKeyDiagnostics: vi.fn(async () => ({
+    configured: false,
+    source: null,
+    checkedPaths: [],
+    authPaths: [],
+  })),
   formatDeepSeekBalanceValue: vi.fn(
     (balance: { currency: "CNY" | "USD"; totalBalance: string }) =>
       `${balance.currency === "CNY" ? "¥" : "$"}${balance.totalBalance}`,

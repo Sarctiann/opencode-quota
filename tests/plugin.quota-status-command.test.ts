@@ -243,7 +243,7 @@ describe("/quota_status command behavior", () => {
     );
   });
 
-  it("probes every enabled and available provider with fresh single-window status probes and still throws the handled sentinel", async () => {
+  it("passes every registered provider through the shared fetch-once status flow", async () => {
     const openai = {
       id: "openai",
       isAvailable: vi.fn().mockResolvedValue(true),
@@ -289,7 +289,7 @@ describe("/quota_status command behavior", () => {
           enabledProviders: ["openai", "synthetic", "copilot", "cursor"],
         }),
         formatStyle: "singleWindow",
-        providers: [openai, synthetic, copilot],
+        providers: [openai, synthetic, copilot, cursor],
       }),
     );
     expect(mocks.buildQuotaStatusReport).toHaveBeenCalledWith(

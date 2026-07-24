@@ -266,6 +266,7 @@ describe("quota-providers aggregate provider", () => {
       "first",
       "second",
     ]);
+    expect(result.statusDetails).toBeUndefined();
   });
 
   it("refreshes mixed local data while retaining remote definition caching", async () => {

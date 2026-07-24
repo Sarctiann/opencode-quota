@@ -11,6 +11,12 @@ import { nanoGptProvider } from "../src/providers/nanogpt.js";
 vi.mock("../src/lib/nanogpt.js", () => ({
   queryNanoGptQuota: vi.fn(),
   hasNanoGptApiKeyConfigured: vi.fn(),
+  getNanoGptKeyDiagnostics: vi.fn(async () => ({
+    configured: false,
+    source: null,
+    checkedPaths: [],
+    authPaths: [],
+  })),
   formatNanoGptBalanceValue: vi.fn((balance: { usdBalance?: number; nanoBalanceRaw?: string }) => {
     if (typeof balance.usdBalance === "number") {
       return `$${balance.usdBalance.toFixed(2)}`;

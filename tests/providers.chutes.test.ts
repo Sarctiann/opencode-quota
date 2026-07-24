@@ -11,6 +11,11 @@ import { chutesProvider } from "../src/providers/chutes.js";
 vi.mock("../src/lib/chutes.js", () => ({
   queryChutesQuota: vi.fn(),
   hasChutesApiKeyConfigured: vi.fn(),
+  getChutesKeyDiagnostics: vi.fn(async () => ({
+    configured: false,
+    source: null,
+    checkedPaths: [],
+  })),
 }));
 
 vi.mock("../src/lib/provider-availability.js", () => ({

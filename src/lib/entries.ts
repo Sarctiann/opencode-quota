@@ -123,8 +123,8 @@ export interface SessionTokensData {
 }
 
 export interface QuotaProviderStatusDetail {
-  key: string;
-  value: string;
+  readonly key: string;
+  readonly value: string;
 }
 
 export interface QuotaProviderPresentation {
@@ -183,8 +183,11 @@ export interface QuotaProviderResult {
   errors: QuotaToastError[];
   /** Internal provider diagnostics; not projected into normal presentation/export surfaces. */
   diagnostics?: QuotaProviderDiagnostic[];
-  /** Safe provider-specific details reused by diagnostic status reports. */
-  statusDetails?: QuotaProviderStatusDetail[];
+  /**
+   * Safe, single-line provider details from this fetch attempt. Diagnostic consumers
+   * may reuse them, but must not refetch when details are absent.
+   */
+  statusDetails?: readonly QuotaProviderStatusDetail[];
   presentation?: QuotaProviderPresentation;
 }
 

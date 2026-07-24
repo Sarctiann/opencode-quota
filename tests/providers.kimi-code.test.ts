@@ -14,6 +14,12 @@ const authMocks = vi.hoisted(() => ({
 
 vi.mock("../src/lib/kimi-auth.js", () => ({
   resolveKimiAuthCached: authMocks.resolveKimiAuthCached,
+  getKimiAuthDiagnostics: vi.fn(async () => ({
+    state: "none",
+    source: null,
+    checkedPaths: [],
+    authPaths: [],
+  })),
   DEFAULT_KIMI_AUTH_CACHE_MAX_AGE_MS: 5_000,
 }));
 

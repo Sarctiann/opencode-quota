@@ -32,6 +32,18 @@ const mocks = vi.hoisted(() => {
 vi.mock("../src/lib/minimax-auth.js", () => ({
   resolveMiniMaxAuthCached: mocks.resolveMiniMaxAuthCached,
   resolveMiniMaxChinaAuthCached: mocks.resolveMiniMaxChinaAuthCached,
+  getMiniMaxAuthDiagnostics: vi.fn(async () => ({
+    state: "none",
+    source: null,
+    checkedPaths: [],
+    authPaths: [],
+  })),
+  getMiniMaxChinaAuthDiagnostics: vi.fn(async () => ({
+    state: "none",
+    source: null,
+    checkedPaths: [],
+    authPaths: [],
+  })),
   DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS: 5_000,
 }));
 
