@@ -433,7 +433,9 @@ describe("quota-state shared cache", () => {
   it("returns cache-owned clones for repeated non-live provider reads", async () => {
     const { __resetQuotaStateForTests, fetchQuotaProviderResult } =
       await import("../src/lib/quota-state.js");
+    const { configureQuotaTelemetry } = await import("../src/lib/quota-telemetry.js");
     __resetQuotaStateForTests();
+    configureQuotaTelemetry(true);
 
     const provider = {
       id: "synthetic",
@@ -458,9 +460,11 @@ describe("quota-state shared cache", () => {
       }),
     } as any;
 
+    const telemetryContext = createTestContext();
+    telemetryContext.config.telemetryEnabled = true;
     const first = await fetchQuotaProviderResult({
       provider,
-      ctx: createTestContext(),
+      ctx: telemetryContext,
       ttlMs: 60_000,
     });
     const firstEntry = first.entries[0] as any;
@@ -470,7 +474,7 @@ describe("quota-state shared cache", () => {
 
     const second = await fetchQuotaProviderResult({
       provider,
-      ctx: createTestContext(),
+      ctx: telemetryContext,
       ttlMs: 60_000,
     });
 

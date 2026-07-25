@@ -7,6 +7,7 @@ import { createLoadConfigMeta, loadConfig } from "./config.js";
 import { getProviders } from "../providers/registry.js";
 import { resolveRuntimeContextRoots } from "./config-file-utils.js";
 import { cloneQuotaProviders } from "./quota-providers.js";
+import { configureQuotaTelemetry } from "./quota-telemetry.js";
 import {
   createRuntimeProviderIdResolver,
   type RuntimeProviderIdResolver,
@@ -66,6 +67,7 @@ export async function resolveQuotaRuntimeContext(
     (await loadConfig(params.client, configMeta, {
       configRootDir: roots.configRoot,
     }));
+  configureQuotaTelemetry(config.enabled && config.telemetry?.enabled === true);
 
   let sessionMeta = params.sessionMeta;
   if (
@@ -111,6 +113,9 @@ export function createQuotaProviderRuntimeContext(runtime: {
   resolveRuntimeProviderIds: RuntimeProviderIdResolver;
   configMeta?: Pick<LoadConfigMeta, "settingSources">;
 }): QuotaProviderContext {
+  const telemetryEnabled = runtime.config.enabled && runtime.config.telemetry?.enabled === true;
+  const telemetryGeneration = configureQuotaTelemetry(telemetryEnabled);
+
   return {
     client: runtime.client,
     resolveRuntimeProviderIds: runtime.resolveRuntimeProviderIds,
@@ -129,6 +134,8 @@ export function createQuotaProviderRuntimeContext(runtime: {
       enabledProviders:
         runtime.config.enabledProviders === "auto" ? "auto" : [...runtime.config.enabledProviders],
       quotaProviders: cloneQuotaProviders(runtime.config.quotaProviders),
+      telemetryEnabled,
+      telemetryGeneration,
       currentModel: runtime.session.sessionMeta?.modelID,
       currentProviderID: runtime.session.sessionMeta?.providerID,
     },

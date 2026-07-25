@@ -39,6 +39,9 @@ importers:
       '@opencode-ai/plugin':
         specifier: 1.18.1
         version: 1.18.1(@opentui/core@0.4.3(typescript@5.9.3)(web-tree-sitter@0.25.10))(@opentui/solid@0.4.3(solid-js@1.9.12)(typescript@5.9.3)(web-tree-sitter@0.25.10))
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.6
@@ -59,7 +62,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.17
-        version: 4.0.17(@types/node@22.19.6)(yaml@2.8.3)
+        version: 4.0.17(@opentelemetry/api@1.9.1)(@types/node@22.19.6)(yaml@2.8.3)
       yaml:
         specifier: ^2.8.3
         version: 2.8.3
@@ -432,6 +435,10 @@ packages:
 
   '@opencode-ai/sdk@1.18.1':
     resolution: {integrity: sha512-2mX9SXSDVtZ9i2yCOiXDXKx981EJp/ObUtaThUNn16jkjfwX/1j8r+UR/BKUmBLYq+zle7TtpXreXuO+gtVjKA==}
+
+  '@opentelemetry/api@1.9.1':
+    resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
+    engines: {node: '>=8.0.0'}
 
   '@opentui/core-darwin-arm64@0.4.3':
     resolution: {integrity: sha512-p5+7AAxpxGuDGagyQfewKtmTFnN7THvTVY4FyKqUtJomNaHdQXPHztapNNzMx0DGWbwOUbVKzpL+yc3CZY3chQ==}
@@ -1810,6 +1817,8 @@ snapshots:
     dependencies:
       cross-spawn: 7.0.6
 
+  '@opentelemetry/api@1.9.1': {}
+
   '@opentui/core-darwin-arm64@0.4.3':
     optional: true
 
@@ -2715,7 +2724,7 @@ snapshots:
       fsevents: 2.3.3
       yaml: 2.8.3
 
-  vitest@4.0.17(@types/node@22.19.6)(yaml@2.8.3):
+  vitest@4.0.17(@opentelemetry/api@1.9.1)(@types/node@22.19.6)(yaml@2.8.3):
     dependencies:
       '@vitest/expect': 4.0.17
       '@vitest/mocker': 4.0.17(vite@7.3.2(@types/node@22.19.6)(yaml@2.8.3))
@@ -2738,6 +2747,7 @@ snapshots:
       vite: 7.3.2(@types/node@22.19.6)(yaml@2.8.3)
       why-is-node-running: 2.3.0
     optionalDependencies:
+      '@opentelemetry/api': 1.9.1
       '@types/node': 22.19.6
     transitivePeerDependencies:
       - jiti

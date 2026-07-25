@@ -17,6 +17,7 @@ import { fetchSessionTokensForDisplay } from "./session-tokens.js";
 import { getQuotaProviderDisplayLabel, normalizeQuotaProviderId } from "./provider-metadata.js";
 import { isCursorProviderId } from "./cursor-pricing.js";
 import { fetchQuotaProviderResult } from "./quota-state.js";
+import { configureQuotaTelemetry, retainQuotaTelemetryProviders } from "./quota-telemetry.js";
 import { createQuotaProviderRuntimeContext } from "./quota-runtime-context.js";
 import {
   createRuntimeProviderIdResolver,
@@ -164,6 +165,7 @@ export async function resolveQuotaRenderSelection(params: {
   resolveRuntimeProviderIds?: RuntimeProviderIdResolver;
 }): Promise<QuotaRenderSelection | null> {
   const { client, config, request } = params;
+  configureQuotaTelemetry(config.enabled && config.telemetry?.enabled === true);
   if (!config.enabled) return null;
 
   const allProviders = params.providers ?? getProviders();
@@ -637,6 +639,7 @@ export async function collectQuotaRenderData(params: {
   );
 
   const active = availability.filter((item) => item.ok).map((item) => item.provider);
+  retainQuotaTelemetryProviders(active.map((provider) => provider.id));
   const explicitProviderIssues = buildExplicitProviderIssues({
     selection,
     availability,

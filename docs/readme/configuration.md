@@ -363,4 +363,12 @@ Xiaomi MiMo has no `quota-toast.json` credential or endpoint setting. Use `MIMO_
 | `export.enabled` | `false` | Write a JSON export file after each TUI background refresh.                                                                 |
 | `export.path`    | `""`    | Export file path. Empty string uses the XDG default: `$XDG_CACHE_HOME/opencode/quota-export.json`. Supports `~/` expansion. |
 
+### Telemetry settings
+
+| Option              | Default | Meaning                                                                                                                         |
+| ------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `telemetry.enabled` | `false` | Publish quota consumption and cache-age gauges through the host's global OpenTelemetry `MeterProvider`; adds no provider calls. |
+
+See [External integration](external-integration.md#option-3-publish-opentelemetry-metrics) for metric names, attributes, setup, and privacy behavior.
+
 </details>

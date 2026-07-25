@@ -223,6 +223,8 @@ export interface QuotaProviderContext {
     currentProviderID?: string;
     enabledProviders: string[] | "auto";
     quotaProviders?: QuotaProviderDefinition[];
+    telemetryEnabled?: boolean;
+    telemetryGeneration?: number;
   };
 }
 

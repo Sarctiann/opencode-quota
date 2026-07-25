@@ -211,6 +211,24 @@ describe("quota runtime context", () => {
     expect(providerContext.config?.requestTimeoutMsConfigured).toBe(true);
   });
 
+  it("enables provider telemetry only when both plugin and telemetry are enabled", () => {
+    const client = createClient();
+    const createContext = (enabled: boolean) =>
+      createQuotaProviderRuntimeContext({
+        client,
+        resolveRuntimeProviderIds: createRuntimeProviderIdResolver(client),
+        config: {
+          ...DEFAULT_CONFIG,
+          enabled,
+          telemetry: { enabled: true },
+        },
+        session: {},
+      });
+
+    expect(createContext(false).config.telemetryEnabled).toBe(false);
+    expect(createContext(true).config.telemetryEnabled).toBe(true);
+  });
+
   it("copies default request timeout without marking it explicitly configured", () => {
     const client = createClient();
     const providerContext = createQuotaProviderRuntimeContext({

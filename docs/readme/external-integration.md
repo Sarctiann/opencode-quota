@@ -6,12 +6,13 @@ Use this page when a script, status bar, or CI job needs quota data.
 
 Choose one source:
 
-| Source                       | Best for                                              |
-| ---------------------------- | ----------------------------------------------------- |
-| `opencode-quota show --json` | Reading the latest cached data from a command         |
-| Export file                  | Reading the same data often without running a command |
+| Source                       | Best for                                                |
+| ---------------------------- | ------------------------------------------------------- |
+| `opencode-quota show --json` | Reading the latest cached data from a command           |
+| Export file                  | Reading the same data often without running a command   |
+| OpenTelemetry metrics        | Monitoring quota consumption and freshness in a backend |
 
-Both read OpenCode Quota's local cache. They do not contact providers.
+All three reuse normalized quota data already collected by OpenCode Quota. They do not add provider requests.
 
 ## JSON export v2
 
@@ -74,6 +75,44 @@ Usually that means:
 ```
 
 The TUI updates this file after each home-bottom background refresh, about every 60 seconds. Write errors are logged as warnings and never break TUI rendering.
+
+## Option 3: publish OpenTelemetry metrics
+
+Use this when the OpenCode host already configures an OpenTelemetry SDK and exporter. OpenCode Quota reuses the global `MeterProvider`; it does not install an SDK, configure OTLP, own an exporter, or add a refresh timer.
+
+Add this to `opencode-quota/quota-toast.json`:
+
+```jsonc
+{
+  "telemetry": {
+    "enabled": true,
+  },
+}
+```
+
+Telemetry is disabled by default. The host must make `@opentelemetry/api` available and register its global `MeterProvider`. If the API or a provider is unavailable, OpenCode Quota continues normally and emits no metrics.
+
+OpenCode Quota publishes observable gauges from the latest normalized cache snapshot:
+
+| Metric                     | Unit | Meaning                                                                                                       |
+| -------------------------- | ---- | ------------------------------------------------------------------------------------------------------------- |
+| `opencode.quota.consumed`  | `1`  | Consumed ratio derived from `percentRemaining`: `(100 - percentRemaining) / 100`, with a lower bound of zero. |
+| `opencode.quota.cache.age` | `s`  | Seconds since that normalized provider snapshot was fetched; the timestamp is preserved across cache hits.    |
+
+`opencode.quota.consumed` is `0` when unused and `1` at 100% consumed. It can exceed `1` when a provider reports quota below zero. Human-readable value rows such as balances are not converted into metrics.
+
+Both gauges use the same bounded attributes:
+
+- `quota.provider`
+- `quota.result_type`
+- `quota.window`
+- `quota.acquisition_method`
+- `quota.ownership`
+- `quota.authority`
+
+Raw row labels are reduced to a bounded window classification such as `five_hour`, `day`, `week`, or `month`; unclassified rows use `unspecified`. Display names, account identifiers, configured source IDs, credentials, URLs, paths, models, errors, and raw provider responses are never metric attributes. When multiple rows have identical safe attributes, the gauge reports the highest consumed ratio.
+
+Metric callbacks only read in-memory snapshots. They never contact a provider or read the cache, and telemetry failures never affect collection, commands, exports, or UI behavior.
 
 ## Copy-paste examples
 

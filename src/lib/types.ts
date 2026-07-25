@@ -57,6 +57,11 @@ export interface QuotaExportConfig {
   path: string;
 }
 
+export interface QuotaTelemetryConfig {
+  /** Whether to publish quota gauges through the global OpenTelemetry MeterProvider. */
+  enabled: boolean;
+}
+
 export interface MaintainerAnnouncementsConfig {
   enabled: boolean;
   home: boolean;
@@ -173,6 +178,9 @@ export interface QuotaToastConfig {
   /** Opt-in periodic JSON export for external tool consumption. */
   export: QuotaExportConfig;
 
+  /** Opt-in quota metrics through the host's global OpenTelemetry MeterProvider. */
+  telemetry: QuotaTelemetryConfig;
+
   /** Responsive toast layout breakpoints (not used by the fixed-width TUI sidebar). */
   layout: {
     /** Default max width target for toast formatting */
@@ -238,6 +246,9 @@ export const DEFAULT_CONFIG: QuotaToastConfig = {
   export: {
     enabled: false,
     path: "",
+  },
+  telemetry: {
+    enabled: false,
   },
   layout: {
     maxWidth: 50,
