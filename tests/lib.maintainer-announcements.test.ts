@@ -86,8 +86,8 @@ describe("maintainer announcements", () => {
   it("preserves the global OpenCode ecosystem announcement beside the Gemini notice", () => {
     const ecosystemAnnouncement = {
       id: "opencode-ecosystem-listing-support",
-      message: "Support OpenCode Quota's ecosystem listing: review the PR and add a thumbs-up.",
-      url: "https://github.com/anomalyco/opencode/pull/38283",
+      message: "Support OpenCode Quota's ecosystem listing: review the issue and add a thumbs-up.",
+      url: "https://github.com/anomalyco/opencode/issues/38281",
       startsAt: "2026-07-22T00:00:00.000Z",
       endsAt: "2026-08-22T00:00:00.000Z",
     } satisfies MaintainerAnnouncement;

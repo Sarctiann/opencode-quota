@@ -4,6 +4,104 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
+// src/plugin/pricing.ts
+import { tmpdir, userInfo } from "os";
+import { join } from "path";
+import { existsSync, readFileSync, writeFileSync, statSync } from "fs";
+var PRICING_API_URL = "https://models.dev/api.json";
+var CACHE_FILE_NAME = "agy-pricing-cache.json";
+var CACHE_TTL_MS = 24 * 60 * 60 * 1e3;
+var memoryCache = null;
+function getCachePath() {
+  try {
+    return join(tmpdir(), `${CACHE_FILE_NAME}-${userInfo().uid}`);
+  } catch (err) {
+    return join(tmpdir(), CACHE_FILE_NAME);
+  }
+}
+function loadCachedPricing() {
+  try {
+    const cachePath = getCachePath();
+    if (!existsSync(cachePath)) return null;
+    const stats = statSync(cachePath);
+    if (Date.now() - stats.mtimeMs > CACHE_TTL_MS) {
+      return null;
+    }
+    const data = readFileSync(cachePath, "utf-8");
+    return JSON.parse(data);
+  } catch (err) {
+    return null;
+  }
+}
+function savePricingCache(data) {
+  try {
+    const cachePath = getCachePath();
+    writeFileSync(cachePath, JSON.stringify(data), "utf-8");
+  } catch (err) {
+  }
+}
+async function fetchPricing() {
+  if (memoryCache) {
+    return memoryCache;
+  }
+  const cached2 = loadCachedPricing();
+  if (cached2) {
+    memoryCache = cached2;
+    return cached2;
+  }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2e3);
+  try {
+    const response = await fetch(PRICING_API_URL, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      return null;
+    }
+    const data = await response.json();
+    if (data) {
+      savePricingCache(data);
+      memoryCache = data;
+      return data;
+    }
+  } catch (err) {
+    clearTimeout(timeoutId);
+  }
+  return null;
+}
+function determineProvider(modelId) {
+  const lower = modelId.toLowerCase();
+  if (lower.startsWith("gemini-") || lower.startsWith("gemma-")) return "google";
+  if (lower.startsWith("claude-")) return "anthropic";
+  if (lower.startsWith("gpt-") || lower.startsWith("o1") || lower.startsWith("o3")) return "openai";
+  return null;
+}
+function updateStaticModelsWithPricing(staticModels) {
+  fetchPricing().then((pricingData) => {
+    if (!pricingData) return;
+    for (const [modelId, modelObj] of Object.entries(staticModels)) {
+      const provider = determineProvider(modelId);
+      if (!provider || !pricingData[provider]?.models) continue;
+      let lookupId = modelId;
+      if (lookupId.endsWith("-thinking") && !pricingData[provider].models[lookupId]) {
+        lookupId = lookupId.replace("-thinking", "");
+      }
+      const apiModel = pricingData[provider].models[lookupId];
+      if (apiModel && apiModel.cost) {
+        const apiCost = apiModel.cost;
+        modelObj.cost = {
+          input: apiCost.input ?? modelObj.cost?.input ?? 0,
+          output: apiCost.output ?? modelObj.cost?.output ?? 0,
+          cache: {
+            read: apiCost.cache_read ?? modelObj.cost?.cache?.read ?? 0,
+            write: apiCost.cache_write ?? modelObj.cost?.cache?.write ?? 0
+          }
+        };
+      }
+    }
+  }).catch(() => {
+  });
+}
+
 // src/constants.ts
 var AGY_PROVIDER_ID = "google-agy";
 var AGY_CLIENT_ID = "REDACTED_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com";
@@ -147,7 +245,7 @@ async function exchangeAgyWithVerifierInternal(code, verifier) {
       Authorization: `Bearer ${tokenPayload.access_token}`
     }
   });
-  const userInfo = userInfoResponse.ok ? await userInfoResponse.json() : {};
+  const userInfo2 = userInfoResponse.ok ? await userInfoResponse.json() : {};
   const refreshToken = tokenPayload.refresh_token;
   if (!refreshToken) {
     return { type: "failed", error: "Missing refresh token in response" };
@@ -157,7 +255,7 @@ async function exchangeAgyWithVerifierInternal(code, verifier) {
     refresh: refreshToken,
     access: tokenPayload.access_token,
     expires: Date.now() + tokenPayload.expires_in * 1e3,
-    email: userInfo.email
+    email: userInfo2.email
   };
 }
 
@@ -170,7 +268,7 @@ function createAgyActivityRequestId() {
 import os from "os";
 
 // src/sdk/agy-cli-version.ts
-var AGY_CLI_VERSION = "1.1.5";
+var AGY_CLI_VERSION = "1.1.6";
 
 // src/sdk/user-agent.ts
 var cachedUserAgent = null;
@@ -559,29 +657,29 @@ function clampDelay(delayMs) {
 }
 
 // src/sdk/retry/cooldown-store.ts
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "fs";
-import { join, dirname } from "path";
-import { homedir, tmpdir } from "os";
+import { existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, writeFileSync as writeFileSync2, renameSync, unlinkSync } from "fs";
+import { join as join2, dirname } from "path";
+import { homedir, tmpdir as tmpdir2 } from "os";
 var WRITE_THROTTLE_MS = 5e3;
 function getConfigDir() {
   const platform2 = process.platform;
   if (platform2 === "win32") {
-    return join(process.env.APPDATA || join(homedir(), "AppData", "Roaming"), "opencode");
+    return join2(process.env.APPDATA || join2(homedir(), "AppData", "Roaming"), "opencode");
   }
-  const xdgConfig = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
-  return join(xdgConfig, "opencode");
+  const xdgConfig = process.env.XDG_CONFIG_HOME || join2(homedir(), ".config");
+  return join2(xdgConfig, "opencode");
 }
 function getCooldownFilePath() {
-  return join(getConfigDir(), "antigravity-retry-cooldowns.json");
+  return join2(getConfigDir(), "antigravity-retry-cooldowns.json");
 }
 function loadCooldowns() {
   const result = /* @__PURE__ */ new Map();
   try {
     const filePath = getCooldownFilePath();
-    if (!existsSync(filePath)) {
+    if (!existsSync2(filePath)) {
       return result;
     }
-    const content = readFileSync(filePath, "utf-8");
+    const content = readFileSync2(filePath, "utf-8");
     const data = JSON.parse(content);
     if (data.version !== "1.0") {
       return result;
@@ -600,7 +698,7 @@ function saveCooldowns(entries) {
   try {
     const filePath = getCooldownFilePath();
     const dir = dirname(filePath);
-    if (!existsSync(dir)) {
+    if (!existsSync2(dir)) {
       mkdirSync(dir, { recursive: true });
     }
     const now = Date.now();
@@ -615,12 +713,12 @@ function saveCooldowns(entries) {
       entries: serializable,
       updatedAt: now
     };
-    const tmpPath = join(tmpdir(), `antigravity-cooldowns-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
-    writeFileSync(tmpPath, JSON.stringify(data), "utf-8");
+    const tmpPath = join2(tmpdir2(), `antigravity-cooldowns-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
+    writeFileSync2(tmpPath, JSON.stringify(data), "utf-8");
     try {
       renameSync(tmpPath, filePath);
     } catch {
-      writeFileSync(filePath, readFileSync(tmpPath));
+      writeFileSync2(filePath, readFileSync2(tmpPath));
       try {
         unlinkSync(tmpPath);
       } catch {
@@ -1458,33 +1556,33 @@ function openBrowserUrl(url2) {
 import { createHash } from "crypto";
 
 // src/sdk/cache/signature-cache.ts
-import { existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2, renameSync as renameSync2, unlinkSync as unlinkSync2, appendFileSync } from "fs";
-import { join as join2, dirname as dirname2 } from "path";
-import { homedir as homedir2, tmpdir as tmpdir2 } from "os";
+import { existsSync as existsSync3, mkdirSync as mkdirSync2, readFileSync as readFileSync3, writeFileSync as writeFileSync3, renameSync as renameSync2, unlinkSync as unlinkSync2, appendFileSync } from "fs";
+import { join as join3, dirname as dirname2 } from "path";
+import { homedir as homedir2, tmpdir as tmpdir3 } from "os";
 function getConfigDir2() {
   const platform2 = process.platform;
   if (platform2 === "win32") {
-    return join2(process.env.APPDATA || join2(homedir2(), "AppData", "Roaming"), "opencode");
+    return join3(process.env.APPDATA || join3(homedir2(), "AppData", "Roaming"), "opencode");
   }
-  const xdgConfig = process.env.XDG_CONFIG_HOME || join2(homedir2(), ".config");
-  return join2(xdgConfig, "opencode");
+  const xdgConfig = process.env.XDG_CONFIG_HOME || join3(homedir2(), ".config");
+  return join3(xdgConfig, "opencode");
 }
 function getCacheFilePath() {
-  return join2(getConfigDir2(), "antigravity-signature-cache.json");
+  return join3(getConfigDir2(), "antigravity-signature-cache.json");
 }
 function ensureGitignoreSync(configDir) {
-  const gitignorePath = join2(configDir, ".gitignore");
+  const gitignorePath = join3(configDir, ".gitignore");
   const entries = [".gitignore", "antigravity-signature-cache.json"];
   try {
     let content = "";
-    if (existsSync2(gitignorePath)) {
-      content = readFileSync2(gitignorePath, "utf-8");
+    if (existsSync3(gitignorePath)) {
+      content = readFileSync3(gitignorePath, "utf-8");
     }
     const existingLines = content.split("\n").map((line) => line.trim());
     const missing = entries.filter((e) => !existingLines.includes(e));
     if (missing.length === 0) return;
     if (content === "") {
-      writeFileSync2(gitignorePath, missing.join("\n") + "\n", "utf-8");
+      writeFileSync3(gitignorePath, missing.join("\n") + "\n", "utf-8");
     } else {
       const suffix = content.endsWith("\n") ? "" : "\n";
       appendFileSync(gitignorePath, suffix + missing.join("\n") + "\n", "utf-8");
@@ -1660,10 +1758,10 @@ var SignatureCache = class {
    */
   loadFromDisk() {
     try {
-      if (!existsSync2(this.cacheFilePath)) {
+      if (!existsSync3(this.cacheFilePath)) {
         return;
       }
-      const content = readFileSync2(this.cacheFilePath, "utf-8");
+      const content = readFileSync3(this.cacheFilePath, "utf-8");
       const data = JSON.parse(content);
       if (data.version !== "1.0") {
         return;
@@ -1691,15 +1789,15 @@ var SignatureCache = class {
   saveToDisk() {
     try {
       const dir = dirname2(this.cacheFilePath);
-      if (!existsSync2(dir)) {
+      if (!existsSync3(dir)) {
         mkdirSync2(dir, { recursive: true });
       }
       ensureGitignoreSync(dir);
       const now = Date.now();
       let existingEntries = {};
-      if (existsSync2(this.cacheFilePath)) {
+      if (existsSync3(this.cacheFilePath)) {
         try {
-          const content = readFileSync2(this.cacheFilePath, "utf-8");
+          const content = readFileSync3(this.cacheFilePath, "utf-8");
           const data = JSON.parse(content);
           existingEntries = data.entries || {};
         } catch {
@@ -1735,12 +1833,12 @@ var SignatureCache = class {
           last_write: now
         }
       };
-      const tmpPath = join2(tmpdir2(), `antigravity-cache-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
-      writeFileSync2(tmpPath, JSON.stringify(cacheData, null, 2), "utf-8");
+      const tmpPath = join3(tmpdir3(), `antigravity-cache-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
+      writeFileSync3(tmpPath, JSON.stringify(cacheData, null, 2), "utf-8");
       try {
         renameSync2(tmpPath, this.cacheFilePath);
       } catch {
-        writeFileSync2(this.cacheFilePath, readFileSync2(tmpPath));
+        writeFileSync3(this.cacheFilePath, readFileSync3(tmpPath));
         try {
           unlinkSync2(tmpPath);
         } catch {
@@ -1894,9 +1992,9 @@ function getLatestSignature(sessionId) {
 }
 
 // src/sdk/request/turn-state-tracker.ts
-import { existsSync as existsSync3, mkdirSync as mkdirSync3, readFileSync as readFileSync3, writeFileSync as writeFileSync3, renameSync as renameSync3, unlinkSync as unlinkSync3 } from "fs";
-import { join as join3, dirname as dirname3 } from "path";
-import { homedir as homedir3, tmpdir as tmpdir3 } from "os";
+import { existsSync as existsSync4, mkdirSync as mkdirSync3, readFileSync as readFileSync4, writeFileSync as writeFileSync4, renameSync as renameSync3, unlinkSync as unlinkSync3 } from "fs";
+import { join as join4, dirname as dirname3 } from "path";
+import { homedir as homedir3, tmpdir as tmpdir4 } from "os";
 
 // src/sdk/request/thinking.ts
 import { createHash as createHash2 } from "crypto";
@@ -2319,22 +2417,22 @@ var WRITE_THROTTLE_MS2 = 5e3;
 function getConfigDir3() {
   const platform2 = process.platform;
   if (platform2 === "win32") {
-    return join3(process.env.APPDATA || join3(homedir3(), "AppData", "Roaming"), "opencode");
+    return join4(process.env.APPDATA || join4(homedir3(), "AppData", "Roaming"), "opencode");
   }
-  const xdgConfig = process.env.XDG_CONFIG_HOME || join3(homedir3(), ".config");
-  return join3(xdgConfig, "opencode");
+  const xdgConfig = process.env.XDG_CONFIG_HOME || join4(homedir3(), ".config");
+  return join4(xdgConfig, "opencode");
 }
 function getTurnStateFilePath() {
-  return join3(getConfigDir3(), "antigravity-turn-states.json");
+  return join4(getConfigDir3(), "antigravity-turn-states.json");
 }
 function loadTurnStatesFromDisk() {
   const result = /* @__PURE__ */ new Map();
   try {
     const filePath = getTurnStateFilePath();
-    if (!existsSync3(filePath)) {
+    if (!existsSync4(filePath)) {
       return result;
     }
-    const content = readFileSync3(filePath, "utf-8");
+    const content = readFileSync4(filePath, "utf-8");
     const data = JSON.parse(content);
     if (data.version !== "1.0") {
       return result;
@@ -2354,7 +2452,7 @@ function saveTurnStatesToDisk(entries) {
   try {
     const filePath = getTurnStateFilePath();
     const dir = dirname3(filePath);
-    if (!existsSync3(dir)) {
+    if (!existsSync4(dir)) {
       mkdirSync3(dir, { recursive: true });
     }
     const now = Date.now();
@@ -2370,12 +2468,12 @@ function saveTurnStatesToDisk(entries) {
       entries: serializable,
       updatedAt: now
     };
-    const tmpPath = join3(tmpdir3(), `antigravity-turn-states-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
-    writeFileSync3(tmpPath, JSON.stringify(data), "utf-8");
+    const tmpPath = join4(tmpdir4(), `antigravity-turn-states-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`);
+    writeFileSync4(tmpPath, JSON.stringify(data), "utf-8");
     try {
       renameSync3(tmpPath, filePath);
     } catch {
-      writeFileSync3(filePath, readFileSync3(tmpPath));
+      writeFileSync4(filePath, readFileSync4(tmpPath));
       try {
         unlinkSync3(tmpPath);
       } catch {
@@ -17053,7 +17151,15 @@ import { randomUUID as randomUUID2 } from "crypto";
 // src/sdk/request/shared.ts
 var REQUEST_MODEL_FALLBACKS = {
   "gemini-2.5-flash-image": "gemini-2.5-flash",
-  "gemini-3.1-pro-high": "gemini-pro-agent"
+  "gemini-3.1-pro-high": "gemini-pro-agent",
+  // Safety net: the gemini-3.5-flash-low/medium/high tier ids no longer
+  // exist server-side. If any stale URL still contains them, remap to the
+  // current live ids. Primary fix is TIER_MAPPING in plugin.ts.
+  //   medium -> gemini-3.5-flash-low        (enum M20,  display "Gemini 3.5 Flash (Medium)")
+  //   high   -> gemini-3-flash-agent        (enum M84,  display "Gemini 3.5 Flash (High)")
+  //   low    -> gemini-3.5-flash-extra-low  (enum M187, display "Gemini 3.5 Flash (Low)")
+  "gemini-3.5-flash-medium": "gemini-3.5-flash-low",
+  "gemini-3.5-flash-high": "gemini-3-flash-agent"
 };
 var GENERATIVE_LANGUAGE_HOST = new URL(AGY_GENERATIVE_LANGUAGE_ENDPOINT).host;
 var CODE_ASSIST_HOST_SUFFIX = "cloudcode-pa.googleapis.com";
@@ -17861,20 +17967,20 @@ function transformStreamingPayloadStream(stream, sessionId, chatLogger) {
 }
 
 // src/sdk/chat-logger.ts
-import { createWriteStream, existsSync as existsSync4, mkdirSync as mkdirSync4 } from "fs";
-import { join as join4 } from "path";
+import { createWriteStream, existsSync as existsSync5, mkdirSync as mkdirSync4 } from "fs";
+import { join as join5 } from "path";
 import { cwd } from "process";
 function createChatLogger() {
   if (process.env.AGY_LOG !== "1") {
     return null;
   }
   try {
-    const logDir = join4(cwd(), "agy_chat_log");
-    if (!existsSync4(logDir)) {
+    const logDir = join5(cwd(), "agy_chat_log");
+    if (!existsSync5(logDir)) {
       mkdirSync4(logDir, { recursive: true });
     }
     const timestamp = Date.now();
-    const logFile = join4(logDir, `${timestamp}.log`);
+    const logFile = join5(logDir, `${timestamp}.log`);
     const stream = createWriteStream(logFile, { flags: "w", encoding: "utf8" });
     return new ChatLoggerImpl(stream);
   } catch (error45) {
@@ -18055,9 +18161,9 @@ var TIER_MAPPING = {
     high: "gemini-3.6-flash-high"
   },
   "gemini-3.5-flash": {
-    low: "gemini-3.5-flash-low",
-    medium: "gemini-3.5-flash-medium",
-    high: "gemini-3.5-flash-high"
+    low: "gemini-3.5-flash-extra-low",
+    medium: "gemini-3.5-flash-low",
+    high: "gemini-3-flash-agent"
   },
   "gemini-3.1-pro": {
     low: "gemini-3.1-pro-low",
@@ -18087,6 +18193,19 @@ var buildModelFromSimple = (modelId, simple) => {
     family: modelId.includes("gemini") ? "gemini" : isClaude ? "claude" : isGpt ? "gpt" : "unknown",
     status: "active",
     release_date: "2026-05-26",
+    // Root-level properties for OpenCode v2 cache compatibility
+    reasoning: simple.reasoning,
+    attachment: simple.attachment,
+    tool_call: simple.toolCall,
+    temperature: true,
+    modalities: {
+      input: [
+        "text",
+        ...simple.attachment ? ["image", "pdf"] : [],
+        ...!isClaude && !isGpt ? ["audio", "video"] : []
+      ],
+      output: ["text"]
+    },
     capabilities: {
       temperature: true,
       reasoning: simple.reasoning,
@@ -18210,19 +18329,44 @@ function resolveModelTier(baseModelId, init) {
 }
 var AgyCLIOAuthPlugin = async ({ client }) => {
   let latestConfig;
+  updateStaticModelsWithPricing(STATIC_MODELS);
   const getModelsList = (provider) => {
-    provider.models = provider.models || {};
-    for (const [modelId, modelDetails] of Object.entries(STATIC_MODELS)) {
-      provider.models[modelId] = {
+    const userModels = provider.models || {};
+    const clonedStaticModels = JSON.parse(JSON.stringify(STATIC_MODELS));
+    const strictModels = {};
+    for (const [modelId, modelDetails] of Object.entries(clonedStaticModels)) {
+      const existing = userModels[modelId] || {};
+      strictModels[modelId] = {
         ...modelDetails,
-        ...provider.models[modelId] || {}
+        ...existing,
+        reasoning: existing.reasoning ?? modelDetails.reasoning,
+        attachment: existing.attachment ?? modelDetails.attachment,
+        tool_call: existing.tool_call ?? modelDetails.tool_call,
+        temperature: existing.temperature ?? modelDetails.temperature,
+        modalities: {
+          ...modelDetails.modalities || {},
+          ...existing.modalities || {}
+        },
+        capabilities: {
+          ...modelDetails.capabilities || {},
+          ...existing.capabilities || {},
+          input: {
+            ...modelDetails.capabilities?.input || {},
+            ...existing.capabilities?.input || {}
+          },
+          output: {
+            ...modelDetails.capabilities?.output || {},
+            ...existing.capabilities?.output || {}
+          }
+        }
       };
     }
+    provider.models = strictModels;
     if (latestConfig && latestConfig.provider && latestConfig.provider[AGY_PROVIDER_ID]) {
-      latestConfig.provider[AGY_PROVIDER_ID].models = STATIC_MODELS;
+      latestConfig.provider[AGY_PROVIDER_ID].models = provider.models;
     }
     normalizeProviderModelCosts(provider);
-    return STATIC_MODELS;
+    return provider.models;
   };
   try {
     initDiskSignatureCache({
@@ -18274,7 +18418,7 @@ var AgyCLIOAuthPlugin = async ({ client }) => {
         models: {},
         ...config2.provider[AGY_PROVIDER_ID]
       };
-      config2.provider[AGY_PROVIDER_ID].models = STATIC_MODELS;
+      config2.provider[AGY_PROVIDER_ID].models = getModelsList(config2.provider[AGY_PROVIDER_ID]);
     },
     tool: {
       [AGY_QUOTA_TOOL_NAME]: createAgyQuotaTool({
@@ -18446,7 +18590,13 @@ var AgyCLIOAuthPlugin = async ({ client }) => {
             }
           };
         }
-        return getModelsList(provider);
+        const models = getModelsList(provider);
+        for (const [modelId, model] of Object.entries(models)) {
+          if (STATIC_MODELS[modelId] && STATIC_MODELS[modelId].cost) {
+            model.cost = STATIC_MODELS[modelId].cost;
+          }
+        }
+        return models;
       }
     }
   };
