@@ -430,7 +430,7 @@ function createMiniMaxProvider(spec: MiniMaxProviderSpec): QuotaProvider {
       }
 
       const providerResult = attemptedResult(
-        result.entries.map((entry) => ({
+        result.entries.map(({ window: _window, ...entry }) => ({
           ...entry,
           accounting: {
             resultType: "quota",

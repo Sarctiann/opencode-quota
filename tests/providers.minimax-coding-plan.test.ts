@@ -169,7 +169,6 @@ describe("minimax-coding-plan provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(2);
     expect(out.entries[0]).toMatchObject({
-      window: "five_hour",
       name: "MiniMax Coding Plan 5h",
       group: "MiniMax Coding Plan",
       label: "5h:",
@@ -177,13 +176,35 @@ describe("minimax-coding-plan provider", () => {
       percentRemaining: 98,
     });
     expect(out.entries[1]).toMatchObject({
-      window: "weekly",
       name: "MiniMax Coding Plan Weekly",
       group: "MiniMax Coding Plan",
       label: "Weekly:",
       right: "105/45000",
       percentRemaining: 100,
     });
+    expect(out.entries.every((entry) => !("window" in entry))).toBe(true);
+    expect(out.statusDetails).toEqual(
+      expect.arrayContaining([
+        {
+          key: "five_hour_usage",
+          value: expect.stringMatching(/^70\/4500 percent_remaining=98 reset_at=/u),
+        },
+        {
+          key: "weekly_usage",
+          value: expect.stringMatching(/^105\/45000 percent_remaining=100 reset_at=/u),
+        },
+      ]),
+    );
+  });
+
+  it("keeps window discrimination on internal query entries", async () => {
+    mockMiniMaxHttpSuccess([createCodingPlanModel({ model_name: "MiniMax-M2.7" })]);
+
+    const out = await queryMiniMaxQuota("intl-key");
+
+    expect(out.success).toBe(true);
+    if (!out.success) throw new Error("Expected successful MiniMax query");
+    expect(out.entries.map((entry) => entry.window)).toEqual(["five_hour", "weekly"]);
   });
 
   it("uses the China Token Plan endpoint for the MiniMax China provider", async () => {
@@ -224,12 +245,23 @@ describe("minimax-coding-plan provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(1);
     expect(out.entries[0]).toMatchObject({
-      window: "five_hour",
       name: "MiniMax Coding Plan (CN) 5h",
       group: "MiniMax Coding Plan (CN)",
       right: "1200/1500",
       percentRemaining: 20,
     });
+    expect(out.entries[0]).not.toHaveProperty("window");
+    expect(out.statusDetails).toEqual(
+      expect.arrayContaining([
+        {
+          key: "five_hour_usage",
+          value: expect.stringMatching(/^1200\/1500 percent_remaining=20 reset_at=/u),
+        },
+      ]),
+    );
+    expect(out.statusDetails).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: "weekly_usage" })]),
+    );
   });
 
   it.each([
@@ -257,7 +289,6 @@ describe("minimax-coding-plan provider", () => {
       expectAttemptedWithNoErrors(out);
       expect(out.entries).toHaveLength(1);
       expect(out.entries[0]).toMatchObject({
-        window: "five_hour",
         right,
         percentRemaining,
       });
@@ -290,7 +321,6 @@ describe("minimax-coding-plan provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(1);
     expect(out.entries[0]).toMatchObject({
-      window: "five_hour",
       right: "1400/1500",
       percentRemaining: 7,
     });
@@ -339,7 +369,6 @@ describe("minimax-coding-plan provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(1);
     expect(out.entries[0]).toMatchObject({
-      window: "five_hour",
       right: "0/3",
       percentRemaining: 100,
     });
@@ -363,8 +392,8 @@ describe("minimax-coding-plan provider", () => {
 
     expectAttemptedWithNoErrors(out);
     expect(visibleEntries(out.entries, "minimax-coding-plan")).toMatchObject([
-      { window: "five_hour", right: "14%", percentRemaining: 86 },
-      { window: "weekly", right: "10%", percentRemaining: 90 },
+      { right: "14%", percentRemaining: 86 },
+      { right: "10%", percentRemaining: 90 },
     ]);
   });
 
@@ -384,8 +413,8 @@ describe("minimax-coding-plan provider", () => {
 
     expectAttemptedWithNoErrors(out);
     expect(visibleEntries(out.entries, "minimax-coding-plan")).toMatchObject([
-      { window: "five_hour", right: "25%", percentRemaining: 75 },
-      { window: "weekly", right: "20%", percentRemaining: 80 },
+      { right: "25%", percentRemaining: 75 },
+      { right: "20%", percentRemaining: 80 },
     ]);
   });
 
@@ -413,7 +442,7 @@ describe("minimax-coding-plan provider", () => {
 
       expectAttemptedWithNoErrors(out);
       expect(visibleEntries(out.entries, "minimax-coding-plan")).toMatchObject([
-        { window: "five_hour", right, percentRemaining },
+        { right, percentRemaining },
       ]);
     },
   );
@@ -462,7 +491,7 @@ describe("minimax-coding-plan provider", () => {
 
     expectAttemptedWithNoErrors(out);
     expect(visibleEntries(out.entries, "minimax-coding-plan")).toMatchObject([
-      { window: "five_hour", right: "75/100", percentRemaining: 25 },
+      { right: "75/100", percentRemaining: 25 },
     ]);
   });
 
@@ -511,7 +540,6 @@ describe("minimax-coding-plan provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(1);
     expect(out.entries[0]).toMatchObject({
-      window: "five_hour",
       right: "8/10",
       percentRemaining: 20,
     });
@@ -548,12 +576,10 @@ describe("minimax-coding-plan provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(2);
     expect(out.entries[0]).toMatchObject({
-      window: "five_hour",
       right: "4550/4500",
       percentRemaining: -1,
     });
     expect(out.entries[1]).toMatchObject({
-      window: "weekly",
       right: "45500/45000",
       percentRemaining: -1,
     });
@@ -614,12 +640,10 @@ describe("minimax-coding-plan provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(2);
     expect(out.entries[0]).toMatchObject({
-      window: "five_hour",
       right: "200/4500",
       percentRemaining: 96,
     });
     expect(out.entries[1]).toMatchObject({
-      window: "weekly",
       right: "500/45000",
       percentRemaining: 99,
     });
@@ -646,12 +670,10 @@ describe("minimax-coding-plan provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(out.entries).toHaveLength(2);
     expect(out.entries[0]).toMatchObject({
-      window: "five_hour",
       right: "100/4500",
       percentRemaining: 98,
     });
     expect(out.entries[1]).toMatchObject({
-      window: "weekly",
       right: "105/45000",
       percentRemaining: 100,
     });

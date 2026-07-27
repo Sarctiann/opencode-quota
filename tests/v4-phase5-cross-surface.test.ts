@@ -29,6 +29,8 @@ import {
 } from "./fixtures/v4-phase5-integration.js";
 
 const TEST_RUNTIME_ROOT = "/tmp/opencode-quota-v4-phase5-cross-surface";
+const MINIMAX_QUOTA_URL = "https://api.minimax.io/v1/api/openplatform/coding_plan/remains";
+const MINIMAX_API_KEY = "minimax-test-key";
 
 const mocks = vi.hoisted(() => ({
   loadConfig: vi.fn(),
@@ -42,6 +44,8 @@ const mocks = vi.hoisted(() => ({
   setPricingSnapshotSelection: vi.fn(),
   resolveQwenLocalPlanCached: vi.fn(),
   resolveAlibabaCodingPlanAuthCached: vi.fn(),
+  resolveMiniMaxAuthCached: vi.fn(),
+  getMiniMaxAuthDiagnostics: vi.fn(),
   fetchSessionTokensForDisplay: vi.fn(),
 }));
 
@@ -89,6 +93,18 @@ vi.mock("../src/lib/qwen-auth.js", () =>
 vi.mock("../src/lib/alibaba-auth.js", () =>
   createAlibabaAuthModuleMock(mocks.resolveAlibabaCodingPlanAuthCached),
 );
+vi.mock("../src/lib/minimax-auth.js", () => ({
+  DEFAULT_MINIMAX_AUTH_CACHE_MAX_AGE_MS: 5_000,
+  resolveMiniMaxAuthCached: mocks.resolveMiniMaxAuthCached,
+  getMiniMaxAuthDiagnostics: mocks.getMiniMaxAuthDiagnostics,
+  resolveMiniMaxChinaAuthCached: vi.fn(async () => ({ state: "none" })),
+  getMiniMaxChinaAuthDiagnostics: vi.fn(async () => ({
+    state: "none",
+    source: null,
+    checkedPaths: [],
+    authPaths: [],
+  })),
+}));
 vi.mock("../src/lib/opencode-runtime-paths.js", () =>
   createPluginRuntimePathsMockModule(TEST_RUNTIME_ROOT, { includeCandidates: true }),
 );
@@ -142,6 +158,40 @@ function configFor(formatStyle: "allWindows" | "singleWindow") {
       sessionPrompt: true,
       maxWidth: 240,
       formatStyle,
+      suppressWhenNativeProviderQuota: false,
+    },
+  });
+}
+
+function configForMiniMax() {
+  return makeQuotaToastTestConfig({
+    enabled: true,
+    enabledProviders: ["minimax-coding-plan"],
+    formatStyle: "allWindows",
+    minIntervalMs: 60_000,
+    showOnIdle: true,
+    showOnCompact: true,
+    showOnQuestion: false,
+    showSessionTokens: false,
+    maintainerAnnouncements: {
+      enabled: false,
+      home: false,
+    },
+    telemetry: {
+      enabled: false,
+    },
+    tuiCommandDisplay: "dialog",
+    tuiSidebarPanel: {
+      enabled: true,
+      defaultExpanded: false,
+      formatStyle: "allWindows",
+    },
+    tuiCompactStatus: {
+      enabled: true,
+      homeBottom: true,
+      sessionPrompt: true,
+      maxWidth: 240,
+      formatStyle: "allWindows",
       suppressWhenNativeProviderQuota: false,
     },
   });
@@ -225,6 +275,18 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
       },
     });
     mocks.loadConfig.mockImplementation(async () => currentConfig);
+    mocks.resolveMiniMaxAuthCached.mockResolvedValue({
+      state: "configured",
+      apiKey: MINIMAX_API_KEY,
+      endpoint: "international",
+    });
+    mocks.getMiniMaxAuthDiagnostics.mockResolvedValue({
+      state: "configured",
+      source: "auth.json",
+      endpoint: "international",
+      checkedPaths: [],
+      authPaths: [],
+    });
 
     const { quotaProvidersProvider } = await import("../src/providers/quota-providers.js");
     mocks.getProviders.mockReturnValue([quotaProvidersProvider]);
@@ -246,6 +308,23 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
         return new Response(PHASE5_SECRET_CANARIES.failureBody, {
           status: 503,
           headers: { "content-type": "text/plain" },
+        });
+      }
+      if (url === MINIMAX_QUOTA_URL) {
+        expect(authorization).toBe(`Bearer ${MINIMAX_API_KEY}`);
+        return phase5JsonResponse({
+          model_remains: [
+            {
+              model_name: "MiniMax-M*",
+              current_interval_total_count: 100,
+              current_interval_usage_count: 35,
+              remains_time: 3_600_000,
+              current_weekly_total_count: 200,
+              current_weekly_usage_count: 160,
+              weekly_remains_time: 86_400_000,
+            },
+          ],
+          base_resp: { status_code: 0, status_msg: "success" },
         });
       }
       throw new Error(`unexpected Phase 5 fixture URL: ${url}`);
@@ -572,6 +651,81 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
       expect(telemetryOutput).not.toContain(source.url);
     }
     expect(allOutput).not.toMatch(/telemetryToken|opencode\.quota\./);
+    await hooks.dispose?.();
+  });
+
+  it("renders non-empty MiniMax five-hour and weekly quota on all four surfaces", async () => {
+    currentConfig = configForMiniMax();
+    mocks.loadConfig.mockImplementation(async () => currentConfig);
+    const { minimaxCodingPlanProvider } = await import("../src/providers/minimax-coding-plan.js");
+    mocks.getProviders.mockReturnValue([minimaxCodingPlanProvider]);
+
+    const client = createClient();
+    client.config.providers.mockResolvedValue({
+      data: { providers: [{ id: "minimax-coding-plan" }] },
+    });
+
+    const { QuotaToastPlugin } = await import("../src/plugin.js");
+    const hooks = (await QuotaToastPlugin({ client } as never)) as PluginHooks;
+
+    await expectHandled(
+      hooks["command.execute.before"]?.({
+        command: "quota",
+        sessionID: "minimax-session",
+      }),
+    );
+    const serverOutput = getPromptText(client);
+    expect(serverOutput).toContain("MiniMax Coding Plan");
+    expect(serverOutput).toContain("5h quota");
+    expect(serverOutput).toContain("Week quota");
+    expect(serverOutput).toContain("35%");
+    expect(serverOutput).toContain("80%");
+    expect(serverOutput).not.toContain("Invalid normalized provider result");
+
+    await hooks.event?.({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "minimax-session" },
+      },
+    });
+    const toastOutput = getToastMessage(client);
+    expect(toastOutput).toContain("MiniMax Coding Plan");
+    expect(toastOutput).toContain("5h window");
+    expect(toastOutput).toContain("Weekly window");
+    expect(toastOutput).toContain("35%");
+    expect(toastOutput).toContain("80%");
+
+    const tuiApi = {
+      state: {
+        provider: [{ id: "minimax-coding-plan" }],
+        path: { worktree: process.cwd(), directory: process.cwd() },
+        session: { messages: () => [] },
+      },
+      client,
+    } as never;
+    const { loadTuiSessionQuotaSurfaces } = await import("../src/lib/tui-runtime.js");
+    const surfaces = await loadTuiSessionQuotaSurfaces({
+      api: tuiApi,
+      sessionID: "minimax-session",
+    });
+
+    expect(surfaces.sidebar.status).toBe("ready");
+    const sidebarOutput = [
+      ...surfaces.sidebar.lines,
+      ...(surfaces.sidebar.linesExpanded ?? []),
+    ].join("\n");
+    expect(sidebarOutput).toContain("MiniMax Coding Plan");
+    expect(sidebarOutput).toContain("5h window");
+    expect(sidebarOutput).toContain("Weekly window");
+    expect(sidebarOutput).toContain("35%");
+    expect(sidebarOutput).toContain("80%");
+
+    expect(surfaces.compact.status).toBe("ready");
+    const compactOutput = surfaces.compact.status === "ready" ? surfaces.compact.text : "";
+    expect(compactOutput).toContain("35%");
+    expect(compactOutput).toContain("80%");
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(1);
+
     await hooks.dispose?.();
   });
 });
