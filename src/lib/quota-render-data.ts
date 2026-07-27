@@ -17,6 +17,7 @@ import { fetchSessionTokensForDisplay } from "./session-tokens.js";
 import { getQuotaProviderDisplayLabel, normalizeQuotaProviderId } from "./provider-metadata.js";
 import { isCursorProviderId } from "./cursor-pricing.js";
 import { fetchQuotaProviderResult } from "./quota-state.js";
+import { retainQuotaTelemetryProviders } from "./quota-telemetry.js";
 import { createQuotaProviderRuntimeContext } from "./quota-runtime-context.js";
 import {
   createRuntimeProviderIdResolver,
@@ -164,15 +165,6 @@ export async function resolveQuotaRenderSelection(params: {
   resolveRuntimeProviderIds?: RuntimeProviderIdResolver;
 }): Promise<QuotaRenderSelection | null> {
   const { client, config, request } = params;
-  if (!config.enabled) return null;
-
-  const allProviders = params.providers ?? getProviders();
-  const isAutoMode = config.enabledProviders === "auto";
-  const providers = isAutoMode
-    ? allProviders
-    : allProviders.filter((provider) => config.enabledProviders.includes(provider.id));
-  if (!isAutoMode && providers.length === 0) return null;
-
   let currentModel: string | undefined;
   let currentProviderID: string | undefined;
   if (config.onlyCurrentModel && request?.sessionMeta) {
@@ -193,6 +185,20 @@ export async function resolveQuotaRenderSelection(params: {
       },
     },
   });
+  if (!config.enabled) return null;
+
+  const allProviders = params.providers ?? getProviders();
+  const isAutoMode = config.enabledProviders === "auto";
+  const providers = isAutoMode
+    ? allProviders
+    : allProviders.filter((provider) => config.enabledProviders.includes(provider.id));
+  if (!isAutoMode && providers.length === 0) {
+    retainQuotaTelemetryProviders({
+      token: ctx.config.telemetryToken,
+      providerIds: [],
+    });
+    return null;
+  }
 
   const hasCurrentSelection = hasCurrentQuotaSelection({ currentModel, currentProviderID });
   const filteringByCurrentSelection = config.onlyCurrentModel && hasCurrentSelection;
@@ -617,6 +623,10 @@ export async function collectQuotaRenderData(params: {
   }
 
   if (selection.waitingForCurrentSelection) {
+    retainQuotaTelemetryProviders({
+      token: selection.ctx.config.telemetryToken,
+      providerIds: [],
+    });
     return {
       selection,
       availability: [],
@@ -637,6 +647,10 @@ export async function collectQuotaRenderData(params: {
   );
 
   const active = availability.filter((item) => item.ok).map((item) => item.provider);
+  retainQuotaTelemetryProviders({
+    token: selection.ctx.config.telemetryToken,
+    providerIds: active.map((provider) => provider.id),
+  });
   const explicitProviderIssues = buildExplicitProviderIssues({
     selection,
     availability,

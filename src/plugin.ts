@@ -56,6 +56,7 @@ import {
   isQuotaDialogCommand,
   type QuotaDialogCommandId,
 } from "./lib/quota-dialog-commands.js";
+import { disposeQuotaTelemetryOwner } from "./lib/quota-telemetry.js";
 
 // =============================================================================
 // Types
@@ -1159,6 +1160,10 @@ export const QuotaToastPlugin: Plugin = async ({ client, directory }) => {
 
   // Return hook implementations
   return {
+    dispose: async () => {
+      disposeQuotaTelemetryOwner(typedClient);
+    },
+
     config: async (input: unknown) => {
       const cfg = input as PluginConfigInput;
       opencodeConfig = cfg;

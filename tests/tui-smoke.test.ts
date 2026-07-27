@@ -4,6 +4,7 @@ const {
   buildQuotaDialogCommandOutput,
   cleanupFns,
   createTuiQuotaClient,
+  disposeQuotaTelemetryOwner,
   getTuiRuntimeRootHints,
   getTuiSessionModelMeta,
   loadTuiHomeBottomStatus,
@@ -15,6 +16,7 @@ const {
   buildQuotaDialogCommandOutput: vi.fn(),
   cleanupFns: [] as Array<() => void>,
   createTuiQuotaClient: vi.fn(() => ({ config: {} })),
+  disposeQuotaTelemetryOwner: vi.fn(),
   getTuiRuntimeRootHints: vi.fn(() => ({
     worktreeRoot: "/tmp/worktree",
     activeDirectory: "/tmp/worktree",
@@ -39,6 +41,10 @@ vi.mock("../src/lib/tui-runtime.js", () => ({
   normalizeTuiSessionID,
   resolveTuiSurfaceRegistration,
   writeTuiQuotaExportIfEnabled,
+}));
+
+vi.mock("../src/lib/quota-telemetry.js", () => ({
+  disposeQuotaTelemetryOwner,
 }));
 
 vi.mock("../src/lib/quota-dialog-commands.js", async (importOriginal) => {
@@ -252,6 +258,7 @@ describe("tui plugin smoke", () => {
       dialogSize: "xlarge",
     });
     createTuiQuotaClient.mockClear();
+    disposeQuotaTelemetryOwner.mockClear();
     getTuiRuntimeRootHints.mockClear();
     getTuiSessionModelMeta.mockReset();
     getTuiSessionModelMeta.mockResolvedValue({ modelID: "gpt-5", providerID: "openai" });
@@ -298,7 +305,14 @@ describe("tui plugin smoke", () => {
     await plugin.tui(api as any, undefined, {} as any);
 
     expect(api.keymap.registerLayer).toHaveBeenCalledOnce();
-    expect(api.lifecycle.onDispose).toHaveBeenCalledOnce();
+    expect(api.lifecycle.onDispose).toHaveBeenCalledTimes(2);
+    const telemetryCleanup = api.lifecycle.onDispose.mock.calls[0]?.[0];
+    expect(telemetryCleanup).toBeTypeOf("function");
+    telemetryCleanup?.();
+    expect(createTuiQuotaClient).toHaveBeenCalledOnce();
+    expect(disposeQuotaTelemetryOwner).toHaveBeenCalledWith(
+      createTuiQuotaClient.mock.results[0]?.value,
+    );
     expect(keymapLayers[0]?.commands.map((command) => command.slashName)).toEqual(TUI_COMMAND_IDS);
     for (const slashName of TUI_COMMAND_IDS) {
       expect(

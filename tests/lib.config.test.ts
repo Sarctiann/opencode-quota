@@ -166,6 +166,29 @@ describe("loadConfig", () => {
     expect(invalidNested.meta.settingSources).toEqual({});
   });
 
+  it("defaults telemetry off and accepts an opt-in without changing network settings", async () => {
+    const defaults = await loadSdkConfig({});
+    expect(defaults.config.telemetry).toEqual({ enabled: false });
+    expect(defaults.config.telemetry).not.toBe(DEFAULT_CONFIG.telemetry);
+
+    const explicit = await loadSdkConfig({ telemetry: { enabled: true } });
+    expect(explicit.config.telemetry).toEqual({ enabled: true });
+    expect(explicit.meta.settingSources).toEqual({
+      "telemetry.enabled": "client.config.get",
+    });
+    expect(explicit.meta.networkSettingSources).toEqual({});
+
+    const disabled = await loadSdkConfig({ telemetry: { enabled: false } });
+    expect(disabled.config.telemetry).toEqual({ enabled: false });
+    expect(disabled.meta.settingSources).toEqual({
+      "telemetry.enabled": "client.config.get",
+    });
+
+    const invalid = await loadSdkConfig({ telemetry: { enabled: "yes" } });
+    expect(invalid.config.telemetry).toEqual({ enabled: false });
+    expect(invalid.meta.settingSources).toEqual({});
+  });
+
   it("defaults TUI sidebar panel config and accepts validated nested overrides", async () => {
     const defaults = await loadSdkConfig({});
     expect(defaults.config.tuiSidebarPanel).toEqual(DEFAULT_CONFIG.tuiSidebarPanel);

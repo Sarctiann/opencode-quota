@@ -46,12 +46,15 @@ const workdir = await mkdtemp(path.join(tmpdir(), "opencode-quota-package-smoke-
 try {
   run("npm", ["init", "-y"], workdir);
   run("npm", ["install", "--omit=dev", tarball], workdir);
+  run("npm", ["install", "--omit=dev", "@opentelemetry/api@1.9.0"], workdir);
 
   const moduleSmoke = `
     import assert from "node:assert/strict";
     import { readFile } from "node:fs/promises";
-    import { fileURLToPath } from "node:url";
+    import path from "node:path";
+    import { fileURLToPath, pathToFileURL } from "node:url";
 
+    const rootExportUrl = import.meta.resolve("@slkiser/opencode-quota");
     await import("@slkiser/opencode-quota");
     await import("@slkiser/opencode-quota/server");
 
@@ -68,9 +71,56 @@ try {
       await readFile("node_modules/@slkiser/opencode-quota/package.json", "utf8"),
     );
     assert.equal(pkg.engines?.node, ">=22.0.0");
+    assert.equal(pkg.peerDependencies?.["@opentelemetry/api"], "^1.9.0");
+    assert.equal(pkg.peerDependenciesMeta?.["@opentelemetry/api"]?.optional, true);
+
+    const packageRoot = path.resolve(path.dirname(fileURLToPath(rootExportUrl)), "..");
+    const telemetry = await import(
+      pathToFileURL(path.join(packageRoot, "dist", "lib", "quota-telemetry.js"))
+    );
+    assert.ok(
+      telemetry.configureQuotaTelemetry({
+        owner: {},
+        enabled: true,
+        identity: "packed-present",
+      }),
+    );
+    await telemetry.__flushQuotaTelemetryInitializationForTests();
   `;
 
   run(process.execPath, ["--input-type=module", "--eval", moduleSmoke], workdir);
+
+  await rm(path.join(workdir, "node_modules", "@opentelemetry", "api"), {
+    recursive: true,
+    force: true,
+  });
+  const absentOptionalDependencySmoke = `
+    import assert from "node:assert/strict";
+    import { readFile } from "node:fs/promises";
+    import path from "node:path";
+    import { fileURLToPath, pathToFileURL } from "node:url";
+
+    await assert.rejects(import("@opentelemetry/api"));
+    const rootExportUrl = import.meta.resolve("@slkiser/opencode-quota");
+    await import("@slkiser/opencode-quota");
+    await import("@slkiser/opencode-quota/server");
+    const tuiExportPath = fileURLToPath(import.meta.resolve("@slkiser/opencode-quota/tui"));
+    assert.ok((await readFile(tuiExportPath, "utf8")).includes("@slkiser/opencode-quota"));
+
+    const packageRoot = path.resolve(path.dirname(fileURLToPath(rootExportUrl)), "..");
+    const telemetry = await import(
+      pathToFileURL(path.join(packageRoot, "dist", "lib", "quota-telemetry.js"))
+    );
+    assert.ok(
+      telemetry.configureQuotaTelemetry({
+        owner: {},
+        enabled: true,
+        identity: "packed-absent",
+      }),
+    );
+    await telemetry.__flushQuotaTelemetryInitializationForTests();
+  `;
+  run(process.execPath, ["--input-type=module", "--eval", absentOptionalDependencySmoke], workdir);
 
   const cliPath = path.join(
     workdir,

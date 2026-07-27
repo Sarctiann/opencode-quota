@@ -29,6 +29,7 @@ import {
 } from "./quota-export.js";
 
 const COMPACT_UNAVAILABLE_TEXT = "Quota unavailable";
+const tuiQuotaClients = new WeakMap<TuiPluginApi, ReturnType<typeof makeTuiQuotaClient>>();
 
 export function getTuiRuntimeRootHints(api: TuiPluginApi): RuntimeContextRootHints {
   return {
@@ -42,7 +43,7 @@ export function resolveWorkspaceDir(api: TuiPluginApi): string {
   return resolveRuntimeContextRoots(getTuiRuntimeRootHints(api)).workspaceRoot;
 }
 
-export function createTuiQuotaClient(api: TuiPluginApi) {
+function makeTuiQuotaClient(api: TuiPluginApi) {
   return {
     config: {
       providers: async () => {
@@ -81,6 +82,14 @@ export function createTuiQuotaClient(api: TuiPluginApi) {
       },
     },
   };
+}
+
+export function createTuiQuotaClient(api: TuiPluginApi) {
+  const existing = tuiQuotaClients.get(api);
+  if (existing) return existing;
+  const client = makeTuiQuotaClient(api);
+  tuiQuotaClients.set(api, client);
+  return client;
 }
 
 export function normalizeTuiSessionID(sessionID: unknown): string | undefined {

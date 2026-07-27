@@ -82,6 +82,7 @@ export const QUOTA_TOAST_SETTING_SOURCE_KEYS = [
   "layout.tinyAt",
   "export.enabled",
   "export.path",
+  "telemetry.enabled",
 ] as const;
 
 export type QuotaToastSettingSourceKey = (typeof QUOTA_TOAST_SETTING_SOURCE_KEYS)[number];
@@ -141,6 +142,7 @@ type TuiCompactStatusPatch = Partial<QuotaToastConfig["tuiCompactStatus"]>;
 type MaintainerAnnouncementsPatch = Partial<QuotaToastConfig["maintainerAnnouncements"]>;
 type LayoutPatch = Partial<QuotaToastConfig["layout"]>;
 type ExportConfigPatch = Partial<QuotaToastConfig["export"]>;
+type TelemetryConfigPatch = Partial<QuotaToastConfig["telemetry"]>;
 
 type ValidatedQuotaToastPatch = {
   enabled?: boolean;
@@ -175,6 +177,7 @@ type ValidatedQuotaToastPatch = {
   maintainerAnnouncements?: MaintainerAnnouncementsPatch;
   layout?: LayoutPatch;
   export?: ExportConfigPatch;
+  telemetry?: TelemetryConfigPatch;
 };
 
 type ConfigLayerScope = "global" | "workspace";
@@ -326,6 +329,7 @@ function cloneConfig(config: QuotaToastConfig): QuotaToastConfig {
     maintainerAnnouncements: { ...config.maintainerAnnouncements },
     layout: { ...config.layout },
     export: { ...config.export },
+    telemetry: { ...config.telemetry },
   };
 }
 
@@ -524,6 +528,20 @@ function extractExportConfigPatch(value: unknown): ExportConfigPatch | undefined
 
   if (hasOwnKey(value, "path") && typeof value.path === "string") {
     patch.path = value.path;
+  }
+
+  return Object.keys(patch).length > 0 ? patch : undefined;
+}
+
+function extractTelemetryConfigPatch(value: unknown): TelemetryConfigPatch | undefined {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const patch: TelemetryConfigPatch = {};
+
+  if (hasOwnKey(value, "enabled") && typeof value.enabled === "boolean") {
+    patch.enabled = value.enabled;
   }
 
   return Object.keys(patch).length > 0 ? patch : undefined;
@@ -751,6 +769,13 @@ function extractValidatedQuotaToastPatch(
     const exportConfig = extractExportConfigPatch(quotaToastConfig.export);
     if (exportConfig) {
       patch.export = exportConfig;
+    }
+  }
+
+  if (hasOwnKey(quotaToastConfig, "telemetry")) {
+    const telemetry = extractTelemetryConfigPatch(quotaToastConfig.telemetry);
+    if (telemetry) {
+      patch.telemetry = telemetry;
     }
   }
 
@@ -999,6 +1024,11 @@ function applyValidatedQuotaToastPatch(
       config.export.path = patch.export.path!;
       applySettingSource(settingSources, "export.path", sourcePath);
     }
+  }
+
+  if (patch.telemetry && hasOwnKey(patch.telemetry, "enabled")) {
+    config.telemetry.enabled = patch.telemetry.enabled!;
+    applySettingSource(settingSources, "telemetry.enabled", sourcePath);
   }
 }
 

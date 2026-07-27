@@ -236,6 +236,10 @@ export function makeQuotaToastTestConfig(
       ...DEFAULT_CONFIG.maintainerAnnouncements,
       ...overrides.maintainerAnnouncements,
     },
+    telemetry: {
+      ...DEFAULT_CONFIG.telemetry,
+      ...overrides.telemetry,
+    },
     layout: {
       ...DEFAULT_CONFIG.layout,
       ...overrides.layout,

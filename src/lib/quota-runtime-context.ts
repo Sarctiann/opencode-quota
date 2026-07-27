@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { LoadConfigMeta } from "./config.js";
 import type { QuotaProvider, QuotaProviderContext } from "./entries.js";
 import type { QuotaToastConfig } from "./types.js";
@@ -7,6 +9,7 @@ import { createLoadConfigMeta, loadConfig } from "./config.js";
 import { getProviders } from "../providers/registry.js";
 import { resolveRuntimeContextRoots } from "./config-file-utils.js";
 import { cloneQuotaProviders } from "./quota-providers.js";
+import { configureQuotaTelemetry } from "./quota-telemetry.js";
 import {
   createRuntimeProviderIdResolver,
   type RuntimeProviderIdResolver,
@@ -30,6 +33,7 @@ export interface ResolveQuotaRuntimeContextParams {
   includeSessionMeta?: boolean | ((config: QuotaToastConfig) => boolean);
   configMeta?: LoadConfigMeta;
   providers?: QuotaProvider[];
+  configureTelemetry?: boolean;
 }
 
 export interface QuotaRuntimeContext {
@@ -66,7 +70,6 @@ export async function resolveQuotaRuntimeContext(
     (await loadConfig(params.client, configMeta, {
       configRootDir: roots.configRoot,
     }));
-
   let sessionMeta = params.sessionMeta;
   if (
     !sessionMeta &&
@@ -78,6 +81,13 @@ export async function resolveQuotaRuntimeContext(
     })
   ) {
     sessionMeta = await params.resolveSessionMeta(params.sessionID);
+  }
+  if (params.configureTelemetry !== false) {
+    configureRuntimeTelemetry({
+      client: params.client,
+      config,
+      session: { sessionMeta },
+    });
   }
 
   return {
@@ -110,7 +120,11 @@ export function createQuotaProviderRuntimeContext(runtime: {
   session: QuotaRuntimeContext["session"];
   resolveRuntimeProviderIds: RuntimeProviderIdResolver;
   configMeta?: Pick<LoadConfigMeta, "settingSources">;
+  configureTelemetry?: boolean;
 }): QuotaProviderContext {
+  const telemetryToken =
+    runtime.configureTelemetry === false ? undefined : configureRuntimeTelemetry(runtime);
+
   return {
     client: runtime.client,
     resolveRuntimeProviderIds: runtime.resolveRuntimeProviderIds,
@@ -129,8 +143,45 @@ export function createQuotaProviderRuntimeContext(runtime: {
       enabledProviders:
         runtime.config.enabledProviders === "auto" ? "auto" : [...runtime.config.enabledProviders],
       quotaProviders: cloneQuotaProviders(runtime.config.quotaProviders),
+      telemetryToken,
       currentModel: runtime.session.sessionMeta?.modelID,
       currentProviderID: runtime.session.sessionMeta?.providerID,
     },
   };
+}
+
+function configureRuntimeTelemetry(runtime: {
+  client: QuotaRuntimeClient;
+  config: QuotaToastConfig;
+  session: QuotaRuntimeContext["session"];
+}) {
+  const telemetryEnabled = runtime.config.enabled && runtime.config.telemetry?.enabled === true;
+  const telemetryIdentity = createHash("sha256")
+    .update(
+      JSON.stringify([
+        "quota-telemetry-config-v1",
+        runtime.config.enabled,
+        runtime.config.telemetry?.enabled === true,
+        runtime.config.enabledProviders === "auto"
+          ? "auto"
+          : [...runtime.config.enabledProviders].sort(),
+        runtime.config.quotaProviders,
+        runtime.config.googleModels,
+        runtime.config.anthropicBinaryPath,
+        runtime.config.cursorPlan,
+        runtime.config.cursorIncludedApiUsd,
+        runtime.config.cursorBillingCycleStartDay,
+        runtime.config.opencodeGoWindows,
+        runtime.config.opencodeMonthlyLimit,
+        runtime.config.onlyCurrentModel,
+        runtime.session.sessionMeta?.providerID,
+        runtime.session.sessionMeta?.modelID,
+      ]),
+    )
+    .digest("hex");
+  return configureQuotaTelemetry({
+    owner: runtime.client,
+    enabled: telemetryEnabled,
+    identity: telemetryIdentity,
+  });
 }

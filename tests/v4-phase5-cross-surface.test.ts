@@ -45,7 +45,30 @@ const mocks = vi.hoisted(() => ({
   fetchSessionTokensForDisplay: vi.fn(),
 }));
 
+const otel = vi.hoisted(() => {
+  const callbacks = new Map<
+    string,
+    (result: { observe(value: number, attributes?: Record<string, unknown>): void }) => void
+  >();
+  return {
+    callbacks,
+    getMeter: vi.fn(() => ({
+      createObservableGauge: vi.fn((name: string) => ({
+        addCallback: (
+          callback: (result: {
+            observe(value: number, attributes?: Record<string, unknown>): void;
+          }) => void,
+        ) => callbacks.set(name, callback),
+        removeCallback: () => callbacks.delete(name),
+      })),
+    })),
+  };
+});
+
 vi.mock("@opencode-ai/plugin", () => createPluginToolMockModule());
+vi.mock("@opentelemetry/api", () => ({
+  metrics: { getMeter: otel.getMeter },
+}));
 vi.mock("../src/lib/config.js", () => createConfigModuleMock(mocks.loadConfig));
 vi.mock("../src/providers/registry.js", () =>
   createProvidersRegistryModuleMock(mocks.getProviders),
@@ -88,6 +111,9 @@ function configFor(formatStyle: "allWindows" | "singleWindow") {
     maintainerAnnouncements: {
       enabled: false,
       home: false,
+    },
+    telemetry: {
+      enabled: true,
     },
     tuiCommandDisplay: "dialog",
     tuiSidebarPanel: {
@@ -148,6 +174,10 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
   let savedEnv: Record<string, string | undefined>;
 
   beforeEach(async () => {
+    const { __resetQuotaTelemetryForTests } = await import("../src/lib/quota-telemetry.js");
+    __resetQuotaTelemetryForTests();
+    otel.callbacks.clear();
+    otel.getMeter.mockClear();
     savedEnv = {
       PHASE5_TEAM_ACCOUNTING_KEY: process.env.PHASE5_TEAM_ACCOUNTING_KEY,
       PHASE5_OPENROUTER_KEY: process.env.PHASE5_OPENROUTER_KEY,
@@ -220,6 +250,8 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
     vi.unstubAllGlobals();
     const { __resetQuotaStateForTests } = await import("../src/lib/quota-state.js");
     __resetQuotaStateForTests();
+    const { __resetQuotaTelemetryForTests } = await import("../src/lib/quota-telemetry.js");
+    __resetQuotaTelemetryForTests();
     await rm(TEST_RUNTIME_ROOT, { recursive: true, force: true });
   });
 
@@ -374,5 +406,51 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
     for (const source of PHASE5_QUOTA_PROVIDERS) {
       expect(allOutput).not.toContain(source.url);
     }
+
+    const { __flushQuotaTelemetryInitializationForTests } =
+      await import("../src/lib/quota-telemetry.js");
+    await __flushQuotaTelemetryInitializationForTests();
+    const observations: Array<{
+      metric: string;
+      value: number;
+      attributes?: Record<string, unknown>;
+    }> = [];
+    for (const [metric, callback] of otel.callbacks) {
+      callback({
+        observe: (value, attributes) => {
+          observations.push({ metric, value, attributes });
+        },
+      });
+    }
+    expect(otel.getMeter).toHaveBeenCalledOnce();
+    expect(new Set(observations.map(({ metric }) => metric))).toEqual(
+      new Set(["opencode.quota.consumed", "opencode.quota.cache.age"]),
+    );
+    expect(
+      observations
+        .filter(({ metric }) => metric === "opencode.quota.consumed")
+        .every(
+          ({ attributes }) =>
+            attributes?.["quota.provider"] === "custom" &&
+            JSON.stringify(Object.keys(attributes).sort()) ===
+              JSON.stringify(["quota.provider", "quota.result_type", "quota.window"]),
+        ),
+    ).toBe(true);
+    expect(
+      observations
+        .filter(({ metric }) => metric === "opencode.quota.cache.age")
+        .every(
+          ({ attributes }) =>
+            JSON.stringify(attributes) === JSON.stringify({ "quota.provider": "custom" }),
+        ),
+    ).toBe(true);
+    const telemetryOutput = JSON.stringify(observations);
+    assertPhase5CanariesRedacted(telemetryOutput);
+    for (const source of PHASE5_QUOTA_PROVIDERS) {
+      expect(telemetryOutput).not.toContain(source.id);
+      expect(telemetryOutput).not.toContain(source.label);
+      expect(telemetryOutput).not.toContain(source.url);
+    }
+    expect(allOutput).not.toMatch(/telemetryToken|opencode\.quota\./);
   });
 });

@@ -32,6 +32,7 @@ const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>;
   engines?: Record<string, string>;
   files?: string[];
   packageManager?: string;
@@ -78,6 +79,13 @@ describe("package manifest compatibility", () => {
     expect(readme).toContain("Node.js `>= 22` is required.");
     expect(readme).not.toContain("OpenCode `>= 1.4.3`");
     expect(pkg.engines).not.toHaveProperty("opencode");
+  });
+
+  it("keeps OpenTelemetry host-owned and optional at runtime", () => {
+    expect(pkg.peerDependencies?.["@opentelemetry/api"]).toBe("^1.9.0");
+    expect(pkg.peerDependenciesMeta?.["@opentelemetry/api"]).toEqual({ optional: true });
+    expect(pkg.devDependencies?.["@opentelemetry/api"]).toBe("^1.9.1");
+    expect(pkg.dependencies).not.toHaveProperty("@opentelemetry/api");
   });
 
   it("hardens pnpm dependency resolution against fresh-package supply-chain attacks", () => {
@@ -216,6 +224,10 @@ describe("package manifest compatibility", () => {
     expect(packedSmoke).toContain('readFile(tuiExportPath, "utf8")');
     expect(packedSmoke).toContain("dist\\\\/tui\\\\.js");
     expect(packedSmoke).not.toContain('await import("@slkiser/opencode-quota/tui")');
+    expect(packedSmoke).toContain('"@opentelemetry/api@1.9.0"');
+    expect(packedSmoke).toContain('"node_modules", "@opentelemetry", "api"');
+    expect(packedSmoke).toContain('identity: "packed-present"');
+    expect(packedSmoke).toContain('identity: "packed-absent"');
   });
 
   it("publishes only a release-tag artifact after both exact-artifact smoke jobs", () => {

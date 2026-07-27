@@ -237,12 +237,42 @@ describe("loadConfig layered precedence", () => {
     expect(meta.settingSources["layout.maxWidth"]).toBe(
       quotaConfigSource(join(xdgConfigHome, "opencode")),
     );
-    expect(meta.settingSources["layout.narrowAt"]).toBe(
-      quotaConfigSource(workspaceDir),
+    expect(meta.settingSources["layout.narrowAt"]).toBe(quotaConfigSource(workspaceDir));
+    expect(meta.settingSources["layout.tinyAt"]).toBe(quotaConfigSource(workspaceDir));
+  });
+
+  it("preserves valid global telemetry when a workspace value is invalid", async () => {
+    writeFileSync(
+      join(xdgConfigHome, "opencode", "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            telemetry: { enabled: true },
+          },
+        },
+      }),
+      "utf-8",
     );
-    expect(meta.settingSources["layout.tinyAt"]).toBe(
-      quotaConfigSource(workspaceDir),
+    writeFileSync(
+      join(workspaceDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            telemetry: { enabled: "yes" },
+          },
+        },
+      }),
+      "utf-8",
     );
+
+    const meta = createLoadConfigMeta();
+    const cfg = await loadConfig(undefined, meta, { cwd: workspaceDir });
+
+    expect(cfg.telemetry).toEqual({ enabled: true });
+    expect(meta.settingSources["telemetry.enabled"]).toBe(
+      quotaConfigSource(join(xdgConfigHome, "opencode")),
+    );
+    expect(meta.networkSettingSources).toEqual({});
   });
 
   it("merges maintainer announcements per field and ignores invalid workspace fields", async () => {
@@ -439,36 +469,16 @@ describe("loadConfig layered precedence", () => {
     expect(cfg.formatStyle).toBe("allWindows");
     expect(cfg.layout).toEqual({ maxWidth: 64, narrowAt: 35, tinyAt: 32 });
     const globalQuotaConfigSource = quotaConfigSource(join(xdgConfigHome, "opencode"));
-    expect(meta.settingSources.enabledProviders).toBe(
-      globalQuotaConfigSource,
-    );
-    expect(meta.settingSources.anthropicBinaryPath).toBe(
-      globalQuotaConfigSource,
-    );
-    expect(meta.settingSources.googleModels).toBe(
-      globalQuotaConfigSource,
-    );
-    expect(meta.settingSources.cursorIncludedApiUsd).toBe(
-      globalQuotaConfigSource,
-    );
-    expect(meta.settingSources.cursorBillingCycleStartDay).toBe(
-      globalQuotaConfigSource,
-    );
-    expect(meta.settingSources["pricingSnapshot.source"]).toBe(
-      globalQuotaConfigSource,
-    );
-    expect(meta.settingSources["pricingSnapshot.autoRefresh"]).toBe(
-      globalQuotaConfigSource,
-    );
-    expect(meta.settingSources.formatStyle).toBe(
-      globalQuotaConfigSource,
-    );
-    expect(meta.settingSources["layout.maxWidth"]).toBe(
-      globalQuotaConfigSource,
-    );
-    expect(meta.settingSources["layout.narrowAt"]).toBe(
-      quotaConfigSource(workspaceDir),
-    );
+    expect(meta.settingSources.enabledProviders).toBe(globalQuotaConfigSource);
+    expect(meta.settingSources.anthropicBinaryPath).toBe(globalQuotaConfigSource);
+    expect(meta.settingSources.googleModels).toBe(globalQuotaConfigSource);
+    expect(meta.settingSources.cursorIncludedApiUsd).toBe(globalQuotaConfigSource);
+    expect(meta.settingSources.cursorBillingCycleStartDay).toBe(globalQuotaConfigSource);
+    expect(meta.settingSources["pricingSnapshot.source"]).toBe(globalQuotaConfigSource);
+    expect(meta.settingSources["pricingSnapshot.autoRefresh"]).toBe(globalQuotaConfigSource);
+    expect(meta.settingSources.formatStyle).toBe(globalQuotaConfigSource);
+    expect(meta.settingSources["layout.maxWidth"]).toBe(globalQuotaConfigSource);
+    expect(meta.settingSources["layout.narrowAt"]).toBe(quotaConfigSource(workspaceDir));
   });
 
   it("accepts legacy toastStyle in file-backed config and still prefers formatStyle when present", async () => {
