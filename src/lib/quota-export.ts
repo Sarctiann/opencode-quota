@@ -48,6 +48,7 @@ export function createExportProviderContext(runtime: QuotaRuntimeContext): Quota
       showSessionTokens: false,
     },
     session: {},
+    configureTelemetry: false,
   });
 }
 

@@ -433,9 +433,7 @@ describe("quota-state shared cache", () => {
   it("returns cache-owned clones for repeated non-live provider reads", async () => {
     const { __resetQuotaStateForTests, fetchQuotaProviderResult } =
       await import("../src/lib/quota-state.js");
-    const { configureQuotaTelemetry } = await import("../src/lib/quota-telemetry.js");
     __resetQuotaStateForTests();
-    configureQuotaTelemetry(true);
 
     const provider = {
       id: "synthetic",
@@ -460,11 +458,9 @@ describe("quota-state shared cache", () => {
       }),
     } as any;
 
-    const telemetryContext = createTestContext();
-    telemetryContext.config.telemetryEnabled = true;
     const first = await fetchQuotaProviderResult({
       provider,
-      ctx: telemetryContext,
+      ctx: createTestContext(),
       ttlMs: 60_000,
     });
     const firstEntry = first.entries[0] as any;
@@ -474,7 +470,7 @@ describe("quota-state shared cache", () => {
 
     const second = await fetchQuotaProviderResult({
       provider,
-      ctx: telemetryContext,
+      ctx: createTestContext(),
       ttlMs: 60_000,
     });
 
@@ -497,6 +493,90 @@ describe("quota-state shared cache", () => {
       },
     });
     expect(provider.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("publishes authoritative cache timestamps without changing persistence or bypass behavior", async () => {
+    const callbacks = new Map<string, (result: { observe(value: number): void }) => void>();
+    const telemetry = await import("../src/lib/quota-telemetry.js");
+    telemetry.__resetQuotaTelemetryForTests();
+    telemetry.__setQuotaTelemetryApiLoaderForTests(async () => ({
+      metrics: {
+        getMeter: () => ({
+          createObservableGauge: (name: string) => ({
+            addCallback: (callback: (result: { observe(value: number): void }) => void) => {
+              callbacks.set(name, callback);
+            },
+            removeCallback: () => {},
+          }),
+        }),
+      },
+    }));
+
+    const quotaState = await import("../src/lib/quota-state.js");
+    quotaState.__resetQuotaStateForTests();
+    const ctx = createTestContext();
+    ctx.config.telemetryToken = telemetry.configureQuotaTelemetry({
+      owner: ctx.client,
+      enabled: true,
+      identity: "cache-integration",
+    });
+    const provider = {
+      id: "synthetic",
+      isAvailable: vi.fn(),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [{ accounting: TEST_ACCOUNTING, name: "Synthetic", percentRemaining: 50 }],
+        errors: [],
+      }),
+    } as any;
+
+    vi.spyOn(Date, "now").mockReturnValue(1_000);
+    await quotaState.fetchQuotaProviderResult({ provider, ctx, ttlMs: 60_000 });
+    await telemetry.__flushQuotaTelemetryInitializationForTests();
+    const key = quotaState.buildQuotaProviderStateCacheKey(provider.id, ctx);
+    const path = quotaState.getQuotaProviderStateCacheFilePath(provider.id, key);
+    const persisted = JSON.parse(await (await import("fs/promises")).readFile(path, "utf8"));
+    expect(persisted.version).toBe(2);
+    expect(persisted.timestamp).toBe(1_000);
+    expect(JSON.stringify(persisted)).not.toContain("telemetry");
+
+    vi.mocked(Date.now).mockReturnValue(1_600);
+    await quotaState.fetchQuotaProviderResult({ provider, ctx, ttlMs: 60_000 });
+    quotaState.__resetQuotaStateForTests();
+    await quotaState.readCachedProviderResult({ provider, ctx, ttlMs: 60_000 });
+    const ages: number[] = [];
+    callbacks.get("opencode.quota.cache.age")?.({
+      observe: (value) => ages.push(value),
+    });
+    expect(ages).toEqual([0.6]);
+    expect(provider.fetch).toHaveBeenCalledTimes(1);
+
+    provider.fetch.mockResolvedValueOnce({ attempted: true, entries: [], errors: [] });
+    await quotaState.fetchQuotaProviderResult({ provider, ctx, ttlMs: 0 });
+    const consumedAfterClear: number[] = [];
+    callbacks.get("opencode.quota.consumed")?.({
+      observe: (value) => consumedAfterClear.push(value),
+    });
+    expect(consumedAfterClear).toEqual([]);
+
+    provider.fetch.mockResolvedValueOnce({
+      attempted: true,
+      entries: [{ accounting: TEST_ACCOUNTING, name: "Synthetic", percentRemaining: 25 }],
+      errors: [],
+    });
+    await quotaState.fetchQuotaProviderResult({
+      provider,
+      ctx,
+      ttlMs: 60_000,
+      bypassCache: true,
+    });
+    const bypassAges: number[] = [];
+    callbacks.get("opencode.quota.cache.age")?.({
+      observe: (value) => bypassAges.push(value),
+    });
+    expect(bypassAges).toEqual([]);
+
+    telemetry.__resetQuotaTelemetryForTests();
   });
 
   it("reuses cache v2 with accounting metadata across module resets", async () => {

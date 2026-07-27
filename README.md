@@ -85,10 +85,13 @@ More ways to use it:
 
 - Check quota from a terminal with `opencode-quota show`
 - Use JSON output in scripts, status bars, CI checks, and other tools
+- Publish opt-in OpenTelemetry quota and cache-age gauges through a host-managed global metrics provider
 - Run the same slash commands in the TUI, Web, and Desktop
 - Tune reset countdown precision without changing the default compact display
 - Choose current-session or descendant-tree token totals across `/quota`, toasts, the sidebar, and the compact input line
 - Diagnose authentication, quota sources, pricing, and maintainer notices
+
+OpenTelemetry metrics are disabled by default and never configure an SDK, exporter, timer, or extra provider request. Stock OpenCode 1.18.4 configures OTLP logs/traces but not a global metrics provider, so see [External integration](docs/readme/external-integration.md#option-3-publish-opentelemetry-metrics) for the required host setup and privacy contract.
 
 See [Configuration](docs/readme/configuration.md) for UI options and [Manual install](docs/readme/manual-install.md) for setup details.
 

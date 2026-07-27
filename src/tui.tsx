@@ -37,6 +37,7 @@ import {
   resolveTuiSurfaceRegistration,
   writeTuiQuotaExportIfEnabled,
 } from "./lib/tui-runtime.js";
+import { disposeQuotaTelemetryOwner } from "./lib/quota-telemetry.js";
 import {
   QUOTA_DIALOG_COMMANDS,
   buildQuotaDialogCommandOutput,
@@ -598,6 +599,10 @@ function registerSidebarSlots(api: TuiPluginApi): void {
 }
 
 const tui: TuiPlugin = async (api) => {
+  api.lifecycle.onDispose(() => {
+    disposeQuotaTelemetryOwner(createTuiQuotaClient(api));
+  });
+
   let surfaceRegistration;
   try {
     surfaceRegistration = await resolveTuiSurfaceRegistration(api);

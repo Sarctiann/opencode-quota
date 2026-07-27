@@ -12,7 +12,7 @@ Choose one source:
 | Export file                  | Reading the same data often without running a command   |
 | OpenTelemetry metrics        | Monitoring quota consumption and freshness in a backend |
 
-All three reuse normalized quota data already collected by OpenCode Quota. They do not add provider requests.
+All three reuse normalized quota data collected during normal OpenCode Quota activity. They do not add provider requests.
 
 ## JSON export v2
 
@@ -78,7 +78,7 @@ The TUI updates this file after each home-bottom background refresh, about every
 
 ## Option 3: publish OpenTelemetry metrics
 
-Use this when the OpenCode host already configures an OpenTelemetry SDK and exporter. OpenCode Quota reuses the global `MeterProvider`; it does not install an SDK, configure OTLP, own an exporter, or add a refresh timer.
+Use this when the OpenCode host already configures an OpenTelemetry metrics SDK, global `MeterProvider`, reader, and exporter. OpenCode Quota reuses that global provider; it does not install an SDK, configure OTLP, own an exporter, or add a refresh timer.
 
 Add this to `opencode-quota/quota-toast.json`:
 
@@ -90,29 +90,30 @@ Add this to `opencode-quota/quota-toast.json`:
 }
 ```
 
-Telemetry is disabled by default. The host must make `@opentelemetry/api` available and register its global `MeterProvider`. If the API or a provider is unavailable, OpenCode Quota continues normally and emits no metrics.
+Telemetry is disabled by default. `@opentelemetry/api` is an optional peer dependency, so a host can omit it safely. If the API or global metrics provider is unavailable, OpenCode Quota continues normally and emits no metrics.
 
-OpenCode Quota publishes observable gauges from the latest normalized cache snapshot:
+OpenCode 1.18.4 includes OpenTelemetry API support and can configure OTLP logs and traces, but its built-in OTLP path does not register a global metrics `MeterProvider`. On that version, these gauges remain a no-op unless another host integration configures global OpenTelemetry metrics before OpenCode Quota is enabled.
 
-| Metric                     | Unit | Meaning                                                                                                       |
-| -------------------------- | ---- | ------------------------------------------------------------------------------------------------------------- |
-| `opencode.quota.consumed`  | `1`  | Consumed ratio derived from `percentRemaining`: `(100 - percentRemaining) / 100`, with a lower bound of zero. |
-| `opencode.quota.cache.age` | `s`  | Seconds since that normalized provider snapshot was fetched; the timestamp is preserved across cache hits.    |
+OpenCode Quota publishes observable gauges from normalized results seen during normal quota activity:
 
-`opencode.quota.consumed` is `0` when unused and `1` at 100% consumed. It can exceed `1` when a provider reports quota below zero. Human-readable value rows such as balances are not converted into metrics.
+| Metric                     | Unit | Meaning                                                                                            |
+| -------------------------- | ---- | -------------------------------------------------------------------------------------------------- |
+| `opencode.quota.consumed`  | `1`  | Consumed ratio derived from finite percentage rows: `clamp((100 - percentRemaining) / 100, 0, 1)`. |
+| `opencode.quota.cache.age` | `s`  | Nonnegative seconds since the original stored cache timestamp; uncached results do not report age. |
 
-Both gauges use the same bounded attributes:
+`opencode.quota.consumed` is `0` when unused and `1` at or above 100% consumed. Human-readable value rows such as balances and non-finite percentages are not converted into metrics.
+
+Consumed-quota series use only these bounded attributes:
 
 - `quota.provider`
 - `quota.result_type`
 - `quota.window`
-- `quota.acquisition_method`
-- `quota.ownership`
-- `quota.authority`
 
-Raw row labels are reduced to a bounded window classification such as `five_hour`, `day`, `week`, or `month`; unclassified rows use `unspecified`. Display names, account identifiers, configured source IDs, credentials, URLs, paths, models, errors, and raw provider responses are never metric attributes. When multiple rows have identical safe attributes, the gauge reports the highest consumed ratio.
+Cache-age series use only `quota.provider`. Built-in provider IDs map to the maintained canonical catalog, configured aggregate sources map to `custom`, and unknown IDs map to `other`. Windows map to `rpm`, `five_hour`, `hour`, `day`, `week`, `month`, `year`, `mcp`, `code_review`, or `unknown`. Result types are limited to `quota`, `rate_limit`, `usage`, `spend`, `budget`, `balance`, or `status`.
 
-Metric callbacks only read in-memory snapshots. They never contact a provider or read the cache, and telemetry failures never affect collection, commands, exports, or UI behavior.
+Display names, account identifiers, configured source IDs, credentials, URLs, paths, models, errors, diagnostic fields, and raw provider responses are never metric attributes. When privacy-safe dimensions collapse several rows, sources, or project scopes, the gauges report the maximum consumed ratio or maximum cache age. Series are emitted in deterministic order.
+
+Metric callbacks only read in-memory snapshots populated by normal quota work. They never contact a provider, perform provider discovery, or read cache files. Telemetry failures never affect collection, commands, exports, cache schema, or UI behavior, and telemetry state is not added to JSON output.
 
 ## Copy-paste examples
 

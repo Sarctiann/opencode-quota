@@ -178,6 +178,12 @@ describe("loadConfig", () => {
     });
     expect(explicit.meta.networkSettingSources).toEqual({});
 
+    const disabled = await loadSdkConfig({ telemetry: { enabled: false } });
+    expect(disabled.config.telemetry).toEqual({ enabled: false });
+    expect(disabled.meta.settingSources).toEqual({
+      "telemetry.enabled": "client.config.get",
+    });
+
     const invalid = await loadSdkConfig({ telemetry: { enabled: "yes" } });
     expect(invalid.config.telemetry).toEqual({ enabled: false });
     expect(invalid.meta.settingSources).toEqual({});
