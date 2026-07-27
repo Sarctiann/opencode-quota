@@ -31,6 +31,7 @@ const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url
   "oc-plugin"?: string[];
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   peerDependenciesMeta?: Record<string, { optional?: boolean }>;
   engines?: Record<string, string>;
@@ -49,6 +50,10 @@ const publishWorkflow = parse(
 const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
 const packedSmoke = await readFile(
   new URL("../scripts/smoke-packed-package.mjs", import.meta.url),
+  "utf8",
+);
+const packedRealOtelFixture = await readFile(
+  new URL("../scripts/fixtures/smoke-packed-real-otel.mjs", import.meta.url),
   "utf8",
 );
 
@@ -85,7 +90,15 @@ describe("package manifest compatibility", () => {
     expect(pkg.peerDependencies?.["@opentelemetry/api"]).toBe("^1.9.0");
     expect(pkg.peerDependenciesMeta?.["@opentelemetry/api"]).toEqual({ optional: true });
     expect(pkg.devDependencies?.["@opentelemetry/api"]).toBe("^1.9.1");
+    expect(pkg.devDependencies?.["@opentelemetry/sdk-metrics"]).toBe("2.10.0");
     expect(pkg.dependencies).not.toHaveProperty("@opentelemetry/api");
+    for (const dependencyType of [
+      pkg.dependencies,
+      pkg.optionalDependencies,
+      pkg.peerDependencies,
+    ]) {
+      expect(dependencyType).not.toHaveProperty("@opentelemetry/sdk-metrics");
+    }
   });
 
   it("hardens pnpm dependency resolution against fresh-package supply-chain attacks", () => {
@@ -225,9 +238,24 @@ describe("package manifest compatibility", () => {
     expect(packedSmoke).toContain("dist\\\\/tui\\\\.js");
     expect(packedSmoke).not.toContain('await import("@slkiser/opencode-quota/tui")');
     expect(packedSmoke).toContain('"@opentelemetry/api@1.9.0"');
+    expect(packedSmoke).toContain('rootPackage.devDependencies?.["@opentelemetry/sdk-metrics"]');
+    expect(packedSmoke).toContain("smoke-packed-real-otel.mjs");
+    expect(packedSmoke).toContain('"happy"');
+    expect(packedSmoke).toContain('"disabled"');
+    expect(packedSmoke).toContain('"no-global-provider"');
+    expect(packedSmoke).toContain('"failing-infrastructure"');
     expect(packedSmoke).toContain('"node_modules", "@opentelemetry", "api"');
     expect(packedSmoke).toContain('identity: "packed-present"');
     expect(packedSmoke).toContain('identity: "packed-absent"');
+
+    expect(packedRealOtelFixture).toContain("new MeterProvider({ readers: [reader] })");
+    expect(packedRealOtelFixture).toContain("new PeriodicExportingMetricReader");
+    expect(packedRealOtelFixture).toContain("new InMemoryMetricExporter");
+    expect(packedRealOtelFixture).toContain("metrics.setGlobalMeterProvider(provider)");
+    expect(packedRealOtelFixture).toContain("await provider.forceFlush()");
+    expect(packedRealOtelFixture).toContain("await sdk.provider.shutdown()");
+    expect(packedRealOtelFixture).toContain("buildQuotaExport");
+    expect(packedRealOtelFixture).toContain("disposeQuotaTelemetryOwner");
   });
 
   it("publishes only a release-tag artifact after both exact-artifact smoke jobs", () => {

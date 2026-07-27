@@ -80,6 +80,29 @@ The TUI updates this file after each home-bottom background refresh, about every
 
 Use this when the OpenCode host already configures an OpenTelemetry metrics SDK, global `MeterProvider`, reader, and exporter. OpenCode Quota reuses that global provider; it does not install an SDK, configure OTLP, own an exporter, or add a refresh timer.
 
+A minimal host-owned setup looks like this. Register the provider before OpenCode loads OpenCode Quota, and call `provider.shutdown()` when the host stops. Replace the console exporter with the host's production exporter.
+
+```javascript
+import { metrics } from "@opentelemetry/api";
+import {
+  ConsoleMetricExporter,
+  MeterProvider,
+  PeriodicExportingMetricReader,
+} from "@opentelemetry/sdk-metrics";
+
+const reader = new PeriodicExportingMetricReader({
+  exporter: new ConsoleMetricExporter(),
+  exportIntervalMillis: 60_000,
+});
+const provider = new MeterProvider({ readers: [reader] });
+metrics.setGlobalMeterProvider(provider);
+
+// Call this from the host's shutdown path.
+export async function shutdownMetrics() {
+  await provider.shutdown();
+}
+```
+
 Add this to `opencode-quota/quota-toast.json`:
 
 ```jsonc

@@ -69,11 +69,17 @@ vi.mock("@opencode-ai/plugin", () => createPluginToolMockModule());
 vi.mock("@opentelemetry/api", () => ({
   metrics: { getMeter: otel.getMeter },
 }));
-vi.mock("../src/lib/config.js", () => createConfigModuleMock(mocks.loadConfig));
+vi.mock("../src/lib/config.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/lib/config.js")>()),
+  ...createConfigModuleMock(mocks.loadConfig),
+}));
 vi.mock("../src/providers/registry.js", () =>
   createProvidersRegistryModuleMock(mocks.getProviders),
 );
-vi.mock("../src/lib/modelsdev-pricing.js", () => createPricingModuleMock(mocks));
+vi.mock("../src/lib/modelsdev-pricing.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/lib/modelsdev-pricing.js")>()),
+  ...createPricingModuleMock(mocks),
+}));
 vi.mock("../src/lib/session-tokens.js", () =>
   createSessionTokensModuleMock(mocks.fetchSessionTokensForDisplay),
 );
@@ -89,11 +95,20 @@ vi.mock("../src/lib/opencode-runtime-paths.js", () =>
 
 type PluginHooks = {
   config?: (input: unknown) => Promise<void> | void;
+  dispose?: () => Promise<void> | void;
   event?: (input: unknown) => Promise<void> | void;
   "command.execute.before"?: (input: {
     command: string;
     sessionID: string;
   }) => Promise<void> | void;
+  tool?: {
+    quota_status?: {
+      execute(
+        args: Record<string, never>,
+        context: { sessionID: string; metadata(value: { title: string }): void },
+      ): Promise<string>;
+    };
+  };
 };
 
 function configFor(formatStyle: "allWindows" | "singleWindow") {
@@ -318,6 +333,90 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(callsAfterFirstToast);
     assertFixtureContent(getToastMessage(client, 1));
 
+    const statusMetadata = vi.fn();
+    expect(hooks.tool?.quota_status).toBeDefined();
+    await hooks.tool?.quota_status?.execute(
+      {},
+      {
+        sessionID: "phase5-session",
+        metadata: statusMetadata,
+      },
+    );
+    expect(statusMetadata).toHaveBeenCalledWith({ title: "Quota Status" });
+    const statusOutput = getPromptText(client, 1);
+    expect(statusOutput).toMatch(/^# Quota Status .*\(\/quota_status\)/u);
+    expect(statusOutput).toContain("provider_team-accounting:");
+    expect(statusOutput).toContain("provider_openrouter-primary:");
+    expect(statusOutput).toContain("provider_failing-accounting:");
+    expect(statusOutput).toContain("outcome=success");
+    expect(statusOutput).toContain("outcome=http_error");
+    assertPhase5CanariesRedacted(statusOutput);
+    for (const source of PHASE5_QUOTA_PROVIDERS) {
+      expect(statusOutput).not.toContain(source.url);
+    }
+
+    const { quotaProvidersProvider } = await import("../src/providers/quota-providers.js");
+    const { resolveQuotaRuntimeContext } = await import("../src/lib/quota-runtime-context.js");
+    const runtime = await resolveQuotaRuntimeContext({
+      client: client as never,
+      roots: { workspaceRoot: process.cwd() },
+      config: currentConfig,
+      providers: [quotaProvidersProvider],
+      configureTelemetry: false,
+    });
+    const { buildQuotaExport, createExportProviderContext } =
+      await import("../src/lib/quota-export.js");
+    const exportContext = createExportProviderContext(runtime);
+    const fetchCallsBeforeExport = vi.mocked(globalThis.fetch).mock.calls.length;
+    const exportData = await buildQuotaExport({
+      providers: [quotaProvidersProvider],
+      ctx: exportContext,
+      ttlMs: currentConfig.minIntervalMs,
+      fromCache: true,
+    });
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(fetchCallsBeforeExport);
+    expect(exportData.version).toBe(2);
+    const exportedProvider = exportData.providers["quota-providers"];
+    expect(exportedProvider?.status).toBe("partial");
+    if (!exportedProvider || !("entries" in exportedProvider)) {
+      throw new Error("Expected cached Phase 5 quota-provider export entries");
+    }
+    expect(exportedProvider.sources).toEqual([
+      { id: "team-accounting", providerId: "team-gateway", status: "ok", entryCount: 2 },
+      { id: "openrouter-primary", providerId: "openrouter", status: "ok", entryCount: 1 },
+      {
+        id: "failing-accounting",
+        providerId: "failing-gateway",
+        status: "error",
+        entryCount: 0,
+      },
+    ]);
+    expect(
+      exportedProvider.entries.map((entry) =>
+        entry.renderType === "percent" ? entry.percentRemaining : entry.value,
+      ),
+    ).toEqual([64, "$12.34", 80]);
+    const exportOutput = JSON.stringify(exportData);
+    assertPhase5CanariesRedacted(exportOutput);
+    for (const source of PHASE5_QUOTA_PROVIDERS) {
+      expect(exportOutput).not.toContain(source.url);
+    }
+    expect(exportOutput).not.toMatch(/telemetryToken|opencode\.quota\./u);
+
+    const { classifyQuotaWindowText } = await import("../src/lib/quota-entry-display.js");
+    const expectedConsumed = new Map<string, number>();
+    for (const entry of exportedProvider.entries) {
+      if (entry.renderType !== "percent" || !Number.isFinite(entry.percentRemaining)) continue;
+      const attributes = {
+        "quota.provider": "custom",
+        "quota.window": classifyQuotaWindowText(entry.window ?? "") ?? "unknown",
+        "quota.result_type": entry.resultType,
+      };
+      const key = JSON.stringify(attributes);
+      const consumed = Math.min(1, Math.max(0, (100 - entry.percentRemaining) / 100));
+      expectedConsumed.set(key, Math.max(expectedConsumed.get(key) ?? 0, consumed));
+    }
+
     const tuiApi = {
       state: {
         provider: PHASE5_RUNTIME_PROVIDER_IDS.map((id) => ({ id })),
@@ -410,6 +509,9 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
     const { __flushQuotaTelemetryInitializationForTests } =
       await import("../src/lib/quota-telemetry.js");
     await __flushQuotaTelemetryInitializationForTests();
+    const fetchCallsBeforeMetrics = vi.mocked(globalThis.fetch).mock.calls.length;
+    const providerDiscoveryCallsBeforeMetrics = client.config.providers.mock.calls.length;
+    const metricObservedAt = Date.now();
     const observations: Array<{
       metric: string;
       value: number;
@@ -422,10 +524,18 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
         },
       });
     }
+    expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(fetchCallsBeforeMetrics);
+    expect(client.config.providers).toHaveBeenCalledTimes(providerDiscoveryCallsBeforeMetrics);
     expect(otel.getMeter).toHaveBeenCalledOnce();
     expect(new Set(observations.map(({ metric }) => metric))).toEqual(
       new Set(["opencode.quota.consumed", "opencode.quota.cache.age"]),
     );
+    const actualConsumed = new Map(
+      observations
+        .filter(({ metric }) => metric === "opencode.quota.consumed")
+        .map(({ attributes, value }) => [JSON.stringify(attributes), value]),
+    );
+    expect(actualConsumed).toEqual(expectedConsumed);
     expect(
       observations
         .filter(({ metric }) => metric === "opencode.quota.consumed")
@@ -436,14 +546,24 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
               JSON.stringify(["quota.provider", "quota.result_type", "quota.window"]),
         ),
     ).toBe(true);
+    const cacheAgeObservations = observations.filter(
+      ({ metric }) => metric === "opencode.quota.cache.age",
+    );
     expect(
-      observations
-        .filter(({ metric }) => metric === "opencode.quota.cache.age")
-        .every(
-          ({ attributes }) =>
-            JSON.stringify(attributes) === JSON.stringify({ "quota.provider": "custom" }),
-        ),
+      cacheAgeObservations.every(
+        ({ attributes }) =>
+          JSON.stringify(attributes) === JSON.stringify({ "quota.provider": "custom" }),
+      ),
     ).toBe(true);
+    expect(cacheAgeObservations).toHaveLength(1);
+    const oldestFetchedAt = Math.min(
+      ...Object.values(exportData.providers)
+        .filter((provider) => "fetchedAt" in provider)
+        .map((provider) => provider.fetchedAt),
+    );
+    expect(
+      Math.abs(cacheAgeObservations[0].value - (metricObservedAt / 1000 - oldestFetchedAt)),
+    ).toBeLessThanOrEqual(1);
     const telemetryOutput = JSON.stringify(observations);
     assertPhase5CanariesRedacted(telemetryOutput);
     for (const source of PHASE5_QUOTA_PROVIDERS) {
@@ -452,5 +572,6 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
       expect(telemetryOutput).not.toContain(source.url);
     }
     expect(allOutput).not.toMatch(/telemetryToken|opencode\.quota\./);
+    await hooks.dispose?.();
   });
 });
