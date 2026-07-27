@@ -113,7 +113,7 @@ Add this to `opencode-quota/quota-toast.json`:
 }
 ```
 
-Telemetry is disabled by default. `@opentelemetry/api` is an optional peer dependency, so a host can omit it safely. If the API or global metrics provider is unavailable, OpenCode Quota continues normally and emits no metrics.
+Telemetry is disabled by default. OpenCode Quota ships `@opentelemetry/api` as a runtime dependency so its telemetry loader works in isolated plugin installs. The host still owns the metrics SDK, global `MeterProvider`, reader, exporter, and shutdown. If no global metrics provider is configured, telemetry remains a no-op and OpenCode Quota continues normally.
 
 OpenCode 1.18.4 includes OpenTelemetry API support and can configure OTLP logs and traces, but its built-in OTLP path does not register a global metrics `MeterProvider`. On that version, these gauges remain a no-op unless another host integration configures global OpenTelemetry metrics before OpenCode Quota is enabled.
 

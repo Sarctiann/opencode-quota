@@ -86,12 +86,18 @@ describe("package manifest compatibility", () => {
     expect(pkg.engines).not.toHaveProperty("opencode");
   });
 
-  it("keeps OpenTelemetry host-owned and optional at runtime", () => {
-    expect(pkg.peerDependencies?.["@opentelemetry/api"]).toBe("^1.9.0");
-    expect(pkg.peerDependenciesMeta?.["@opentelemetry/api"]).toEqual({ optional: true });
-    expect(pkg.devDependencies?.["@opentelemetry/api"]).toBe("^1.9.1");
+  it("ships the OpenTelemetry API while keeping the metrics SDK host-owned", () => {
+    expect(pkg.dependencies?.["@opentelemetry/api"]).toBe("^1.9.1");
+    for (const dependencyType of [
+      pkg.devDependencies,
+      pkg.optionalDependencies,
+      pkg.peerDependencies,
+    ]) {
+      expect(dependencyType).not.toHaveProperty("@opentelemetry/api");
+    }
+    expect(pkg.peerDependenciesMeta?.["@opentelemetry/api"]).toBeUndefined();
+
     expect(pkg.devDependencies?.["@opentelemetry/sdk-metrics"]).toBe("2.10.0");
-    expect(pkg.dependencies).not.toHaveProperty("@opentelemetry/api");
     for (const dependencyType of [
       pkg.dependencies,
       pkg.optionalDependencies,
@@ -237,16 +243,46 @@ describe("package manifest compatibility", () => {
     expect(packedSmoke).toContain('readFile(tuiExportPath, "utf8")');
     expect(packedSmoke).toContain("dist\\\\/tui\\\\.js");
     expect(packedSmoke).not.toContain('await import("@slkiser/opencode-quota/tui")');
-    expect(packedSmoke).toContain('"@opentelemetry/api@1.9.0"');
+    expect(packedSmoke).toContain('const { metrics } = await import("@opentelemetry/api");');
+    expect(packedSmoke).toContain('assert.equal(typeof metrics.getMeter, "function");');
+    expect(packedSmoke).toContain(
+      'assert.equal(pkg.dependencies?.["@opentelemetry/api"], "^1.9.1");',
+    );
+    expect(packedSmoke).toContain(
+      '["devDependencies", "optionalDependencies", "peerDependencies"]',
+    );
+    expect(packedSmoke).toContain(
+      'assert.equal(pkg.peerDependenciesMeta?.["@opentelemetry/api"], undefined);',
+    );
     expect(packedSmoke).toContain('rootPackage.devDependencies?.["@opentelemetry/sdk-metrics"]');
+    expect(packedSmoke).toContain(
+      '["install", "--omit=dev", `@opentelemetry/sdk-metrics@${sdkMetricsVersion}`]',
+    );
     expect(packedSmoke).toContain("smoke-packed-real-otel.mjs");
     expect(packedSmoke).toContain('"happy"');
     expect(packedSmoke).toContain('"disabled"');
     expect(packedSmoke).toContain('"no-global-provider"');
     expect(packedSmoke).toContain('"failing-infrastructure"');
-    expect(packedSmoke).toContain('"node_modules", "@opentelemetry", "api"');
-    expect(packedSmoke).toContain('identity: "packed-present"');
-    expect(packedSmoke).toContain('identity: "packed-absent"');
+    expect(packedSmoke).toContain('identity: "packed-runtime-dependency"');
+
+    const tarballInstallIndex = packedSmoke.indexOf(
+      'run("npm", ["install", "--omit=dev", tarball], workdir);',
+    );
+    const moduleSmokeRunIndex = packedSmoke.indexOf(
+      'run(process.execPath, ["--input-type=module", "--eval", moduleSmoke], workdir);',
+    );
+    const sdkInstallIndex = packedSmoke.indexOf(
+      "`@opentelemetry/sdk-metrics@${sdkMetricsVersion}`",
+    );
+    expect(tarballInstallIndex).toBeGreaterThanOrEqual(0);
+    expect(moduleSmokeRunIndex).toBeGreaterThan(tarballInstallIndex);
+    expect(sdkInstallIndex).toBeGreaterThan(moduleSmokeRunIndex);
+
+    expect(packedSmoke).not.toContain("@opentelemetry/api@");
+    expect(packedSmoke).not.toContain('assert.rejects(import("@opentelemetry/api"))');
+    expect(packedSmoke).not.toContain('identity: "packed-absent"');
+    expect(packedSmoke).not.toContain("absentOptionalDependencySmoke");
+    expect(packedSmoke).not.toContain('"node_modules", "@opentelemetry", "api"');
 
     expect(packedRealOtelFixture).toContain("new MeterProvider({ readers: [reader] })");
     expect(packedRealOtelFixture).toContain("new PeriodicExportingMetricReader");

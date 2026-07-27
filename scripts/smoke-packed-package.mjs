@@ -53,16 +53,6 @@ const workdir = await mkdtemp(path.join(tmpdir(), "opencode-quota-package-smoke-
 try {
   run("npm", ["init", "-y"], workdir);
   run("npm", ["install", "--omit=dev", tarball], workdir);
-  run(
-    "npm",
-    [
-      "install",
-      "--omit=dev",
-      "@opentelemetry/api@1.9.0",
-      `@opentelemetry/sdk-metrics@${sdkMetricsVersion}`,
-    ],
-    workdir,
-  );
 
   const moduleSmoke = `
     import assert from "node:assert/strict";
@@ -73,6 +63,8 @@ try {
     const rootExportUrl = import.meta.resolve("@slkiser/opencode-quota");
     await import("@slkiser/opencode-quota");
     await import("@slkiser/opencode-quota/server");
+    const { metrics } = await import("@opentelemetry/api");
+    assert.equal(typeof metrics.getMeter, "function");
 
     const tuiExportUrl = import.meta.resolve("@slkiser/opencode-quota/tui");
     const tuiExportPath = fileURLToPath(tuiExportUrl);
@@ -87,8 +79,11 @@ try {
       await readFile("node_modules/@slkiser/opencode-quota/package.json", "utf8"),
     );
     assert.equal(pkg.engines?.node, ">=22.0.0");
-    assert.equal(pkg.peerDependencies?.["@opentelemetry/api"], "^1.9.0");
-    assert.equal(pkg.peerDependenciesMeta?.["@opentelemetry/api"]?.optional, true);
+    assert.equal(pkg.dependencies?.["@opentelemetry/api"], "^1.9.1");
+    for (const dependencyType of ["devDependencies", "optionalDependencies", "peerDependencies"]) {
+      assert.equal(pkg[dependencyType]?.["@opentelemetry/api"], undefined);
+    }
+    assert.equal(pkg.peerDependenciesMeta?.["@opentelemetry/api"], undefined);
     for (const dependencyType of ["dependencies", "optionalDependencies", "peerDependencies"]) {
       assert.equal(pkg[dependencyType]?.["@opentelemetry/sdk-metrics"], undefined);
     }
@@ -101,13 +96,15 @@ try {
       telemetry.configureQuotaTelemetry({
         owner: {},
         enabled: true,
-        identity: "packed-present",
+        identity: "packed-runtime-dependency",
       }),
     );
     await telemetry.__flushQuotaTelemetryInitializationForTests();
   `;
 
   run(process.execPath, ["--input-type=module", "--eval", moduleSmoke], workdir);
+
+  run("npm", ["install", "--omit=dev", `@opentelemetry/sdk-metrics@${sdkMetricsVersion}`], workdir);
 
   const realOtelFixture = path.join(workdir, "smoke-packed-real-otel.mjs");
   await copyFile(
@@ -123,89 +120,6 @@ try {
   for (const scenario of ["happy", "disabled", "no-global-provider", "failing-infrastructure"]) {
     run(process.execPath, [realOtelFixture, scenario], workdir, { env: isolatedRuntimeEnv });
   }
-
-  await rm(path.join(workdir, "node_modules", "@opentelemetry", "api"), {
-    recursive: true,
-    force: true,
-  });
-  const absentOptionalDependencySmoke = `
-    import assert from "node:assert/strict";
-    import { readFile } from "node:fs/promises";
-    import path from "node:path";
-    import { fileURLToPath, pathToFileURL } from "node:url";
-
-    await assert.rejects(import("@opentelemetry/api"));
-    const rootExportUrl = import.meta.resolve("@slkiser/opencode-quota");
-    await import("@slkiser/opencode-quota");
-    await import("@slkiser/opencode-quota/server");
-    const tuiExportPath = fileURLToPath(import.meta.resolve("@slkiser/opencode-quota/tui"));
-    assert.ok((await readFile(tuiExportPath, "utf8")).includes("@slkiser/opencode-quota"));
-
-    const packageRoot = path.resolve(path.dirname(fileURLToPath(rootExportUrl)), "..");
-    const telemetry = await import(
-      pathToFileURL(path.join(packageRoot, "dist", "lib", "quota-telemetry.js"))
-    );
-    const token = telemetry.configureQuotaTelemetry({
-      owner: {},
-      enabled: true,
-      identity: "packed-absent",
-    });
-    assert.ok(token);
-    await telemetry.__flushQuotaTelemetryInitializationForTests();
-
-    const quotaState = await import(
-      pathToFileURL(path.join(packageRoot, "dist", "lib", "quota-state.js"))
-    );
-    const { buildQuotaExport } = await import(
-      pathToFileURL(path.join(packageRoot, "dist", "lib", "quota-export.js"))
-    );
-    let fetchCount = 0;
-    const provider = {
-      id: "packed-missing-api",
-      isAvailable: async () => true,
-      fetch: async () => {
-        fetchCount += 1;
-        return {
-          attempted: true,
-          entries: [{
-            name: "Missing API",
-            label: "Month:",
-            percentRemaining: 50,
-            accounting: {
-              resultType: "quota",
-              acquisitionMethod: "remote_api",
-              ownership: "user_configured",
-              authority: "provider_reported",
-            },
-          }],
-          errors: [],
-        };
-      },
-    };
-    const ctx = {
-      client: { config: { providers: async () => ({ data: { providers: [] } }), get: async () => ({ data: {} }) } },
-      resolveRuntimeProviderIds: async () => new Set(),
-      config: {
-        googleModels: [],
-        cursorPlan: "auto",
-        enabledProviders: "auto",
-        quotaProviders: [],
-        telemetryToken: token,
-      },
-    };
-    await quotaState.fetchQuotaProviderResult({ provider, ctx, ttlMs: 60_000 });
-    const exported = await buildQuotaExport({
-      providers: [provider],
-      ctx,
-      ttlMs: 60_000,
-      fromCache: true,
-    });
-    assert.equal(exported.providers[provider.id].status, "ok");
-    assert.equal(fetchCount, 1);
-  `;
-  run(process.execPath, ["--input-type=module", "--eval", absentOptionalDependencySmoke], workdir, {
-    env: isolatedRuntimeEnv,
-  });
 
   const cliPath = path.join(
     workdir,
@@ -229,7 +143,7 @@ try {
   }
 
   console.log(
-    `Packed package smoke passed for ${artifact.filename} on Node ${process.versions.node} with @opentelemetry/sdk-metrics ${sdkMetricsVersion} (sha256 ${artifact.sha256}).`,
+    `Packed package smoke passed for ${artifact.filename} on Node ${process.versions.node} with packaged @opentelemetry/api and host-owned @opentelemetry/sdk-metrics ${sdkMetricsVersion} (sha256 ${artifact.sha256}).`,
   );
 } finally {
   await rm(workdir, { recursive: true, force: true });

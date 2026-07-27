@@ -82,7 +82,6 @@
     "@babel/core": "^7.28.0",
     "@babel/preset-typescript": "^7.27.1",
     "@opencode-ai/plugin": "1.18.1",
-    "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/sdk-metrics": "2.10.0",
     "@types/node": "^22.0.0",
     "babel-preset-solid": "^1.9.12",
@@ -95,6 +94,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.2.0",
+    "@opentelemetry/api": "^1.9.1",
     "@opentui/core": "^0.4.3",
     "@opentui/solid": "^0.4.3",
     "comment-json": "^5.0.0",
@@ -106,13 +106,7 @@
     "better-sqlite3": "^12.10.0"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": "^1.4.3",
-    "@opentelemetry/api": "^1.9.0"
-  },
-  "peerDependenciesMeta": {
-    "@opentelemetry/api": {
-      "optional": true
-    }
+    "@opencode-ai/plugin": "^1.4.3"
   },
   "engines": {
     "node": ">=22.0.0"
