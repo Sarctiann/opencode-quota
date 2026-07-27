@@ -518,9 +518,13 @@ function publishQuotaTelemetry(params: {
   cacheTimestamp?: number;
 }): void {
   if (!params.ctx.config.telemetryToken) return;
+  const uncachedSnapshotId = `uncached:${params.providerId}`;
   updateQuotaTelemetrySnapshot({
     token: params.ctx.config.telemetryToken,
     snapshotId: params.snapshotId,
+    ...(params.snapshotId !== uncachedSnapshotId
+      ? { supersededSnapshotIds: [uncachedSnapshotId] }
+      : {}),
     providerId: params.providerId,
     result: params.result,
     ...(params.cacheTimestamp !== undefined ? { cacheTimestamp: params.cacheTimestamp } : {}),

@@ -495,8 +495,13 @@ describe("quota-state shared cache", () => {
     expect(provider.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("publishes authoritative cache timestamps without changing persistence or bypass behavior", async () => {
+  it("publishes authoritative cache timestamps and retires superseded bypass snapshots", async () => {
     const callbacks = new Map<string, (result: { observe(value: number): void }) => void>();
+    const collectMetric = (name: string) => {
+      const values: number[] = [];
+      callbacks.get(name)?.({ observe: (value) => values.push(value) });
+      return values;
+    };
     const telemetry = await import("../src/lib/quota-telemetry.js");
     telemetry.__resetQuotaTelemetryForTests();
     telemetry.__setQuotaTelemetryApiLoaderForTests(async () => ({
@@ -570,11 +575,37 @@ describe("quota-state shared cache", () => {
       ttlMs: 60_000,
       bypassCache: true,
     });
-    const bypassAges: number[] = [];
-    callbacks.get("opencode.quota.cache.age")?.({
-      observe: (value) => bypassAges.push(value),
+    expect(collectMetric("opencode.quota.cache.age")).toEqual([]);
+    expect(collectMetric("opencode.quota.consumed")).toEqual([0.75]);
+
+    provider.fetch.mockResolvedValueOnce({
+      attempted: true,
+      entries: [{ accounting: TEST_ACCOUNTING, name: "Synthetic", percentRemaining: 75 }],
+      errors: [],
     });
-    expect(bypassAges).toEqual([]);
+    await quotaState.fetchQuotaProviderResult({ provider, ctx, ttlMs: 0 });
+    expect(collectMetric("opencode.quota.consumed")).toEqual([0.25]);
+    vi.mocked(Date.now).mockReturnValue(2_200);
+    expect(collectMetric("opencode.quota.cache.age")).toEqual([0.6]);
+
+    provider.fetch.mockResolvedValueOnce({
+      attempted: true,
+      entries: [{ accounting: TEST_ACCOUNTING, name: "Synthetic", percentRemaining: 10 }],
+      errors: [],
+    });
+    await quotaState.fetchQuotaProviderResult({
+      provider,
+      ctx,
+      ttlMs: 60_000,
+      bypassCache: true,
+    });
+    expect(collectMetric("opencode.quota.consumed")).toEqual([0.9]);
+    expect(collectMetric("opencode.quota.cache.age")).toEqual([0.6]);
+
+    provider.fetch.mockResolvedValueOnce({ attempted: true, entries: [], errors: [] });
+    await quotaState.fetchQuotaProviderResult({ provider, ctx, ttlMs: 0 });
+    expect(collectMetric("opencode.quota.consumed")).toEqual([]);
+    expect(collectMetric("opencode.quota.cache.age")).toEqual([]);
 
     telemetry.__resetQuotaTelemetryForTests();
   });

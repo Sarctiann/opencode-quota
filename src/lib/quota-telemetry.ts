@@ -289,6 +289,7 @@ function isCurrentToken(
 export function updateQuotaTelemetrySnapshot(params: {
   token?: QuotaTelemetryToken;
   snapshotId: string;
+  supersededSnapshotIds?: readonly string[];
   providerId: string;
   cacheTimestamp?: number;
   result: QuotaProviderResult | null;
@@ -296,6 +297,10 @@ export function updateQuotaTelemetrySnapshot(params: {
   try {
     const state = getState();
     if (!isCurrentToken(state, params.token)) return;
+
+    for (const snapshotId of params.supersededSnapshotIds ?? []) {
+      state.snapshots.delete(snapshotKey(params.token.ownerId, snapshotId));
+    }
 
     const key = snapshotKey(params.token.ownerId, params.snapshotId);
     if (!params.result || !params.result.attempted || params.result.entries.length === 0) {
