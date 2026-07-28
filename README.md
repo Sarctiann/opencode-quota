@@ -131,11 +131,9 @@ Use the CLI for scripts, CI, or a quick terminal check outside OpenCode.
 
 ## Providers
 
-### Pre-configured providers
-
 Most providers work automatically. If a provider has a “Needs setup” link, open that setup note only if you use that provider. Providers can appear in both audience sections when the vendor supports both.
 
-### American providers
+### Pre-configured American providers
 
 <details open>
 <summary><strong>Personal</strong></summary>
@@ -184,7 +182,7 @@ Gemini CLI quota support is deprecated for new installs. Existing v4 configurati
 
 </details>
 
-### Chinese providers
+### Pre-configured Chinese providers
 
 <details open>
 <summary><strong>Personal</strong></summary>
