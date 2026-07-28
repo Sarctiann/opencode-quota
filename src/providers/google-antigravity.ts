@@ -29,6 +29,8 @@ import {
   withStatusDetails,
 } from "./result-helpers.js";
 
+const GOOGLE_ANTIGRAVITY_LABEL = "Google Antigravity";
+
 async function isAccountsConfigured(): Promise<boolean> {
   try {
     return await hasAntigravityQuotaRuntimeAvailable();
@@ -92,8 +94,10 @@ export const googleAntigravityProvider: QuotaProvider = {
     }
 
     const entries: QuotaToastEntry[] = result.models.map((m) => {
-      const emailLabel =
-        formatGoogleAccountLabel(m.accountEmail, "fixedGmailHint") || "Antigravity";
+      const accountLabel = m.accountEmail
+        ? formatGoogleAccountLabel(m.accountEmail, "fixedGmailHint")
+        : "";
+      const accountSuffix = accountLabel ? ` (${accountLabel})` : "";
       return {
         accounting: {
           resultType: "quota",
@@ -101,8 +105,8 @@ export const googleAntigravityProvider: QuotaProvider = {
           ownership: "maintained",
           authority: "provider_reported",
         },
-        name: `${m.displayName} (${emailLabel})`,
-        group: m.displayName,
+        name: `${GOOGLE_ANTIGRAVITY_LABEL} ${m.displayName}${accountSuffix}`,
+        group: GOOGLE_ANTIGRAVITY_LABEL,
         label: `${m.displayName}:`,
         percentRemaining: m.percentRemaining,
         resetTimeIso: m.resetTimeIso,

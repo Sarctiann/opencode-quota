@@ -42,7 +42,7 @@ describe("google antigravity provider", () => {
       success: true,
       models: [
         {
-          displayName: "Gemini 2.5 Pro",
+          displayName: "Claude",
           accountEmail: "alice@example.com",
           percentRemaining: 64,
           resetTimeIso: "2026-01-01T00:00:00.000Z",
@@ -55,14 +55,45 @@ describe("google antigravity provider", () => {
     expect(out.attempted).toBe(true);
     expect(visibleEntries(out.entries, "google-antigravity")).toEqual([
       {
-        name: "Gemini 2.5 Pro (ali..gmail)",
-        group: "Gemini 2.5 Pro",
-        label: "Gemini 2.5 Pro:",
+        name: "Google Antigravity Claude (ali..gmail)",
+        group: "Google Antigravity",
+        label: "Claude:",
         percentRemaining: 64,
         resetTimeIso: "2026-01-01T00:00:00.000Z",
       },
     ]);
+    expect(out.entries[0]?.accounting).toEqual({
+      resultType: "quota",
+      acquisitionMethod: "remote_api",
+      ownership: "maintained",
+      authority: "provider_reported",
+    });
+    expect(JSON.stringify(out.entries)).not.toContain("Anthropic");
     expect(out.errors).toEqual([{ label: "bob..gmail", message: "Unauthorized" }]);
+  });
+
+  it("omits the account suffix when the quota result has no email", async () => {
+    const { queryGoogleQuota } = await import("../src/lib/google.js");
+    (queryGoogleQuota as any).mockResolvedValueOnce({
+      success: true,
+      models: [
+        {
+          displayName: "Claude",
+          percentRemaining: 64,
+        },
+      ],
+      errors: [],
+    });
+
+    const out = await googleAntigravityProvider.fetch({ config: { googleModels: [] } } as any);
+    expect(visibleEntries(out.entries, "google-antigravity")).toEqual([
+      {
+        name: "Google Antigravity Claude",
+        group: "Google Antigravity",
+        label: "Claude:",
+        percentRemaining: 64,
+      },
+    ]);
   });
 
   it("maps fetch failures into toast errors", async () => {

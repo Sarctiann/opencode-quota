@@ -8,8 +8,10 @@ import {
   buildChangedPluginSummaries,
   buildUpstreamPluginReviewPrompt,
   formatChangedPluginSummary,
+  getOmittedDiffPreview,
   groupReferenceChangesByPlugin,
   includeChangedReferencePluginSummaries,
+  shouldOmitFullDiffPreview,
   shouldPrepareUpstreamPluginReview,
   trimDiffPreview,
 } from "./lib/upstream-plugin-review.mjs";
@@ -168,6 +170,11 @@ async function main() {
   const diffPreviewByPath = new Map();
 
   for (const change of changedReferenceFiles) {
+    if (shouldOmitFullDiffPreview(change.path)) {
+      diffPreviewByPath.set(change.path, getOmittedDiffPreview());
+      continue;
+    }
+
     const diffText = await buildDiffPreviewForFile(change);
     diffPreviewByPath.set(change.path, trimDiffPreview(diffText).text);
   }

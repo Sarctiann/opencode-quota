@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   buildChangedPluginSummaries,
   buildUpstreamPluginReviewPrompt,
+  getOmittedDiffPreview,
   groupReferenceChangesByPlugin,
   includeChangedReferencePluginSummaries,
+  shouldOmitFullDiffPreview,
   shouldPrepareUpstreamPluginReview,
+  trimDiffPreview,
 } from "../scripts/lib/upstream-plugin-review.mjs";
 
 describe("upstream-plugin-review", () => {
@@ -149,6 +152,54 @@ describe("upstream-plugin-review", () => {
     expect(grouped.get("opencode-antigravity-auth")).toEqual([
       "references/upstream-plugins/opencode-antigravity-auth/dist/index.js",
     ]);
+  });
+
+  it("omits generated source map previews", () => {
+    expect(
+      shouldOmitFullDiffPreview("references/upstream-plugins/opencode-agy-auth/dist/index.js.map"),
+    ).toBe(true);
+    expect(
+      shouldOmitFullDiffPreview("references/upstream-plugins/opencode-agy-auth/dist/index.js"),
+    ).toBe(false);
+    expect(getOmittedDiffPreview()).toContain("generated source map diff omitted");
+  });
+
+  it("limits large single-line diff previews by character count", () => {
+    const preview = trimDiffPreview(`+${"x".repeat(200)}`, 80, 40);
+
+    expect(preview.truncated).toBe(true);
+    expect(preview.text).toBe(`+${"x".repeat(39)}\n... diff truncated ...`);
+  });
+
+  it("prioritizes readable previews over generated source maps", () => {
+    const pluginId = "opencode-agy-auth";
+    const readablePath = `references/upstream-plugins/${pluginId}/package.json`;
+    const sourceMapPaths = ["a.js.map", "b.js.map", "c.js.map", "d.js.map"].map(
+      (fileName) => `references/upstream-plugins/${pluginId}/dist/${fileName}`,
+    );
+    const prompt = buildUpstreamPluginReviewPrompt({
+      changedFilesByPlugin: new Map([[pluginId, [...sourceMapPaths, readablePath]]]),
+      changedPlugins: [
+        {
+          changeKind: "version",
+          changedFields: ["version"],
+          currentVersion: "1.1.7",
+          pluginId,
+          previousVersion: "1.1.6",
+        },
+      ],
+      diffPreviewByPath: new Map([[readablePath, "+readable change"]]),
+      testResult: { command: "pnpm test", exitCode: 0, ok: true, output: "" },
+      typecheckResult: {
+        command: "pnpm run typecheck",
+        exitCode: 0,
+        ok: true,
+        output: "",
+      },
+    });
+
+    expect(prompt).toContain("+readable change");
+    expect(prompt).toContain("4 generated source map diff previews omitted");
   });
 
   it("builds a ready-to-paste review prompt with paths, diffs, and check results", () => {

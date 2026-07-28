@@ -3,6 +3,9 @@ import { getTrackedUpstreamPluginIdentityDifferences } from "./upstream-plugin-i
 const DEFAULT_PATH_LIMIT_PER_PLUGIN = 12;
 const DEFAULT_DIFF_LIMIT_PER_PLUGIN = 4;
 const DEFAULT_DIFF_LINE_LIMIT = 80;
+const DEFAULT_DIFF_CHARACTER_LIMIT = 20_000;
+const OMITTED_SOURCE_MAP_PREVIEW =
+  "(generated source map diff omitted; inspect the changed file locally if needed)";
 
 export function groupReferenceChangesByPlugin(paths) {
   const grouped = new Map();
@@ -103,18 +106,35 @@ function limitList(items, limit) {
   };
 }
 
-export function trimDiffPreview(diffText, maxLines = DEFAULT_DIFF_LINE_LIMIT) {
+export function shouldOmitFullDiffPreview(filePath) {
+  return filePath.toLowerCase().endsWith(".map");
+}
+
+export function getOmittedDiffPreview() {
+  return OMITTED_SOURCE_MAP_PREVIEW;
+}
+
+export function trimDiffPreview(
+  diffText,
+  maxLines = DEFAULT_DIFF_LINE_LIMIT,
+  maxCharacters = DEFAULT_DIFF_CHARACTER_LIMIT,
+) {
   const normalized = diffText.trim();
   if (!normalized) return { text: "(no diff preview available)", truncated: false };
 
   const lines = normalized.split("\n");
-  if (lines.length <= maxLines) {
-    return { text: normalized, truncated: false };
+  const truncatedByLines = lines.length > maxLines;
+  let text = truncatedByLines ? lines.slice(0, maxLines).join("\n") : normalized;
+  const truncatedByCharacters = text.length > maxCharacters;
+
+  if (truncatedByCharacters) {
+    text = text.slice(0, maxCharacters);
   }
 
+  const truncated = truncatedByLines || truncatedByCharacters;
   return {
-    text: `${lines.slice(0, maxLines).join("\n")}\n... diff truncated ...`,
-    truncated: true,
+    text: truncated ? `${text}\n... diff truncated ...` : text,
+    truncated,
   };
 }
 
@@ -170,10 +190,15 @@ export function buildUpstreamPluginReviewPrompt({
 
   for (const summary of changedPlugins) {
     const pluginPaths = changedFilesByPlugin.get(summary.pluginId) ?? [];
-    const { omittedCount, visibleItems } = limitList(pluginPaths, DEFAULT_DIFF_LIMIT_PER_PLUGIN);
+    const previewablePaths = pluginPaths.filter((filePath) => !shouldOmitFullDiffPreview(filePath));
+    const omittedSourceMapCount = pluginPaths.length - previewablePaths.length;
+    const { omittedCount, visibleItems } = limitList(
+      previewablePaths,
+      DEFAULT_DIFF_LIMIT_PER_PLUGIN,
+    );
 
     lines.push(`- ${summary.pluginId}:`);
-    if (visibleItems.length === 0) {
+    if (visibleItems.length === 0 && omittedSourceMapCount === 0) {
       lines.push("  - No diff preview captured.");
       continue;
     }
@@ -183,6 +208,10 @@ export function buildUpstreamPluginReviewPrompt({
       lines.push("```diff");
       lines.push(diffPreviewByPath.get(filePath) ?? "(no diff preview available)");
       lines.push("```");
+    }
+
+    if (omittedSourceMapCount > 0) {
+      lines.push(`  - ... ${omittedSourceMapCount} generated source map diff previews omitted`);
     }
 
     if (omittedCount > 0) {
