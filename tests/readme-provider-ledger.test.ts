@@ -12,9 +12,15 @@ type ProviderLedgerRow = {
 };
 
 function readPreConfiguredProviderSection(document: string): string {
-  const headingIndex = document.search(/^#{2,3} Pre-configured providers$/m);
+  const headingIndex = document.search(
+    /^#{2,3} (?:Pre-configured providers|Pre-configured American providers)$/m,
+  );
+  if (headingIndex === -1) throw new Error("Pre-configured provider section heading not found");
+
   const providerSection = document.slice(headingIndex);
   const customProvidersOffset = providerSection.search(/^#{2,3} Custom providers$/m);
+  if (customProvidersOffset === -1) throw new Error("Custom provider section heading not found");
+
   return providerSection.slice(0, customProvidersOffset);
 }
 
@@ -108,7 +114,9 @@ describe("README provider ledger", () => {
         readPreConfiguredProviderTables(document).map((table) => table.map((row) => row.provider)),
       ).toEqual(expectedProviders);
       const providerSection = readPreConfiguredProviderSection(document);
-      const chineseHeadingIndex = providerSection.indexOf("### Chinese providers");
+      const chineseHeadingIndex = providerSection.search(
+        /^### (?:Pre-configured )?Chinese providers$/m,
+      );
       const disclosures = Array.from(
         providerSection.matchAll(
           /<details( open)?>\s*<summary><strong>([^<]+)<\/strong><\/summary>/g,
@@ -165,9 +173,11 @@ describe("README provider ledger", () => {
     expect(providerTemplate).toContain("exact internal `resultType` values");
 
     for (const document of [readme, providerGuide]) {
-      expect(document).toContain("Pre-configured providers");
-      expect(document).toMatch(/^### American providers$/m);
-      expect(document).toMatch(/^### Chinese providers$/m);
+      expect(document).toMatch(
+        /^#{2,3} (?:Pre-configured providers|Pre-configured American providers)$/m,
+      );
+      expect(document).toMatch(/^### (?:Pre-configured )?American providers$/m);
+      expect(document).toMatch(/^### (?:Pre-configured )?Chinese providers$/m);
       expect(document).toContain("Custom providers");
       expect(document).toContain("| Data from");
       expect(document).not.toContain("| Source");
