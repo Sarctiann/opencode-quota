@@ -34,7 +34,7 @@ Most providers work automatically. If a provider has a “Needs setup” link, o
 | OpenCode Zen       | [Needs setup](#opencode-zen)           | Dashboard scraping | Budget and balance |
 | OpenRouter         | Automatic                              | Remote API         | Budget and spend   |
 | Synthetic          | Automatic                              | Remote API         | Quota              |
-| xAI SuperGrok      | OpenCode OAuth (`/connect` xAI)        | Remote API         | Quota              |
+| xAI SuperGrok      | Automatic                              | Remote API         | Quota              |
 
 </details>
 
@@ -55,7 +55,7 @@ Most providers work automatically. If a provider has a “Needs setup” link, o
 | OpenCode Zen            | [Needs setup](#opencode-zen)           | Dashboard scraping | Budget and balance |
 | OpenRouter              | Automatic                              | Remote API         | Budget and spend   |
 | Synthetic               | Automatic                              | Remote API         | Quota              |
-| xAI SuperGrok           | OpenCode OAuth (`/connect` xAI)        | Remote API         | Quota              |
+| xAI SuperGrok           | Automatic                              | Remote API         | Quota              |
 
 Business placement describes vendor plan availability. Except for configured Copilot organization/enterprise billing, current integrations generally report one signed-in account, seat, API key, or workspace.
 
@@ -406,7 +406,7 @@ Use companion plugin [`opencode-antigravity-auth`](https://github.com/NoeFabris/
 
 ### Google AGY
 
-Use companion plugin [`@anthonyhaussman/opencode-agy-auth`](https://www.npmjs.com/package/@anthonyhaussman/opencode-agy-auth). Add it before `@slkiser/opencode-quota` in `opencode.json`, then authenticate Google once:
+Use companion plugin [`@anthonyhaussman/opencode-agy-auth`](https://github.com/anthonyhaussman/opencode-agy-auth). Add it before `@slkiser/opencode-quota` in `opencode.json`, then authenticate Google once:
 
 Google AGY reports the companion's grouped weekly and five-hour quota windows for each account.
 

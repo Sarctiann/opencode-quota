@@ -155,7 +155,7 @@ Most providers work automatically. If a provider has a “Needs setup” link, o
 | OpenCode Zen       | [Needs setup](docs/readme/providers.md#opencode-zen)                     | Dashboard scraping | Budget and balance |
 | OpenRouter         | Automatic                                                                | Remote API         | Budget and spend   |
 | Synthetic          | Automatic                                                                | Remote API         | Quota              |
-| xAI SuperGrok      | OpenCode OAuth (`/connect` xAI)                                          | Remote API         | Quota              |
+| xAI SuperGrok      | Automatic                                                                | Remote API         | Quota              |
 
 </details>
 
@@ -176,7 +176,7 @@ Most providers work automatically. If a provider has a “Needs setup” link, o
 | OpenCode Zen            | [Needs setup](docs/readme/providers.md#opencode-zen)                     | Dashboard scraping | Budget and balance |
 | OpenRouter              | Automatic                                                                | Remote API         | Budget and spend   |
 | Synthetic               | Automatic                                                                | Remote API         | Quota              |
-| xAI SuperGrok           | OpenCode OAuth (`/connect` xAI)                                          | Remote API         | Quota              |
+| xAI SuperGrok           | Automatic                                                                | Remote API         | Quota              |
 
 Business placement describes vendor plan availability. Except for configured Copilot organization/enterprise billing, current integrations generally report one signed-in account, seat, API key, or workspace.
 
