@@ -20,7 +20,11 @@ import {
   queryGoogleQuota,
 } from "../lib/google.js";
 import { modelProviderIncludesAny } from "../lib/provider-model-matching.js";
-import { formatGoogleAccountErrors, formatGoogleAccountLabel } from "./google-account-format.js";
+import {
+  createGoogleAccountLabelMap,
+  formatGoogleAccountErrors,
+  formatGoogleAccountLabel,
+} from "./google-account-format.js";
 import {
   attemptedErrorResult,
   attemptedResult,
@@ -29,7 +33,7 @@ import {
   withStatusDetails,
 } from "./result-helpers.js";
 
-const GOOGLE_ANTIGRAVITY_LABEL = "Google Antigravity";
+const GOOGLE_ANTIGRAVITY_LABEL = "Antigravity";
 
 async function isAccountsConfigured(): Promise<boolean> {
   try {
@@ -93,30 +97,45 @@ export const googleAntigravityProvider: QuotaProvider = {
       return withStatusDetails(attemptedErrorResult("Antigravity", result.error), statusDetails);
     }
 
+    const accountLabels = createGoogleAccountLabelMap(
+      [
+        ...result.models.map((model) => model.accountEmail),
+        ...(result.errors ?? []).map((error) => error.email),
+      ],
+      "fixedGmailHint",
+    );
     const entries: QuotaToastEntry[] = result.models.map((m) => {
       const accountLabel = m.accountEmail
-        ? formatGoogleAccountLabel(m.accountEmail, "fixedGmailHint")
+        ? (accountLabels.get(m.accountEmail) ??
+          formatGoogleAccountLabel(m.accountEmail, "fixedGmailHint"))
         : "";
       const accountSuffix = accountLabel ? ` (${accountLabel})` : "";
+      const group = `[${GOOGLE_ANTIGRAVITY_LABEL}${accountSuffix}]`;
       return {
         accounting: {
           resultType: "quota",
           acquisitionMethod: "remote_api",
           ownership: "maintained",
           authority: "provider_reported",
+          ...(m.accountEmail ? { sourceId: m.accountEmail } : {}),
         },
-        name: `${GOOGLE_ANTIGRAVITY_LABEL} ${m.displayName}${accountSuffix}`,
-        group: GOOGLE_ANTIGRAVITY_LABEL,
+        name: `${GOOGLE_ANTIGRAVITY_LABEL}${accountSuffix}: ${m.displayName}`,
+        group,
         label: `${m.displayName}:`,
+        metricLabel: m.displayName,
         percentRemaining: m.percentRemaining,
         resetTimeIso: m.resetTimeIso,
       };
     });
 
     return withStatusDetails(
-      attemptedResult(entries, formatGoogleAccountErrors(result.errors, "fixedGmailHint"), {
-        classicStrategy: "preserve",
-      }),
+      attemptedResult(
+        entries,
+        formatGoogleAccountErrors(result.errors, "fixedGmailHint", accountLabels),
+        {
+          classicStrategy: "preserve",
+        },
+      ),
       statusDetails,
     );
   },

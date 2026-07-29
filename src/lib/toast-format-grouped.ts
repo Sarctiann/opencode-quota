@@ -29,7 +29,7 @@ function normalizeLabelText(value?: string): string {
 
 const GROUPED_WINDOW_LABELS: Readonly<Record<QuotaWindowKind, string>> = {
   rpm: "RPM",
-  five_hour: "5h",
+  five_hour: "Five-hour",
   hour: "Hourly",
   week: "Weekly",
   day: "Daily",
@@ -47,11 +47,11 @@ function extractWindowLabel(text: string): string | null {
 function resolveGroupedRowLabel(entry: QuotaToastEntry): string {
   const rawLabel = normalizeLabelText(entry.label);
   const fromLabel = extractWindowLabel(rawLabel);
-  if (fromLabel) return `${fromLabel} window`;
+  if (fromLabel) return fromLabel;
   if (rawLabel) return rawLabel;
 
   const fromName = extractWindowLabel(entry.name);
-  if (fromName) return `${fromName} window`;
+  if (fromName) return fromName;
 
   return normalizeLabelText(entry.group) || "Quota window";
 }

@@ -13,7 +13,11 @@ import {
   queryGoogleAgyQuota,
 } from "../lib/google-agy.js";
 import { parseProviderModelRef } from "../lib/provider-model-matching.js";
-import { formatGoogleAccountErrors, formatGoogleAccountLabel } from "./google-account-format.js";
+import {
+  createGoogleAccountLabelMap,
+  formatGoogleAccountErrors,
+  formatGoogleAccountLabel,
+} from "./google-account-format.js";
 import {
   attemptedErrorResult,
   attemptedResult,
@@ -27,9 +31,15 @@ function isAgyModel(model: string): boolean {
   return ["google-agy", "opencode-agy-auth", "google-agy-auth"].includes(providerId);
 }
 
-function formatAgyAccountLabel(bucket: { accountEmail?: string; accountKey?: string }): string {
+function formatAgyAccountLabel(
+  bucket: { accountEmail?: string; accountKey?: string },
+  accountLabels: ReadonlyMap<string, string>,
+): string {
   if (bucket.accountEmail) {
-    return formatGoogleAccountLabel(bucket.accountEmail, "domainHint");
+    return (
+      accountLabels.get(bucket.accountEmail) ??
+      formatGoogleAccountLabel(bucket.accountEmail, "domainHint")
+    );
   }
   return bucket.accountKey ? `Account ${bucket.accountKey.slice(0, 8)}` : "Unknown";
 }
@@ -142,8 +152,15 @@ export const googleAgyProvider: QuotaProvider = {
     }
 
     const sortedBuckets = [...result.buckets].sort(compareBuckets);
+    const accountLabels = createGoogleAccountLabelMap(
+      [
+        ...sortedBuckets.map((bucket) => bucket.accountEmail),
+        ...(result.errors ?? []).map((error) => error.email),
+      ],
+      "domainHint",
+    );
     const entries: QuotaToastEntry[] = sortedBuckets.map((bucket) => {
-      const accountLabel = formatAgyAccountLabel(bucket);
+      const accountLabel = formatAgyAccountLabel(bucket, accountLabels);
       const right = formatRemainingAmount(bucket.remainingAmount);
 
       return {
@@ -155,7 +172,7 @@ export const googleAgyProvider: QuotaProvider = {
           sourceId: bucket.accountKey ?? bucket.accountEmail ?? `account-${bucket.accountIndex}`,
         },
         name: `${bucket.family} (${accountLabel})`,
-        group: `AGY · ${accountLabel} · ${formatAgyFamilyLabel(bucket.family)}`,
+        group: `AGY (${accountLabel}): ${formatAgyFamilyLabel(bucket.family)}`,
         label: `${bucket.windowLabel}:`,
         sortPriority: windowRank(bucket.window),
         ...(right ? { right } : {}),
@@ -165,9 +182,13 @@ export const googleAgyProvider: QuotaProvider = {
     });
 
     return withStatusDetails(
-      attemptedResult(entries, formatGoogleAccountErrors(result.errors, "domainHint"), {
-        singleWindowShowRight: true,
-      }),
+      attemptedResult(
+        entries,
+        formatGoogleAccountErrors(result.errors, "domainHint", accountLabels),
+        {
+          singleWindowShowRight: true,
+        },
+      ),
       statusDetails,
     );
   },

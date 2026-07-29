@@ -61,7 +61,7 @@ function getPlanDisplay(detail: MimoEndpointResult<MimoPlanDetail>): string | nu
 
 function getGroup(detail: MimoEndpointResult<MimoPlanDetail>): string {
   const plan = getPlanDisplay(detail);
-  return plan ? `${MIMO_LABEL} · ${plan}` : MIMO_LABEL;
+  return plan ? `${MIMO_LABEL}: ${plan}` : MIMO_LABEL;
 }
 
 function formatBalanceAmount(amount: number, currency: string | null): string {

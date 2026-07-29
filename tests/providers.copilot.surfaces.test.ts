@@ -7,7 +7,7 @@ import { formatQuotaRowsGrouped } from "../src/lib/toast-format-grouped.js";
 import { buildCompactQuotaStatusLine } from "../src/lib/tui-compact-format.js";
 import { buildSidebarQuotaPanelLines } from "../src/lib/tui-sidebar-format.js";
 
-const usageValue = "Used 100 · Included 80 · Billed 20 ($0.20)";
+const usageValue = "Used 100 | Included 80 | Billed 20 ($0.20)";
 
 const data: QuotaRenderData = {
   entries: [

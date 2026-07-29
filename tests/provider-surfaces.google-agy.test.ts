@@ -27,59 +27,102 @@ vi.mock("../src/lib/google-agy-companion.js", () => ({
   })),
 }));
 
+function bucket(params: {
+  family: "Gemini Models" | "Claude and GPT models";
+  window: "weekly" | "five_hour";
+  percentRemaining: number;
+  accountEmail: string;
+  accountKey: string;
+  accountIndex: number;
+}) {
+  return {
+    ...params,
+    windowLabel: params.window === "weekly" ? "Weekly" : "5h",
+    sourceKey: "google-agy",
+  };
+}
+
 describe("Google AGY provider surfaces", () => {
-  it("keeps account, family, and weekly-first identity on every surface", async () => {
+  it("keeps two accounts, both families, and both windows distinct on every surface", async () => {
     mocks.queryGoogleAgyQuota.mockResolvedValueOnce({
       success: true,
       buckets: [
-        {
+        bucket({
           family: "Gemini Models",
           window: "five_hour",
-          windowLabel: "5h",
-          percentRemaining: 25,
+          percentRemaining: 100,
           accountEmail: "alice@example.com",
           accountKey: "account-alice",
           accountIndex: 0,
-          sourceKey: "google-agy",
-        },
-        {
+        }),
+        bucket({
           family: "Gemini Models",
           window: "weekly",
-          windowLabel: "Weekly",
-          percentRemaining: 58,
+          percentRemaining: 99,
           accountEmail: "alice@example.com",
           accountKey: "account-alice",
           accountIndex: 0,
-          sourceKey: "google-agy",
-        },
-        {
+        }),
+        bucket({
           family: "Claude and GPT models",
           window: "five_hour",
-          windowLabel: "5h",
-          percentRemaining: 40,
+          percentRemaining: 100,
           accountEmail: "alice@example.com",
           accountKey: "account-alice",
           accountIndex: 0,
-          sourceKey: "google-agy",
-        },
-        {
+        }),
+        bucket({
           family: "Claude and GPT models",
           window: "weekly",
-          windowLabel: "Weekly",
+          percentRemaining: 82,
+          accountEmail: "alice@example.com",
+          accountKey: "account-alice",
+          accountIndex: 0,
+        }),
+        bucket({
+          family: "Gemini Models",
+          window: "five_hour",
+          percentRemaining: 90,
+          accountEmail: "bob@example.com",
+          accountKey: "account-bob",
+          accountIndex: 1,
+        }),
+        bucket({
+          family: "Gemini Models",
+          window: "weekly",
           percentRemaining: 75,
-          accountEmail: "alice@example.com",
-          accountKey: "account-alice",
-          accountIndex: 0,
-          sourceKey: "google-agy",
-        },
+          accountEmail: "bob@example.com",
+          accountKey: "account-bob",
+          accountIndex: 1,
+        }),
+        bucket({
+          family: "Claude and GPT models",
+          window: "five_hour",
+          percentRemaining: 80,
+          accountEmail: "bob@example.com",
+          accountKey: "account-bob",
+          accountIndex: 1,
+        }),
+        bucket({
+          family: "Claude and GPT models",
+          window: "weekly",
+          percentRemaining: 60,
+          accountEmail: "bob@example.com",
+          accountKey: "account-bob",
+          accountIndex: 1,
+        }),
       ],
+      errors: [],
     });
 
     const result = await googleAgyProvider.fetch({ client: {} } as any);
-    const entries = result.entries;
-    const errors = result.errors;
-    const geminiHeader = "[AGY · ali..example · Gemini]";
-    const thirdPartyHeader = "[AGY · ali..example · Claude/GPT]";
+    const { entries, errors } = result;
+    const headers = [
+      "[AGY (ali…): Gemini]",
+      "[AGY (ali…): Claude/GPT]",
+      "[AGY (bob…): Gemini]",
+      "[AGY (bob…): Claude/GPT]",
+    ];
 
     const toast = formatQuotaRowsGrouped({
       layout: { maxWidth: 50, narrowAt: 42, tinyAt: 32 },
@@ -94,21 +137,32 @@ describe("Google AGY provider surfaces", () => {
     const command = formatQuotaCommand({ entries, errors });
     const compact = buildCompactQuotaStatusLine({
       data: { entries, errors },
-      maxWidth: 240,
+      maxWidth: 400,
     });
 
     for (const output of [toast, sidebar]) {
-      expect(output).toContain(geminiHeader);
-      expect(output).toContain(thirdPartyHeader);
-      expect(output).toContain("Weekly window");
-      expect(output).toContain("5h window");
-      expect(output.indexOf("Weekly window")).toBeLessThan(output.indexOf("5h window"));
+      for (const header of headers) expect(output).toContain(header);
+      expect(output).toContain("Weekly");
+      expect(output).toContain("Five-hour");
+      expect(output.indexOf("Weekly")).toBeLessThan(output.indexOf("Five-hour"));
     }
-    expect(command).toContain(geminiHeader);
-    expect(command).toContain(thirdPartyHeader);
+    for (const header of headers) expect(command).toContain(header);
     expect(command.indexOf("Week quota")).toBeLessThan(command.indexOf("5h quota"));
-    expect(compact).toContain("AGY · ali..example · Gemini 7d 58%, 5h 25%");
-    expect(compact).toContain("AGY · ali..example · Claude/GPT 7d 75%, 5h 40%");
-    expect(entries.every((entry) => entry.accounting.sourceId === "account-alice")).toBe(true);
+    expect(compact).toBe(
+      "AGY (ali…): Gemini 7d 99%, 5h 100% | " +
+        "AGY (ali…): Claude/GPT 7d 82%, 5h 100% | " +
+        "AGY (bob…): Gemini 7d 75%, 5h 90% | " +
+        "AGY (bob…): Claude/GPT 7d 60%, 5h 80%",
+    );
+    expect(entries.map((entry) => entry.accounting.sourceId)).toEqual([
+      "account-alice",
+      "account-alice",
+      "account-alice",
+      "account-alice",
+      "account-bob",
+      "account-bob",
+      "account-bob",
+      "account-bob",
+    ]);
   });
 });

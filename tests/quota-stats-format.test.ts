@@ -23,7 +23,9 @@ function makeEmptyResult(overrides?: Partial<AggregateResult>): AggregateResult 
   };
 }
 
-function makeSessionRow(overrides?: Partial<AggregateResult["bySession"][number]>): AggregateResult["bySession"][number] {
+function makeSessionRow(
+  overrides?: Partial<AggregateResult["bySession"][number]>,
+): AggregateResult["bySession"][number] {
   return {
     sessionID: "ses_default",
     title: "Default Session",
@@ -68,7 +70,9 @@ describe("formatQuotaStatsReport (markdown)", () => {
       result: r,
       topModels: 99,
     });
-    expect(out).toMatch(/^# Tokens used \(Last 24 Hours\) \(\/tokens_daily\) \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}\n\n/);
+    expect(out).toMatch(
+      /^# Tokens used \(Last 24 Hours\) \(\/tokens_daily\) \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}\n\n/,
+    );
     expect(out).toContain("## Models");
     expect(out).toContain("| Source");
     // blank separator row between sources
@@ -258,7 +262,9 @@ describe("formatQuotaStatsReport (markdown)", () => {
     });
 
     // Title should be present
-    expect(out).toMatch(/^# Tokens used \(Current Session\) \(\/tokens_session\) \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}\n\n/);
+    expect(out).toMatch(
+      /^# Tokens used \(Current Session\) \(\/tokens_session\) \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}\n\n/,
+    );
 
     // Summary table should NOT have Window or Sessions columns
     expect(out).not.toContain("| Window");
@@ -391,6 +397,26 @@ describe("formatQuotaStatsReport (markdown)", () => {
     // Marker column should be named and not render as an empty header
     expect(out).toContain("| Current");
     expect(out).toContain("| Session");
+  });
+
+  it("uses a Unicode ellipsis when shortening visible session titles", () => {
+    const out = formatQuotaStatsReport({
+      title: "Tokens used (Last 7 Days) (/tokens_weekly)",
+      result: makeEmptyResult({
+        bySession: [
+          makeSessionRow({
+            sessionID: "ses_long_title",
+            title: "abcdefghij-very-long-middle-section-klmnopqrst",
+            tokens: { input: 100, output: 200, reasoning: 0, cache_read: 0, cache_write: 0 },
+            costUsd: 0.75,
+            messageCount: 4,
+          }),
+        ],
+      }),
+    });
+
+    expect(out).toContain("abcdefghij…klmnopqrst");
+    expect(out).not.toContain("abcdefghij...klmnopqrst");
   });
 
   it("does not render a concrete focus session id when the current session is outside the selected window", () => {
@@ -563,7 +589,9 @@ describe("formatQuotaStatsReport (markdown)", () => {
     });
 
     const [heading, blank, ...body] = out.split("\n");
-    expect(heading).toMatch(/^# Tokens used \(Last 24 Hours\) \(\/tokens_daily\) \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}$/);
+    expect(heading).toMatch(
+      /^# Tokens used \(Last 24 Hours\) \(\/tokens_daily\) \d{2}:\d{2} \d{2}\/\d{2}\/\d{4}$/,
+    );
     expect(blank).toBe("");
 
     expect(body.join("\n")).toMatchInlineSnapshot(`

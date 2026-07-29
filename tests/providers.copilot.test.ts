@@ -65,7 +65,7 @@ describe("copilot provider", () => {
         name: "Copilot AI Credits",
         group: "Copilot (personal)",
         label: "Credits:",
-        value: "Used 100 · Included 80 · Billed 20 ($0.20)",
+        value: "Used 100 | Included 80 | Billed 20 ($0.20)",
         resetTimeIso: undefined,
       },
     ]);
@@ -140,7 +140,7 @@ describe("copilot provider", () => {
         name: "Copilot AI Credits",
         group: "Copilot (business)",
         label: "Credits:",
-        value: "Used 100 · Included 80 · Billed 20 ($0.20) · 2026-01 · org=acme · user=alice",
+        value: "Used 100 | Included 80 | Billed 20 ($0.20) | 2026-01 | org=acme | user=alice",
         resetTimeIso: undefined,
       },
       {

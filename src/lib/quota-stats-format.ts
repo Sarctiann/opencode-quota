@@ -1,7 +1,11 @@
 import type { AggregateResult, SessionTreeNode, TokenBuckets } from "./quota-stats.js";
 import { abbreviateDisplayedModelName } from "./format-utils.js";
 import type { WidthMode } from "./markdown-table.js";
-import { renderMarkdownReport, type ReportDocument, type ReportSection } from "./report-document.js";
+import {
+  renderMarkdownReport,
+  type ReportDocument,
+  type ReportSection,
+} from "./report-document.js";
 import { emptyTokenBuckets, totalTokenBuckets } from "./token-buckets.js";
 
 /** Use markdown-conceal for proper TUI alignment (strips markdown syntax for width calc) */
@@ -147,7 +151,7 @@ function truncateTitle(title: string | undefined): string {
   const trimmed = title.trim();
   if (trimmed.length <= 23) return trimmed;
   // first 10 + ellipsis + last 10
-  return trimmed.slice(0, 10) + "..." + trimmed.slice(-10);
+  return trimmed.slice(0, 10) + "…" + trimmed.slice(-10);
 }
 
 export function formatQuotaStatsReport(params: {
@@ -191,7 +195,9 @@ export function formatQuotaStatsReport(params: {
       blocks: [
         {
           kind: "table",
-          headers: tableOptions.compactHeaders ? ["Msgs", "Tok", "Cost"] : ["Messages", "Tokens", "Cost"],
+          headers: tableOptions.compactHeaders
+            ? ["Msgs", "Tok", "Cost"]
+            : ["Messages", "Tokens", "Cost"],
           aligns: ["right", "right", "right"],
           widthMode: TABLE_WIDTH_MODE,
           rows: [

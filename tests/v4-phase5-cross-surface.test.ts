@@ -383,7 +383,7 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
     const serverBars = serverOutput.match(/[█░]+/gu) ?? [];
     expect(serverBars.length).toBeGreaterThan(0);
     expect(serverBars.every((bar) => Array.from(bar).length === 10)).toBe(true);
-    expect(serverOutput).toMatch(/Month quota\s+[█░]{10}\s+64% left · 64\/100 · reset /);
+    expect(serverOutput).toMatch(/Month quota\s+[█░]{10}\s+64% left \| 64\/100 \| reset /);
     expect(serverOutput).toMatch(/Balance\s+\$12\.34/);
     assertFixtureContent(serverOutput);
     assertTreeSessionTokenTotals(serverOutput);
@@ -690,8 +690,8 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
     });
     const toastOutput = getToastMessage(client);
     expect(toastOutput).toContain("MiniMax Coding Plan");
-    expect(toastOutput).toContain("5h window");
-    expect(toastOutput).toContain("Weekly window");
+    expect(toastOutput).toContain("Five-hour");
+    expect(toastOutput).toContain("Weekly");
     expect(toastOutput).toContain("35%");
     expect(toastOutput).toContain("80%");
 
@@ -715,8 +715,8 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
       ...(surfaces.sidebar.linesExpanded ?? []),
     ].join("\n");
     expect(sidebarOutput).toContain("MiniMax Coding Plan");
-    expect(sidebarOutput).toContain("5h window");
-    expect(sidebarOutput).toContain("Weekly window");
+    expect(sidebarOutput).toContain("Five-hour");
+    expect(sidebarOutput).toContain("Weekly");
     expect(sidebarOutput).toContain("35%");
     expect(sidebarOutput).toContain("80%");
 

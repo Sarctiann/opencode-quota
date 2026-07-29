@@ -94,7 +94,7 @@ function formatAiCreditUsageValue(
     if (result.username) parts.push(`user=${result.username}`);
   }
 
-  return parts.join(" · ");
+  return parts.join(" | ");
 }
 
 function makeBudgetEntry(

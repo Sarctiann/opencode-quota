@@ -26,7 +26,7 @@ describe("normalizeGroupedQuotaEntries", () => {
     expect(normalizeGroupedQuotaEntries([entry], "quota")).toEqual([
       {
         ...entry,
-        group: "Google Antigravity (acct)",
+        group: "[Antigravity (acct)]",
         label: "Claude:",
       },
     ]);
@@ -34,7 +34,7 @@ describe("normalizeGroupedQuotaEntries", () => {
     expect(normalizeGroupedQuotaEntries([entry], "toast")).toEqual([
       {
         ...entry,
-        group: "Google Antigravity (acct)",
+        group: "[Antigravity (acct)]",
       },
     ]);
   });

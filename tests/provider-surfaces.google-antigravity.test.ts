@@ -55,8 +55,8 @@ vi.mock("../src/lib/google.js", () => ({
     selectedPath: `${TEST_RUNTIME_ROOT}/antigravity-accounts.json`,
     presentPaths: [`${TEST_RUNTIME_ROOT}/antigravity-accounts.json`],
     candidatePaths: [`${TEST_RUNTIME_ROOT}/antigravity-accounts.json`],
-    accountCount: 1,
-    validAccountCount: 1,
+    accountCount: 2,
+    validAccountCount: 2,
   })),
 }));
 vi.mock("../src/lib/google-antigravity-companion.js", () => ({
@@ -117,7 +117,8 @@ async function expectHandled(value: unknown): Promise<void> {
 }
 
 function expectNoProviderMisattribution(output: string): void {
-  expect(output).toContain("Google Antigravity");
+  expect(output).toContain("Antigravity");
+  expect(output).not.toContain("Google Antigravity");
   expect(output).not.toContain("[Claude]");
   expect(output).not.toMatch(/Anthropic|subscription/iu);
 }
@@ -138,8 +139,14 @@ describe("Google Antigravity provider surfaces", () => {
         {
           displayName: "Claude",
           accountEmail: "alice@example.com",
-          percentRemaining: 64,
+          percentRemaining: 0,
           resetTimeIso: "2026-08-01T00:00:00.000Z",
+        },
+        {
+          displayName: "Claude",
+          accountEmail: "bob@example.com",
+          percentRemaining: 0,
+          resetTimeIso: "2026-08-02T00:00:00.000Z",
         },
       ],
       errors: [],
@@ -156,7 +163,7 @@ describe("Google Antigravity provider surfaces", () => {
     await rm(TEST_RUNTIME_ROOT, { recursive: true, force: true });
   });
 
-  it("keeps Google Antigravity as provider identity on real plugin and TUI paths", async () => {
+  it("keeps two Antigravity accounts distinct on real Web, toast, sidebar, and compact paths", async () => {
     const client = createPluginTestClient({
       modelID: "google/antigravity-claude",
       providerID: "google",
@@ -176,8 +183,9 @@ describe("Google Antigravity provider surfaces", () => {
     );
     const command = getPromptText(client);
     expectNoProviderMisattribution(command);
-    expect(command).toContain("[Google Antigravity]");
-    expect(command).toMatch(/\[Google Antigravity\][\s\S]*Quota/u);
+    expect(command).toContain("→ [Antigravity (ali…)]");
+    expect(command).toContain("→ [Antigravity (bob…)]");
+    expect(command.match(/Claude/g)).toHaveLength(2);
 
     await hooks.event?.({
       event: {
@@ -187,7 +195,9 @@ describe("Google Antigravity provider surfaces", () => {
     });
     const toast = getToastMessage(client);
     expectNoProviderMisattribution(toast);
-    expect(toast).toContain("Claude");
+    expect(toast).toContain("[Antigravity (ali…): Claude]");
+    expect(toast).toContain("[Antigravity (bob…): Claude]");
+    expect(toast).not.toMatch(/5h|7d|Weekly|Five-hour/u);
 
     const tuiApi = {
       state: {
@@ -208,12 +218,13 @@ describe("Google Antigravity provider surfaces", () => {
       "\n",
     );
     expectNoProviderMisattribution(sidebar);
-    expect(sidebar).toContain("Claude");
+    expect(sidebar).toContain("[Antigravity (ali…): Claude]");
+    expect(sidebar).toContain("[Antigravity (bob…): Claude]");
 
     expect(surfaces.compact.status).toBe("ready");
     const compact = surfaces.compact.status === "ready" ? surfaces.compact.text : "";
     expectNoProviderMisattribution(compact);
-    expect(compact).toContain("Claude");
+    expect(compact).toBe("Antigravity (ali…): Claude 0% | Antigravity (bob…): Claude 0%");
 
     expect(mocks.queryGoogleQuota).toHaveBeenCalledTimes(1);
     await hooks.dispose?.();

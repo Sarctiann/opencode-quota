@@ -47,7 +47,7 @@ function getGoogleFallbackMeta(name: string): { group: string; label: string } |
   if (!looksLikeGoogleModel(model) || !account) return undefined;
 
   return {
-    group: `Google Antigravity (${account})`,
+    group: `[Antigravity (${account})]`,
     label: `${model}:`,
   };
 }

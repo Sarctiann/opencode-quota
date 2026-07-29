@@ -71,15 +71,16 @@ describe("google gemini cli provider", () => {
     expect(out.attempted).toBe(true);
     expect(visibleEntries(out.entries, "google-gemini-cli")).toEqual([
       {
-        name: "Gemini Pro (ali..example)",
-        group: "Gemini CLI",
+        name: "Gemini Pro (ali…)",
+        group: "Gemini CLI (ali…)",
         label: "Gemini Pro:",
         right: "1,234 left",
         percentRemaining: 64,
         resetTimeIso: "2026-01-01T00:00:00.000Z",
       },
     ]);
-    expect(out.errors).toEqual([{ label: "bob..example", message: "Unauthorized" }]);
+    expect(out.entries[0]?.accounting.sourceId).toBe("alice@example.com");
+    expect(out.errors).toEqual([{ label: "bob…", message: "Unauthorized" }]);
     expect(out.presentation).toEqual({
       singleWindowDisplayName: "Gemini CLI",
       singleWindowShowRight: true,
@@ -125,24 +126,24 @@ describe("google gemini cli provider", () => {
     expectAttemptedWithNoErrors(out);
     expect(visibleEntries(out.entries, "google-gemini-cli")).toEqual([
       {
-        name: "Gemini Pro (ali..example)",
-        group: "Gemini CLI",
+        name: "Gemini Pro (ali…)",
+        group: "Gemini CLI (ali…)",
         label: "Gemini Pro:",
         right: "50 left TOKENS",
         percentRemaining: 20,
         resetTimeIso: "2026-01-01T12:00:00Z",
       },
       {
-        name: "Gemini Flash (ali..example)",
-        group: "Gemini CLI",
+        name: "Gemini Flash (ali…)",
+        group: "Gemini CLI (ali…)",
         label: "Gemini Flash:",
         right: "1,000 left",
         percentRemaining: 50,
         resetTimeIso: "2026-01-01T08:00:00Z",
       },
       {
-        name: "Gemini Flash Lite (ali..example)",
-        group: "Gemini CLI",
+        name: "Gemini Flash Lite (ali…)",
+        group: "Gemini CLI (ali…)",
         label: "Gemini Flash Lite:",
         right: "25 left",
         percentRemaining: 10,

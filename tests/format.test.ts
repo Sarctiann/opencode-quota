@@ -589,9 +589,9 @@ describe("formatQuotaRows", () => {
       ],
     });
 
-    expect(out.indexOf("5h window")).toBeGreaterThanOrEqual(0);
-    expect(out.indexOf("Weekly window")).toBeGreaterThanOrEqual(0);
-    expect(out.indexOf("5h window")).toBeLessThan(out.indexOf("Weekly window"));
+    expect(out.indexOf("Five-hour")).toBeGreaterThanOrEqual(0);
+    expect(out.indexOf("Weekly")).toBeGreaterThanOrEqual(0);
+    expect(out.indexOf("Five-hour")).toBeLessThan(out.indexOf("Weekly"));
   });
 
   it("renders all-window percent rows as used when percentDisplayMode is used", () => {
@@ -635,7 +635,7 @@ describe("formatQuotaRows", () => {
       ],
     });
 
-    expect(out).toContain("5h window");
+    expect(out).toContain("Five-hour");
     expect(out).not.toContain("0/135");
     expect(out).toContain("100% left");
   });
@@ -677,8 +677,8 @@ describe("formatQuotaRows", () => {
     expect(out.indexOf("[OpenAI] (Pro)")).toBeGreaterThanOrEqual(0);
     expect(out.indexOf("[Qwen] (free)")).toBeLessThan(out.indexOf("[OpenAI] (Pro)"));
 
-    expect(out.indexOf("RPM window")).toBeLessThan(out.indexOf("Daily window"));
-    expect(out.indexOf("5h window")).toBeLessThan(out.indexOf("Weekly window"));
+    expect(out.indexOf("RPM")).toBeLessThan(out.indexOf("Daily"));
+    expect(out.indexOf("Five-hour")).toBeLessThan(out.indexOf("Weekly"));
   });
 
   it("preserves explicit legacy Google-style labels and only falls back for unlabeled rows", () => {
@@ -704,9 +704,9 @@ describe("formatQuotaRows", () => {
       ],
     });
 
-    expect(out).toContain("[Google Antigravity] (acct)");
+    expect(out).toContain("[Antigravity (acct)]");
     expect(out).toContain("\nClaude ");
-    expect(out).toContain("\nGoogle Antigravity (acct)");
+    expect(out.match(/\[Antigravity \(acct\)\]/gu)).toHaveLength(2);
     expect(out).not.toContain("[Claude] (acct)");
     expect(out).not.toContain("[G3Pro] (acct)");
   });

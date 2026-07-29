@@ -351,7 +351,7 @@ export async function collectQuotaStatusLiveProbes(params: {
 }
 
 function stripSingleWindowEntryMeta(entry: QuotaToastEntry, showRight: boolean): QuotaToastEntry {
-  const { group: _group, label: _label, ...withoutGroupLabel } = entry;
+  const { group: _group, label: _label, metricLabel: _metricLabel, ...withoutGroupLabel } = entry;
   if (showRight) {
     return { ...withoutGroupLabel };
   }

@@ -1112,7 +1112,7 @@ export async function buildQuotaStatusReport(params: {
       });
     }
     if (agg.unpriced.length > STATUS_SAMPLE_LIMIT) {
-      unpricedRows.push({ key: `... (${fmtInt(agg.unpriced.length - STATUS_SAMPLE_LIMIT)} more)` });
+      unpricedRows.push({ key: `… (${fmtInt(agg.unpriced.length - STATUS_SAMPLE_LIMIT)} more)` });
     }
   }
   sections.push(createKvSection("unpriced_models", "unpriced_models:", unpricedRows));
@@ -1142,7 +1142,7 @@ export async function buildQuotaStatusReport(params: {
       });
     }
     if (agg.unknown.length > STATUS_SAMPLE_LIMIT) {
-      unknownRows.push({ key: `... (${fmtInt(agg.unknown.length - STATUS_SAMPLE_LIMIT)} more)` });
+      unknownRows.push({ key: `… (${fmtInt(agg.unknown.length - STATUS_SAMPLE_LIMIT)} more)` });
     }
   }
   sections.push(createKvSection("unknown_pricing", "unknown_pricing:", unknownRows));

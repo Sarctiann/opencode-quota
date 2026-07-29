@@ -140,8 +140,8 @@ describe("Xiaomi MiMo provider", () => {
     expect(result.entries).toHaveLength(4);
     expect(result.entries[0]).toEqual({
       accounting: quotaAccounting,
-      name: "Xiaomi MiMo · Standard [standard_monthly] Monthly",
-      group: "Xiaomi MiMo · Standard [standard_monthly]",
+      name: "Xiaomi MiMo: Standard [standard_monthly] Monthly",
+      group: "Xiaomi MiMo: Standard [standard_monthly]",
       label: "Monthly:",
       right: "10100158/200000000",
       percentRemaining: 94.949921,
@@ -152,7 +152,7 @@ describe("Xiaomi MiMo provider", () => {
         accounting: balanceAccounting,
         kind: "value",
         name: "Xiaomi MiMo Total Balance",
-        group: "Xiaomi MiMo · Standard [standard_monthly]",
+        group: "Xiaomi MiMo: Standard [standard_monthly]",
         label: "Total:",
         value: "$50.00",
       },
@@ -160,7 +160,7 @@ describe("Xiaomi MiMo provider", () => {
         accounting: balanceAccounting,
         kind: "value",
         name: "Xiaomi MiMo Cash Balance",
-        group: "Xiaomi MiMo · Standard [standard_monthly]",
+        group: "Xiaomi MiMo: Standard [standard_monthly]",
         label: "Cash:",
         value: "$30.00",
       },
@@ -168,7 +168,7 @@ describe("Xiaomi MiMo provider", () => {
         accounting: balanceAccounting,
         kind: "value",
         name: "Xiaomi MiMo Gift Balance",
-        group: "Xiaomi MiMo · Standard [standard_monthly]",
+        group: "Xiaomi MiMo: Standard [standard_monthly]",
         label: "Gift:",
         value: "$20.00",
       },
@@ -192,7 +192,7 @@ describe("Xiaomi MiMo provider", () => {
 
     const result = await xiaomiProvider.fetch(context());
 
-    expect(result.entries[0]?.group).toBe("Xiaomi MiMo · Premium Plan [premium]");
+    expect(result.entries[0]?.group).toBe("Xiaomi MiMo: Premium Plan [premium]");
     expect(result.entries[1]).toMatchObject({ value: "EUR 1.00" });
     expect(JSON.stringify(result)).not.toContain("\u001b");
     expect(JSON.stringify(result)).not.toContain("\u0007");

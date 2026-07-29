@@ -190,6 +190,55 @@ describe("buildQuotaExport", () => {
     }
   });
 
+  it("preserves updated human-readable display strings without changing the schema", async () => {
+    mockReadCachedProviderResult.mockResolvedValue({
+      hit: true,
+      result: {
+        attempted: true,
+        entries: [
+          {
+            accounting: { ...QUOTA_ACCOUNTING, sourceId: "alice@example.com" },
+            name: "Antigravity (ali…): Claude",
+            percentRemaining: 0,
+          },
+          {
+            accounting: { ...QUOTA_ACCOUNTING, resultType: "usage" },
+            name: "Copilot",
+            kind: "value",
+            value: "Used 100 | Included 80 | Billed 20",
+          },
+        ],
+        errors: [{ label: "bob…", message: "Unauthorized" }],
+      },
+      timestamp: Date.now(),
+    });
+
+    const actual = await buildQuotaExport({
+      providers: [createMockProvider("google-antigravity")],
+      ctx: createMockContext(),
+      ttlMs: 60_000,
+      fromCache: true,
+    });
+    const provider = actual.providers["google-antigravity"];
+    expect(provider).toMatchObject({
+      status: "partial",
+      entries: [
+        {
+          name: "Antigravity (ali…): Claude",
+          sourceId: "alice@example.com",
+          renderType: "percent",
+          percentRemaining: 0,
+        },
+        {
+          name: "Copilot",
+          renderType: "value",
+          value: "Used 100 | Included 80 | Billed 20",
+        },
+      ],
+      errors: [{ label: "bob…", message: "Unauthorized" }],
+    });
+  });
+
   it("matches the v2 all-result-types JSON golden", async () => {
     vi.setSystemTime(new Date("2026-07-11T00:00:00.000Z"));
     mockReadCachedProviderResult.mockResolvedValue({

@@ -510,22 +510,26 @@ describe("collectQuotaRenderData shared quota state", () => {
     expect(syntheticProvider.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("preserves account labels for preserved single-window entries", async () => {
+  it("keeps two Antigravity accounts distinct in single-window and all-windows", async () => {
+    const aliceAccounting = { ...TEST_ACCOUNTING, sourceId: "alice@example.com" };
+    const bobAccounting = { ...TEST_ACCOUNTING, sourceId: "bob@example.com" };
     const googleProvider = testProvider("google-antigravity", {
       entries: [
         {
-          accounting: TEST_ACCOUNTING,
-          name: "Claude (sha..gmail)",
-          group: "Claude",
+          accounting: aliceAccounting,
+          name: "Antigravity (ali…): Claude",
+          group: "[Antigravity (ali…)]",
           label: "Claude:",
+          metricLabel: "Claude:",
           percentRemaining: 12,
           resetTimeIso: "2026-01-01T12:00:00.000Z",
         },
         {
-          accounting: TEST_ACCOUNTING,
-          name: "G3Pro (bob..gmail)",
-          group: "G3Pro",
-          label: "G3Pro:",
+          accounting: bobAccounting,
+          name: "Antigravity (bob…): Claude",
+          group: "[Antigravity (bob…)]",
+          label: "Claude:",
+          metricLabel: "Claude:",
           percentRemaining: 83,
           resetTimeIso: "2026-01-01T08:00:00.000Z",
         },
@@ -534,48 +538,87 @@ describe("collectQuotaRenderData shared quota state", () => {
     });
 
     mockProviders.push(googleProvider);
-
-    const result = await collectQuotaRenderData({
+    const baseParams = {
       client: TEST_CLIENT,
       config: renderConfig({
         enabledProviders: ["google-antigravity"],
         minIntervalMs: 60_000,
       }),
-      formatStyle: "singleWindow",
       surfaceExplicitProviderIssues: true,
-    });
+    };
 
-    expect(result.data?.entries.map((entry) => entry.name)).toEqual([
-      "[Claude] (sha..gmail)",
-      "[G3Pro] (bob..gmail)",
+    const singleWindow = await collectQuotaRenderData({
+      ...baseParams,
+      formatStyle: "singleWindow",
+    });
+    expect(singleWindow.data?.entries).toEqual([
+      {
+        accounting: aliceAccounting,
+        name: "[Antigravity (ali…): Claude]",
+        percentRemaining: 12,
+        resetTimeIso: "2026-01-01T12:00:00.000Z",
+      },
+      {
+        accounting: bobAccounting,
+        name: "[Antigravity (bob…): Claude]",
+        percentRemaining: 83,
+        resetTimeIso: "2026-01-01T08:00:00.000Z",
+      },
     ]);
+
+    const allWindows = await collectQuotaRenderData({
+      ...baseParams,
+      formatStyle: "allWindows",
+    });
+    expect(allWindows.data?.entries).toEqual([
+      {
+        accounting: aliceAccounting,
+        name: "Antigravity (ali…): Claude",
+        group: "[Antigravity (ali…)]",
+        label: "Claude:",
+        metricLabel: "Claude:",
+        percentRemaining: 12,
+        resetTimeIso: "2026-01-01T12:00:00.000Z",
+      },
+      {
+        accounting: bobAccounting,
+        name: "Antigravity (bob…): Claude",
+        group: "[Antigravity (bob…)]",
+        label: "Claude:",
+        metricLabel: "Claude:",
+        percentRemaining: 83,
+        resetTimeIso: "2026-01-01T08:00:00.000Z",
+      },
+    ]);
+    expect(googleProvider.fetch).toHaveBeenCalledTimes(1);
   });
 
   it("projects Gemini quality tiers as bottleneck-only in single-window and all rows in all-windows", async () => {
+    const geminiAccounting = { ...TEST_ACCOUNTING, sourceId: "alice@example.com" };
     const geminiProvider = testProvider("google-gemini-cli", {
       entries: [
         {
-          accounting: TEST_ACCOUNTING,
-          name: "Gemini Pro (ali..example)",
-          group: "Gemini CLI",
+          accounting: geminiAccounting,
+          name: "Gemini Pro (ali…)",
+          group: "Gemini CLI (ali…)",
           label: "Gemini Pro:",
           percentRemaining: 45,
           right: "50 left",
           resetTimeIso: "2026-01-01T12:00:00.000Z",
         },
         {
-          accounting: TEST_ACCOUNTING,
-          name: "Gemini Flash (ali..example)",
-          group: "Gemini CLI",
+          accounting: geminiAccounting,
+          name: "Gemini Flash (ali…)",
+          group: "Gemini CLI (ali…)",
           label: "Gemini Flash:",
           percentRemaining: 12,
           right: "20 left",
           resetTimeIso: "2026-01-01T08:00:00.000Z",
         },
         {
-          accounting: TEST_ACCOUNTING,
-          name: "Gemini Flash Lite (ali..example)",
-          group: "Gemini CLI",
+          accounting: geminiAccounting,
+          name: "Gemini Flash Lite (ali…)",
+          group: "Gemini CLI (ali…)",
           label: "Gemini Flash Lite:",
           percentRemaining: 30,
           right: "25 left",
@@ -605,8 +648,8 @@ describe("collectQuotaRenderData shared quota state", () => {
     });
     expect(singleWindow.data?.entries).toEqual([
       {
-        accounting: TEST_ACCOUNTING,
-        name: "[Gemini CLI]",
+        accounting: geminiAccounting,
+        name: "[Gemini CLI] (ali…)",
         percentRemaining: 12,
         right: "20 left",
         resetTimeIso: "2026-01-01T08:00:00.000Z",
@@ -619,27 +662,27 @@ describe("collectQuotaRenderData shared quota state", () => {
     });
     expect(allWindows.data?.entries).toEqual([
       {
-        accounting: TEST_ACCOUNTING,
-        name: "Gemini Pro (ali..example)",
-        group: "Gemini CLI",
+        accounting: geminiAccounting,
+        name: "Gemini Pro (ali…)",
+        group: "Gemini CLI (ali…)",
         label: "Gemini Pro:",
         percentRemaining: 45,
         right: "50 left",
         resetTimeIso: "2026-01-01T12:00:00.000Z",
       },
       {
-        accounting: TEST_ACCOUNTING,
-        name: "Gemini Flash (ali..example)",
-        group: "Gemini CLI",
+        accounting: geminiAccounting,
+        name: "Gemini Flash (ali…)",
+        group: "Gemini CLI (ali…)",
         label: "Gemini Flash:",
         percentRemaining: 12,
         right: "20 left",
         resetTimeIso: "2026-01-01T08:00:00.000Z",
       },
       {
-        accounting: TEST_ACCOUNTING,
-        name: "Gemini Flash Lite (ali..example)",
-        group: "Gemini CLI",
+        accounting: geminiAccounting,
+        name: "Gemini Flash Lite (ali…)",
+        group: "Gemini CLI (ali…)",
         label: "Gemini Flash Lite:",
         percentRemaining: 30,
         right: "25 left",
@@ -880,24 +923,24 @@ describe("collectQuotaRenderData shared quota state", () => {
       entries: [
         {
           accounting: { ...TEST_ACCOUNTING, sourceId: "account-alice" },
-          name: "Gemini Models (ali..example)",
-          group: "AGY · ali..example · Gemini",
+          name: "Gemini Models (ali…)",
+          group: "AGY (ali…): Gemini",
           label: "Weekly:",
           sortPriority: 0,
           percentRemaining: 58,
         },
         {
           accounting: { ...TEST_ACCOUNTING, sourceId: "account-alice" },
-          name: "Gemini Models (ali..example)",
-          group: "AGY · ali..example · Gemini",
+          name: "Gemini Models (ali…)",
+          group: "AGY (ali…): Gemini",
           label: "5h:",
           sortPriority: 1,
           percentRemaining: 25,
         },
         {
           accounting: { ...TEST_ACCOUNTING, sourceId: "account-bob" },
-          name: "Gemini Models (bob..example)",
-          group: "AGY · bob..example · Gemini",
+          name: "Gemini Models (bob…)",
+          group: "AGY (bob…): Gemini",
           label: "Weekly:",
           sortPriority: 0,
           percentRemaining: 80,
@@ -915,8 +958,8 @@ describe("collectQuotaRenderData shared quota state", () => {
     });
 
     expect(result.data?.entries.map((entry) => entry.name)).toEqual([
-      "[AGY · ali..example · Gemini] 5h",
-      "[AGY · bob..example · Gemini] Weekly",
+      "[AGY (ali…): Gemini] 5h",
+      "[AGY (bob…): Gemini] Weekly",
     ]);
   });
 

@@ -162,6 +162,7 @@ function isQuotaToastEntry(value: unknown): boolean {
       "resetTimeIso",
       "group",
       "label",
+      "metricLabel",
       "right",
       "sortPriority",
     ]) ||
@@ -170,7 +171,7 @@ function isQuotaToastEntry(value: unknown): boolean {
     !isOptionalIsoTimestamp(entry.resetTimeIso) ||
     (entry.sortPriority !== undefined &&
       (typeof entry.sortPriority !== "number" || !Number.isFinite(entry.sortPriority))) ||
-    !["group", "label", "right"].every(
+    !["group", "label", "metricLabel", "right"].every(
       (key) => entry[key] === undefined || typeof entry[key] === "string",
     )
   ) {

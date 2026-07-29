@@ -43,6 +43,31 @@ describe("buildCompactQuotaStatusLine", () => {
     expect(line).toBe("Copilot 18%");
   });
 
+  it("keeps a lone Antigravity model label in all-window compact output", () => {
+    const line = buildCompactQuotaStatusLine({
+      data: {
+        entries: [
+          {
+            name: "Antigravity (ali…): Claude",
+            group: "[Antigravity (ali…)]",
+            label: "Claude:",
+            percentRemaining: 64,
+          },
+          {
+            name: "Antigravity (bob…): Claude",
+            group: "[Antigravity (bob…)]",
+            label: "Claude:",
+            percentRemaining: 37,
+          },
+        ],
+        errors: [],
+      },
+      maxWidth: 160,
+    });
+
+    expect(line).toBe("Antigravity (ali…): Claude 64% | Antigravity (bob…): Claude 37%");
+  });
+
   it("preserves Gemini CLI model tiers in grouped compact status", () => {
     const line = buildCompactQuotaStatusLine({
       percentDisplayMode: "remaining",
@@ -50,7 +75,12 @@ describe("buildCompactQuotaStatusLine", () => {
       data: {
         entries: [
           { name: "Gemini Pro", group: "Gemini CLI", label: "Gemini Pro:", percentRemaining: 20 },
-          { name: "Gemini Flash", group: "Gemini CLI", label: "Gemini Flash:", percentRemaining: 50 },
+          {
+            name: "Gemini Flash",
+            group: "Gemini CLI",
+            label: "Gemini Flash:",
+            percentRemaining: 50,
+          },
           {
             name: "Gemini Flash Lite",
             group: "Gemini CLI",
@@ -62,7 +92,7 @@ describe("buildCompactQuotaStatusLine", () => {
       },
     });
 
-    expect(line).toBe("Gemini CLI Gemini Pro 20%, Gemini Flash 50%, Gemini Flash Lite 10%");
+    expect(line).toBe("Gemini CLI: Gemini Pro 20%, Gemini Flash 50%, Gemini Flash Lite 10%");
   });
 
   it("preserves explicit non-duration compact labels when multiple rows share a provider", () => {
@@ -80,7 +110,7 @@ describe("buildCompactQuotaStatusLine", () => {
       },
     });
 
-    expect(line).toBe("Cursor API 25%, Requests 50% | Kimi Code Fast 80%, Slow 40%");
+    expect(line).toBe("Cursor: API 25%, Requests 50% | Kimi Code: Fast 80%, Slow 40%");
   });
 
   it("groups multiple percent windows under one provider with compact window labels", () => {
@@ -184,7 +214,15 @@ describe("buildCompactQuotaStatusLine", () => {
         ],
         errors: [],
         sessionTokens: {
-          models: [{ modelID: "openai/gpt-5", input: 12_400, cachedInput: 5_600, totalInput: 18_000, output: 3_100 }],
+          models: [
+            {
+              modelID: "openai/gpt-5",
+              input: 12_400,
+              cachedInput: 5_600,
+              totalInput: 18_000,
+              output: 3_100,
+            },
+          ],
           totalInput: 12_400,
           totalCachedInput: 5_600,
           totalCombinedInput: 18_000,

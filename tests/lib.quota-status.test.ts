@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { aggregateUsage } from "../src/lib/quota-stats.js";
+
 import {
   buildProviderStatusReport,
   buildQuotaStatusReportForTest,
@@ -151,6 +153,41 @@ vi.mock("../src/lib/quota-stats.js", () => ({
 describe("buildQuotaStatusReport", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("uses a Unicode ellipsis for truncated pricing diagnostic lists", async () => {
+    const tokens = { input: 1, output: 0, reasoning: 0, cache_read: 0, cache_write: 0 };
+    const unpriced = Array.from({ length: 7 }, (_, index) => ({
+      key: {
+        sourceProviderID: "provider",
+        sourceModelID: `unpriced-${index}`,
+        mappedProvider: "provider",
+        mappedModel: `mapped-${index}`,
+        reason: "missing_price",
+      },
+      tokens,
+      messageCount: 1,
+    }));
+    const unknown = Array.from({ length: 6 }, (_, index) => ({
+      key: {
+        sourceProviderID: "provider",
+        sourceModelID: `unknown-${index}`,
+      },
+      tokens,
+      messageCount: 1,
+    }));
+    vi.mocked(aggregateUsage).mockResolvedValueOnce({
+      byModel: [],
+      bySourceProvider: [],
+      unpriced,
+      unknown,
+      totals: { unpriced: tokens, unknown: tokens },
+    } as never);
+
+    const report = await buildQuotaStatusReportForTest();
+    expect(report).toContain("… (2 more)");
+    expect(report).toContain("… (1 more)");
+    expect(report).not.toContain("... (2 more)");
   });
 
   it("renders config validation errors in the toast diagnostics section", async () => {

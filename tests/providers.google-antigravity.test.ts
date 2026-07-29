@@ -5,6 +5,9 @@ import {
   expectNotAttempted,
 } from "./helpers/provider-assertions.js";
 import { visibleEntries } from "./helpers/provider-assertions.js";
+import { formatQuotaCommand } from "../src/lib/quota-command-format.js";
+import { formatQuotaRowsGrouped } from "../src/lib/toast-format-grouped.js";
+import { buildCompactQuotaStatusLine } from "../src/lib/tui-compact-format.js";
 import { googleAntigravityProvider } from "../src/providers/google-antigravity.js";
 
 vi.mock("../src/lib/google.js", () => ({
@@ -47,6 +50,12 @@ describe("google antigravity provider", () => {
           percentRemaining: 64,
           resetTimeIso: "2026-01-01T00:00:00.000Z",
         },
+        {
+          displayName: "Claude",
+          accountEmail: "bob@example.com",
+          percentRemaining: 37,
+          resetTimeIso: "2026-01-02T00:00:00.000Z",
+        },
       ],
       errors: [{ email: "bob@example.com", error: "Unauthorized" }],
     });
@@ -55,21 +64,77 @@ describe("google antigravity provider", () => {
     expect(out.attempted).toBe(true);
     expect(visibleEntries(out.entries, "google-antigravity")).toEqual([
       {
-        name: "Google Antigravity Claude (ali..gmail)",
-        group: "Google Antigravity",
+        name: "Antigravity (ali…): Claude",
+        group: "[Antigravity (ali…)]",
         label: "Claude:",
+        metricLabel: "Claude",
         percentRemaining: 64,
         resetTimeIso: "2026-01-01T00:00:00.000Z",
       },
+      {
+        name: "Antigravity (bob…): Claude",
+        group: "[Antigravity (bob…)]",
+        label: "Claude:",
+        metricLabel: "Claude",
+        percentRemaining: 37,
+        resetTimeIso: "2026-01-02T00:00:00.000Z",
+      },
     ]);
-    expect(out.entries[0]?.accounting).toEqual({
-      resultType: "quota",
-      acquisitionMethod: "remote_api",
-      ownership: "maintained",
-      authority: "provider_reported",
-    });
+    expect(out.entries.map((entry) => entry.accounting)).toEqual([
+      {
+        resultType: "quota",
+        acquisitionMethod: "remote_api",
+        ownership: "maintained",
+        authority: "provider_reported",
+        sourceId: "alice@example.com",
+      },
+      {
+        resultType: "quota",
+        acquisitionMethod: "remote_api",
+        ownership: "maintained",
+        authority: "provider_reported",
+        sourceId: "bob@example.com",
+      },
+    ]);
     expect(JSON.stringify(out.entries)).not.toContain("Anthropic");
-    expect(out.errors).toEqual([{ label: "bob..gmail", message: "Unauthorized" }]);
+    expect(out.errors).toEqual([{ label: "bob…", message: "Unauthorized" }]);
+  });
+
+  it("keeps colliding account prefixes distinct across grouped, command, and compact output", async () => {
+    const { queryGoogleQuota } = await import("../src/lib/google.js");
+    (queryGoogleQuota as any).mockResolvedValueOnce({
+      success: true,
+      models: [
+        {
+          displayName: "Claude",
+          accountEmail: "alice@work.com",
+          percentRemaining: 64,
+        },
+        {
+          displayName: "Claude",
+          accountEmail: "alice@personal.com",
+          percentRemaining: 37,
+        },
+      ],
+      errors: [],
+    });
+
+    const out = await googleAntigravityProvider.fetch({ config: { googleModels: [] } } as any);
+    expect(out.entries.map((entry) => entry.group)).toEqual([
+      "[Antigravity (alice… 1)]",
+      "[Antigravity (alice… 2)]",
+    ]);
+
+    const grouped = formatQuotaRowsGrouped({ entries: out.entries, errors: out.errors });
+    const command = formatQuotaCommand({ entries: out.entries, errors: out.errors });
+    const compact = buildCompactQuotaStatusLine({
+      data: { entries: out.entries, errors: out.errors },
+      maxWidth: 160,
+    });
+    for (const output of [grouped, command, compact]) {
+      expect(output).toContain("Antigravity (alice… 1)");
+      expect(output).toContain("Antigravity (alice… 2)");
+    }
   });
 
   it("omits the account suffix when the quota result has no email", async () => {
@@ -88,9 +153,10 @@ describe("google antigravity provider", () => {
     const out = await googleAntigravityProvider.fetch({ config: { googleModels: [] } } as any);
     expect(visibleEntries(out.entries, "google-antigravity")).toEqual([
       {
-        name: "Google Antigravity Claude",
-        group: "Google Antigravity",
+        name: "Antigravity: Claude",
+        group: "[Antigravity]",
         label: "Claude:",
+        metricLabel: "Claude",
         percentRemaining: 64,
       },
     ]);

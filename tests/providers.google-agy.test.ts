@@ -99,16 +99,16 @@ describe("google agy provider", () => {
     expect(out.attempted).toBe(true);
     expect(visibleEntries(out.entries, "google-agy")).toEqual([
       {
-        name: "Gemini Models (ali..example)",
-        group: "AGY · ali..example · Gemini",
+        name: "Gemini Models (ali…)",
+        group: "AGY (ali…): Gemini",
         label: "Weekly:",
         sortPriority: 0,
         percentRemaining: 58,
         resetTimeIso: undefined,
       },
       {
-        name: "Gemini Models (ali..example)",
-        group: "AGY · ali..example · Gemini",
+        name: "Gemini Models (ali…)",
+        group: "AGY (ali…): Gemini",
         label: "5h:",
         sortPriority: 1,
         right: "1,234.5 left",
@@ -116,16 +116,16 @@ describe("google agy provider", () => {
         resetTimeIso: undefined,
       },
       {
-        name: "Claude and GPT models (ali..example)",
-        group: "AGY · ali..example · Claude/GPT",
+        name: "Claude and GPT models (ali…)",
+        group: "AGY (ali…): Claude/GPT",
         label: "Weekly:",
         sortPriority: 0,
         percentRemaining: 100,
         resetTimeIso: "2026-06-23T00:00:00.000Z",
       },
       {
-        name: "Claude and GPT models (ali..example)",
-        group: "AGY · ali..example · Claude/GPT",
+        name: "Claude and GPT models (ali…)",
+        group: "AGY (ali…): Claude/GPT",
         label: "5h:",
         sortPriority: 1,
         right: "1,000 left",
@@ -133,7 +133,7 @@ describe("google agy provider", () => {
         resetTimeIso: undefined,
       },
     ]);
-    expect(out.errors).toEqual([{ label: "bob..example", message: "Unauthorized" }]);
+    expect(out.errors).toEqual([{ label: "bob…", message: "Unauthorized" }]);
     expect(out.presentation).toEqual({
       singleWindowShowRight: true,
     });
@@ -199,10 +199,10 @@ describe("google agy provider", () => {
     const out = await googleAgyProvider.fetch({ client: {} } as any);
     expectAttemptedWithNoErrors(out);
     expect(out.entries.map((entry) => entry.group)).toEqual([
-      "AGY · ali..example · Gemini",
-      "AGY · ali..example · Claude/GPT",
-      "AGY · ali..example · Claude/GPT",
-      "AGY · bob..example · Gemini",
+      "AGY (ali…): Gemini",
+      "AGY (ali…): Claude/GPT",
+      "AGY (ali…): Claude/GPT",
+      "AGY (bob…): Gemini",
     ]);
   });
 
@@ -221,8 +221,8 @@ describe("google agy provider", () => {
     expect(out.attempted).toBe(true);
     expect(out.entries).toEqual([]);
     expect(out.errors).toEqual([
-      { label: "ali..example", message: "API timeout" },
-      { label: "goo..", message: "Token revoked" },
+      { label: "ali…", message: "API timeout" },
+      { label: "goo…", message: "Token revoked" },
     ]);
   });
 

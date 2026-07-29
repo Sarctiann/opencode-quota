@@ -338,7 +338,7 @@ GitHub does not allow fine-grained PATs or GitHub App tokens for enterprise bill
 
 OpenCode OAuth uses GitHub's undocumented internal `premium_interactions` snapshot. OpenCode Quota labels that source neutrally as **Copilot Premium Interactions** instead of assuming it is the same unit as public AI Credit billing. GitHub supplies the entitlement, remaining amount, optional percentage, unlimited state, and reset; the displayed used amount is calculated from entitlement minus remaining, and a percentage is calculated only when the snapshot omits one.
 
-A personal PAT reads GitHub's public billing report for the current UTC calendar month. That API reports accounting usage, not a plan entitlement, remaining quota, or reset. Personal PAT output is therefore usage-only—for example, `Used 100 · Included 80 · Billed 20 ($0.20)`—with no locally supplied allowance, remaining percentage, or reset.
+A personal PAT reads GitHub's public billing report for the current UTC calendar month. That API reports accounting usage, not a plan entitlement, remaining quota, or reset. Personal PAT output is therefore usage-only—for example, `Used 100 | Included 80 | Billed 20 ($0.20)`—with no locally supplied allowance, remaining percentage, or reset.
 
 Organization and enterprise PAT reports use the same used/included/billed accounting fields at the configured payer scope. When GitHub returns an additional-usage budget, it appears as a separate **Copilot Additional Usage** row; its percentage compares billed spend with that budget and is not an included-credit allowance.
 

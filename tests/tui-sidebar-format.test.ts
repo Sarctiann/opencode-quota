@@ -173,7 +173,7 @@ describe("buildSidebarQuotaPanelLines", () => {
     expect(rendered).not.toContain("Quota window");
   });
 
-  it("preserves explicit Google Antigravity labels and falls back for unlabeled legacy rows", () => {
+  it("preserves explicit Antigravity labels and falls back for unlabeled legacy rows", () => {
     const lines = buildSidebarQuotaPanelLines({
       config: {
         formatStyle: "allWindows",
@@ -190,9 +190,9 @@ describe("buildSidebarQuotaPanelLines", () => {
     });
 
     const rendered = lines.join("\n");
-    expect(rendered).toContain("[Google Antigravity] (acct)");
+    expect(rendered).toContain("[Antigravity (acct)]");
     expect(rendered).toContain("\nClaude ");
-    expect(rendered).toContain("\nGoogle Antigravity (acct)");
+    expect(rendered.match(/\[Antigravity \(acct\)\]/gu)).toHaveLength(2);
     expect(rendered).not.toContain("[Claude] (acct)");
     expect(rendered).not.toContain("[G3Pro] (acct)");
   });
@@ -257,10 +257,10 @@ describe("buildSidebarQuotaPanelLines", () => {
       },
     });
 
-    expect(lines.findIndex((line) => line.includes("5h window"))).toBeGreaterThanOrEqual(0);
-    expect(lines.findIndex((line) => line.includes("Weekly window"))).toBeGreaterThanOrEqual(0);
-    expect(lines.findIndex((line) => line.includes("5h window"))).toBeLessThan(
-      lines.findIndex((line) => line.includes("Weekly window")),
+    expect(lines.findIndex((line) => line.includes("Five-hour"))).toBeGreaterThanOrEqual(0);
+    expect(lines.findIndex((line) => line.includes("Weekly"))).toBeGreaterThanOrEqual(0);
+    expect(lines.findIndex((line) => line.includes("Five-hour"))).toBeLessThan(
+      lines.findIndex((line) => line.includes("Weekly")),
     );
   });
 
@@ -313,7 +313,7 @@ describe("buildSidebarQuotaPanelLines", () => {
 
     const rendered = lines.join("\n");
     expect(rendered).toContain("[Synthetic]");
-    expect(rendered).toContain("Weekly window");
+    expect(rendered).toContain("Weekly");
     expect(rendered).not.toContain("$22/$24");
     expect(rendered).toContain("92% used");
     expect(rendered).not.toContain("0/500");

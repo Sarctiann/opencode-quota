@@ -46,7 +46,7 @@ function formatResetsIn(iso?: string): string {
   const t = new Date(iso).getTime();
   if (!Number.isFinite(t)) return "";
   const diffSeconds = (t - Date.now()) / 1000;
-  return ` · resets in ${formatResetTimeSeconds(diffSeconds)}`;
+  return ` | resets in ${formatResetTimeSeconds(diffSeconds)}`;
 }
 
 export const QUOTA_COMMAND_BAR_WIDTH = 10;
@@ -78,6 +78,8 @@ function getCommandMetricLabel(entry: QuotaToastEntry): string {
   if (resultType === "balance") return "Balance";
   if (resultType === "status") return "Status";
 
+  const explicit = normalizeMetricText(entry.label);
+  const metricLabel = normalizeMetricText(entry.metricLabel);
   const noun =
     resultType === "budget"
       ? "budget"
@@ -89,19 +91,20 @@ function getCommandMetricLabel(entry: QuotaToastEntry): string {
             ? "quota"
             : "";
 
-  if (noun) return window ? `${window} ${noun}` : noun[0]!.toUpperCase() + noun.slice(1);
+  if (noun) {
+    return window ? `${window} ${noun}` : metricLabel || noun[0]!.toUpperCase() + noun.slice(1);
+  }
   if (window) return `${window} quota`;
 
-  const explicit = normalizeMetricText(entry.label);
   return explicit || (isValueEntry(entry) ? "Value" : "Quota");
 }
 
 function formatCommandDetails(entry: QuotaToastEntry, rightWidth: number): string {
   const right = entry.right?.trim();
-  const reset = formatResetsIn(entry.resetTimeIso).replace(/^ · resets in /u, "reset ");
-  if (right && reset) return ` · ${padRight(right, rightWidth)} · ${reset}`;
-  if (right) return ` · ${right}`;
-  if (reset) return ` · ${reset}`;
+  const reset = formatResetsIn(entry.resetTimeIso).replace(/^ \| resets in /u, "reset ");
+  if (right && reset) return ` | ${padRight(right, rightWidth)} | ${reset}`;
+  if (right) return ` | ${right}`;
+  if (reset) return ` | ${reset}`;
   return "";
 }
 
@@ -155,7 +158,7 @@ function buildQuotaCommandDocument(params: {
               metrics.push(`${formatTokenCount(model.cachedInput ?? 0)} cached`);
             }
             metrics.push(`${formatTokenCount(model.output)} out`);
-            return `  ${model.modelID}: ${metrics.join(" · ")}`;
+            return `  ${model.modelID}: ${metrics.join(" | ")}`;
           }),
         },
       ],

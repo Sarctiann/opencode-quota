@@ -12,7 +12,11 @@ import {
   queryGeminiCliQuota,
 } from "../lib/google-gemini-cli.js";
 import { parseProviderModelRef } from "../lib/provider-model-matching.js";
-import { formatGoogleAccountErrors, formatGoogleAccountLabel } from "./google-account-format.js";
+import {
+  createGoogleAccountLabelMap,
+  formatGoogleAccountErrors,
+  formatGoogleAccountLabel,
+} from "./google-account-format.js";
 import {
   attemptedErrorResult,
   attemptedResult,
@@ -81,8 +85,18 @@ export const googleGeminiCliProvider: QuotaProvider = {
       return withStatusDetails(attemptedErrorResult("Gemini CLI", result.error), statusDetails);
     }
 
+    const accountLabels = createGoogleAccountLabelMap(
+      [
+        ...result.buckets.map((bucket) => bucket.accountEmail),
+        ...(result.errors ?? []).map((error) => error.email),
+      ],
+      "domainHint",
+    );
     const entries: QuotaToastEntry[] = result.buckets.map((bucket) => {
-      const emailLabel = formatGoogleAccountLabel(bucket.accountEmail, "domainHint");
+      const emailLabel = bucket.accountEmail
+        ? (accountLabels.get(bucket.accountEmail) ??
+          formatGoogleAccountLabel(bucket.accountEmail, "domainHint"))
+        : formatGoogleAccountLabel(undefined, "domainHint");
       const parsedRemaining = bucket.remainingAmount
         ? Number.parseInt(bucket.remainingAmount, 10)
         : Number.NaN;
@@ -100,9 +114,10 @@ export const googleGeminiCliProvider: QuotaProvider = {
           acquisitionMethod: "remote_api",
           ownership: "maintained",
           authority: "provider_reported",
+          ...(bucket.accountEmail ? { sourceId: bucket.accountEmail } : {}),
         },
         name: `${bucket.displayName} (${emailLabel})`,
-        group: "Gemini CLI",
+        group: `Gemini CLI (${emailLabel})`,
         label: `${bucket.displayName}:`,
         ...(right ? { right } : {}),
         percentRemaining: bucket.percentRemaining,
@@ -111,10 +126,14 @@ export const googleGeminiCliProvider: QuotaProvider = {
     });
 
     return withStatusDetails(
-      attemptedResult(entries, formatGoogleAccountErrors(result.errors, "domainHint"), {
-        singleWindowDisplayName: "Gemini CLI",
-        singleWindowShowRight: true,
-      }),
+      attemptedResult(
+        entries,
+        formatGoogleAccountErrors(result.errors, "domainHint", accountLabels),
+        {
+          singleWindowDisplayName: "Gemini CLI",
+          singleWindowShowRight: true,
+        },
+      ),
       statusDetails,
     );
   },

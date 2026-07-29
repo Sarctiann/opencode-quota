@@ -61,6 +61,7 @@ describe("formatQuotaCommand", () => {
         {
           accounting: accounting("quota"),
           name: "Claude (acct)",
+          metricLabel: "Claude",
           percentRemaining: 67,
           resetTimeIso: "2026-01-15T15:00:00.000Z",
         },
@@ -92,25 +93,75 @@ describe("formatQuotaCommand", () => {
     expect(out.match(/[█░]{10}/gu)).toHaveLength(4);
     expect(lines.slice(2).join("\n")).toMatchInlineSnapshot(`
       "→ [Copilot] (personal)
-        Quota         █████████░   86% left · 42/300 · reset 12h
+        Quota         █████████░   86% left | 42/300 | reset 12h
 
       → [Copilot] (business)
-        Usage         9 used | 2026-01 | org=acme-corp | user=alice · reset 17d
+        Usage         9 used | 2026-01 | org=acme-corp | user=alice | reset 17d
 
       → [OpenAI] (Pro)
-        5h quota      ████░░░░░░   42% left · reset 2h
-        Week quota    ████████░░   81% left · reset 3d
+        5h quota      ████░░░░░░   42% left | reset 2h
+        Week quota    ████████░░   81% left | reset 3d
 
-      → [Google Antigravity] (acct)
-        Quota         ███████░░░   67% left · reset 3h
+      → [Antigravity (acct)]
+        Claude        ███████░░░   67% left | reset 3h
 
       Session input/output tokens
-        openai/gpt-5: 1.2K in · 456 cached · 567 out
-        github-copilot/claude-sonnet-4.5: 987 in · 654 out
+        openai/gpt-5: 1.2K in | 456 cached | 567 out
+        github-copilot/claude-sonnet-4.5: 987 in | 654 out
 
       Partial failures
         Z.ai: Authentication expired"
     `);
+  });
+
+  it("keeps canonical accounting labels for unrelated custom-provider rows", () => {
+    const out = formatQuotaCommand({
+      entries: [
+        {
+          accounting: accounting("quota"),
+          name: "Custom quota",
+          group: "Custom quota",
+          label: "Credits:",
+          percentRemaining: 80,
+        },
+        {
+          accounting: accounting("rate_limit"),
+          name: "Custom rate",
+          group: "Custom rate",
+          label: "Requests:",
+          percentRemaining: 70,
+        },
+        {
+          accounting: accounting("usage"),
+          name: "Custom usage",
+          group: "Custom usage",
+          label: "Tokens:",
+          percentRemaining: 60,
+        },
+        {
+          accounting: accounting("budget"),
+          name: "Custom budget",
+          group: "Custom budget",
+          label: "Credits:",
+          percentRemaining: 50,
+        },
+        {
+          accounting: accounting("spend"),
+          name: "Custom spend",
+          group: "Custom spend",
+          label: "Charges:",
+          percentRemaining: 40,
+        },
+      ],
+      errors: [],
+    });
+
+    expect(out).toMatch(/\n  Quota\s/u);
+    expect(out.match(/\n  Quota\s/gu)).toHaveLength(2);
+    expect(out).toMatch(/\n  Usage\s/u);
+    expect(out).toMatch(/\n  Budget\s/u);
+    expect(out).toMatch(/\n  Spend\s/u);
+    expect(out).not.toMatch(/\n  (?:Credits|Requests|Tokens|Charges)\s/u);
   });
 
   it("renders grouped /quota windows shortest to longest within a provider group", () => {
@@ -296,11 +347,11 @@ describe("formatQuotaCommand", () => {
         totalOutput: 45,
       },
     });
-    const rows = output.split("\n").filter((line) => line.includes(" · reset "));
+    const rows = output.split("\n").filter((line) => line.includes(" | reset "));
 
     expect(rows).toEqual([
-      "  5h quota      ██████░░░░   60% left · 2/5  · reset 5h",
-      "  Day quota     ████████░░   80% left · 2/10 · reset 11h",
+      "  5h quota      ██████░░░░   60% left | 2/5  | reset 5h",
+      "  Day quota     ████████░░   80% left | 2/10 | reset 11h",
     ]);
     expect(output).not.toContain("```");
     expect(output).not.toMatch(/^## /mu);
@@ -313,7 +364,7 @@ describe("formatQuotaCommand", () => {
       rows[0]!.indexOf("reset"),
       rows[0]!.indexOf("reset"),
     ]);
-    expect(output).toContain("openai/gpt-5: 123 in · 45 out");
+    expect(output).toContain("openai/gpt-5: 123 in | 45 out");
     expect(output).toContain("Example: secondary source failed");
   });
 
@@ -366,10 +417,10 @@ describe("formatQuotaCommand", () => {
       errors: [],
     });
 
-    const metricLines = out.split("\n").filter((line) => line.includes(" · reset "));
+    const metricLines = out.split("\n").filter((line) => line.includes(" | reset "));
     expect(metricLines).toHaveLength(2);
-    expect(metricLines[0]).toContain(" · 2/5  · reset 5h");
-    expect(metricLines[1]).toContain(" · 2/10 · reset 11h");
+    expect(metricLines[0]).toContain(" | 2/5  | reset 5h");
+    expect(metricLines[1]).toContain(" | 2/10 | reset 11h");
     expect(metricLines[0]!.indexOf("2/5")).toBe(metricLines[1]!.indexOf("2/10"));
     expect(metricLines.map((line) => line.indexOf("reset"))).toEqual([
       metricLines[0]!.indexOf("reset"),
@@ -398,7 +449,7 @@ describe("formatQuotaCommand", () => {
 
     const metric = out.split("\n").find((line) => line.includes("12345678901234567890"))!;
     expect(metric).toContain(
-      "Quota         █████████░   86% left · 12345678901234567890 · reset 12h",
+      "Quota         █████████░   86% left | 12345678901234567890 | reset 12h",
     );
     expect(metric).toMatch(/^ {2}\S/u);
     expect(metric).not.toContain("```");

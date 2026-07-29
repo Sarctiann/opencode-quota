@@ -52,6 +52,8 @@ export interface GroupedQuotaEntryMeta {
   group?: string;
   /** Optional row label inside the group, e.g. "5h:" or "Usage:". */
   label?: string;
+  /** Optional semantic label for verbose command output when it differs from resultType. */
+  metricLabel?: string;
   /** Optional compact right-hand summary, e.g. "42/300". */
   right?: string;
   /** Optional stable row priority within a group; lower values render first. */
@@ -66,7 +68,7 @@ export type QuotaToastEntry =
        */
       kind?: "percent";
 
-      /** Display label (already human-friendly), e.g. "Copilot" or "Claude (abc..gmail)". */
+      /** Display label (already human-friendly), e.g. "Copilot" or "Claude (abc…)". */
       name: string;
 
       /** Remaining quota as a percentage (may be below 0 when over quota). */
