@@ -148,7 +148,7 @@ Most providers work automatically. If a provider has a “Needs setup” link, o
 | Google Antigravity | [Needs setup](docs/readme/providers.md#google-antigravity)               | Remote API         | Quota              |
 | Kilo Gateway       | API key/config                                                           | Remote API         | Balance            |
 | NanoGPT            | API key/config                                                           | Remote API         | Quota and balance  |
-| Ollama Cloud       | API key/config                                                           | Remote API         | Quota and usage    |
+| Ollama Cloud       | Automatic                                                                | Remote API         | Quota and usage    |
 | OpenAI             | Automatic                                                                | Remote API         | Quota              |
 | OpenCode Go        | [Needs setup](docs/readme/providers.md#opencode-go)                      | Dashboard scraping | Quota              |
 | OpenCode Zen       | [Needs setup](docs/readme/providers.md#opencode-zen)                     | Dashboard scraping | Budget and balance |
