@@ -4,11 +4,11 @@
 
 ## On this page
 
-| Find                                 | Go to                                                                                                                                                                                                     |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Provider support                     | [Pre-configured providers](#pre-configured-providers) · [Custom providers](#custom-providers)                                                                                                             |
-| Billing, API key, or dashboard setup | [GitHub Copilot](#github-copilot) · [DeepSeek](#deepseek) · [Xiaomi MiMo](#xiaomi-mimo) · [Ollama Cloud](#ollama-cloud) · [OpenCode Go](#opencode-go) · [OpenCode Zen](#opencode-zen)                     |
-| CLI or companion-plugin setup        | [Anthropic](#anthropic-claude) · [Cursor](#cursor) · [Qwen Code](#qwen-code) · [Google Antigravity](#google-antigravity) · [Google AGY](#google-agy-quick-setup) · [Gemini CLI (deprecated)](#gemini-cli) |
+| Find                                 | Go to                                                                                                                                                                                                                 |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider support                     | [Pre-configured providers](#pre-configured-providers) · [Custom providers](#custom-providers)                                                                                                                         |
+| Billing, API key, or dashboard setup | [GitHub Copilot](#github-copilot) · [DeepSeek](#deepseek) · [Kilo Gateway](#kilo-gateway) · [Xiaomi MiMo](#xiaomi-mimo) · [Ollama Cloud](#ollama-cloud) · [OpenCode Go](#opencode-go) · [OpenCode Zen](#opencode-zen) |
+| CLI or companion-plugin setup        | [Anthropic](#anthropic-claude) · [Cursor](#cursor) · [Qwen Code](#qwen-code) · [Google Antigravity](#google-antigravity) · [Google AGY](#google-agy-quick-setup) · [Gemini CLI (deprecated)](#gemini-cli)             |
 
 ## Pre-configured providers
 
@@ -27,6 +27,7 @@ Most providers work automatically. If a provider has a “Needs setup” link, o
 | GitHub Copilot     | [Needs setup](#github-copilot)         | Remote API         | Usage and budget   |
 | Google AGY         | [Needs setup](#google-agy-quick-setup) | Remote API         | Quota              |
 | Google Antigravity | [Needs setup](#google-antigravity)     | Remote API         | Quota              |
+| Kilo Gateway       | API key/config                         | Remote API         | Balance            |
 | NanoGPT            | API key/config                         | Remote API         | Quota and balance  |
 | Ollama Cloud       | API key/config                         | Remote API         | Quota and usage    |
 | OpenAI             | Automatic                              | Remote API         | Quota              |
@@ -479,6 +480,26 @@ Or put the key in trusted user/global OpenCode config, not repo-local config:
 ```
 
 If you use manual provider selection, include `deepseek` in `enabledProviders`.
+
+<a id="kilo-gateway"></a>
+
+### Kilo Gateway
+
+Kilo Gateway reports the personal USD credit balance returned by the documented authenticated profile endpoint, `GET https://api.kilo.ai/api/profile/balance`. Kilo's public Gateway API does not currently document quota or usage-history totals, so this provider does not invent percentages, reset times, spend, or usage rows.
+
+Create a Kilo Gateway API key in your personal profile, then set:
+
+```bash
+export KILO_API_KEY="your-api-key"
+```
+
+Credentials resolve in this order:
+
+1. `KILO_API_KEY`
+2. Trusted user/global OpenCode config: `provider.kilo.options.apiKey`
+3. A strict `kilo` API-key entry in OpenCode `auth.json`: `{ "type": "api", "key": "..." }`
+
+Project-local `opencode.json` and `opencode.jsonc` files are not read for this secret. The canonical OpenCode provider ID is `kilo`; if you use manual provider selection, include `kilo` in `enabledProviders`.
 
 <a id="xiaomi-mimo"></a>
 

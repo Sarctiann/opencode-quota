@@ -94,6 +94,21 @@ const providers = [
     },
   },
   {
+    name: "Kilo Gateway",
+    envVars: ["KILO_API_KEY"],
+    providerKeys: ["kilo"],
+    authKeys: ["kilo"],
+    load: async () => {
+      const module = await import("../src/lib/kilo-config.js");
+      return {
+        resolve: module.resolveKiloApiKey,
+        has: module.hasKiloApiKey,
+        diagnostics: module.getKiloKeyDiagnostics,
+        getConfigCandidates: module.getOpencodeConfigCandidatePaths,
+      };
+    },
+  },
+  {
     name: "DeepSeek",
     envVars: ["DEEPSEEK_API_KEY"],
     providerKeys: ["deepseek"],
