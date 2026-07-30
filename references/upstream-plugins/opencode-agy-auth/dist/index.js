@@ -268,7 +268,7 @@ function createAgyActivityRequestId() {
 import os from "os";
 
 // src/sdk/agy-cli-version.ts
-var AGY_CLI_VERSION = "1.1.6";
+var AGY_CLI_VERSION = "1.1.8";
 
 // src/sdk/user-agent.ts
 var cachedUserAgent = null;
@@ -17611,10 +17611,10 @@ function normalizeThinking(requestPayload, modelThinkingConfig, providerThinking
     requestPayload.thinkingConfig,
     rawGenerationConfig?.thinkingConfig
   );
-  const normalizedThinkingConfig = normalizeThinkingConfig(mergedThinkingConfig);
   if (Object.prototype.hasOwnProperty.call(requestPayload, "thinkingConfig")) {
     delete requestPayload.thinkingConfig;
   }
+  const normalizedThinkingConfig = normalizeThinkingConfig(mergedThinkingConfig);
   if (!normalizedThinkingConfig) {
     if (rawGenerationConfig) {
       requestPayload.generationConfig = rawGenerationConfig;
@@ -18156,11 +18156,13 @@ var STATIC_MODELS_SIMPLE = {
 };
 var TIER_MAPPING = {
   "gemini-3.6-flash": {
+    minimal: "gemini-3.6-flash-low",
     low: "gemini-3.6-flash-low",
     medium: "gemini-3.6-flash-medium",
     high: "gemini-3.6-flash-high"
   },
   "gemini-3.5-flash": {
+    minimal: "gemini-3.5-flash-extra-low",
     low: "gemini-3.5-flash-extra-low",
     medium: "gemini-3.5-flash-low",
     high: "gemini-3-flash-agent"
@@ -18175,7 +18177,20 @@ var buildModelFromSimple = (modelId, simple) => {
   const isGpt = modelId.startsWith("gpt-");
   let variants = void 0;
   if (TIER_MAPPING[modelId]) {
+    const hasMinimal = TIER_MAPPING[modelId].minimal !== void 0;
     variants = {
+      ...hasMinimal ? {
+        "minimal": {
+          id: "minimal",
+          name: "minimal",
+          displayName: "minimal",
+          title: "minimal",
+          label: "minimal",
+          options: { name: "minimal" },
+          headers: { "x-agy-tier": "minimal" },
+          thinkingConfig: { thinkingBudget: 1e3, includeThoughts: true }
+        }
+      } : {},
       "low": { id: "low", name: "low", displayName: "low", title: "low", label: "low", options: { name: "low" }, headers: { "x-agy-tier": "low" } },
       ...TIER_MAPPING[modelId].medium !== void 0 ? { "medium": { id: "medium", name: "medium", displayName: "medium", title: "medium", label: "medium", options: { name: "medium" }, headers: { "x-agy-tier": "medium" } } } : {},
       "high": { id: "high", name: "high", displayName: "high", title: "high", label: "high", options: { name: "high" }, headers: { "x-agy-tier": "high" } }

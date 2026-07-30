@@ -1,12 +1,12 @@
 {
   "plugins": {
     "opencode-agy-auth": {
-      "npmUrl": "https://www.npmjs.com/package/%40anthonyhaussman/opencode-agy-auth/v/1.1.6",
+      "npmUrl": "https://www.npmjs.com/package/%40anthonyhaussman/opencode-agy-auth/v/1.1.8",
       "packageName": "@anthonyhaussman/opencode-agy-auth",
-      "publishedAt": "2026-07-26T08:33:15.114Z",
+      "publishedAt": "2026-07-29T18:31:44.445Z",
       "referenceDir": "references/upstream-plugins/opencode-agy-auth",
       "repo": "anthonyhaussman/opencode-agy-auth",
-      "version": "1.1.6"
+      "version": "1.1.8"
     },
     "opencode-antigravity-auth": {
       "npmUrl": "https://www.npmjs.com/package/opencode-antigravity-auth/v/1.6.0",
