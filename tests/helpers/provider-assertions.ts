@@ -268,7 +268,13 @@ export const PROVIDER_ACCOUNTING_LEDGER: Record<string, Array<QuotaToastEntry["a
   "ollama-cloud": [
     {
       resultType: "quota",
-      acquisitionMethod: "dashboard_scrape",
+      acquisitionMethod: "remote_api",
+      ownership: "maintained",
+      authority: "provider_reported",
+    },
+    {
+      resultType: "usage",
+      acquisitionMethod: "remote_api",
       ownership: "maintained",
       authority: "provider_reported",
     },

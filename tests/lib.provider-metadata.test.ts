@@ -183,11 +183,12 @@ describe("provider-metadata", () => {
       },
       {
         id: "ollama-cloud",
-        autoSetup: "manual_env_config",
-        authentication: "state_only",
+        autoSetup: "usually",
+        authentication: "opencode_auth_api_key",
+        authFallbacks: ["env_api_key", "global_opencode_config"],
         quota: "remote_api",
         notes:
-          "Scrapes the Ollama Cloud settings page; requires __Secure-session cookie via OLLAMA_USAGE_COOKIE env or ollama-usage config",
+          "Queries the Ollama Cloud usage API; reports session and weekly quota plus model request counts",
       },
       {
         id: "quota-providers",

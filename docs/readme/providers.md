@@ -28,7 +28,7 @@ Most providers work automatically. If a provider has a “Needs setup” link, o
 | Google AGY         | [Needs setup](#google-agy-quick-setup) | Remote API         | Quota              |
 | Google Antigravity | [Needs setup](#google-antigravity)     | Remote API         | Quota              |
 | NanoGPT            | API key/config                         | Remote API         | Quota and balance  |
-| Ollama Cloud       | [Needs setup](#ollama-cloud)           | Dashboard scraping | Quota              |
+| Ollama Cloud       | API key/config                         | Remote API         | Quota and usage    |
 | OpenAI             | Automatic                              | Remote API         | Quota              |
 | OpenCode Go        | [Needs setup](#opencode-go)            | Dashboard scraping | Quota              |
 | OpenCode Zen       | [Needs setup](#opencode-zen)           | Dashboard scraping | Budget and balance |
@@ -521,18 +521,19 @@ Per-API-key costs remain unsupported until Xiaomi exposes endpoint and schema ev
 
 ### Ollama Cloud
 
-Ollama Cloud quota scrapes the Ollama Cloud settings page and needs a `__Secure-session` cookie:
+Ollama Cloud calls `https://ollama.com/api/usage` and reports session and weekly quota plus per-model request counts. Create an Ollama API key, then set:
 
 ```bash
-export OLLAMA_USAGE_COOKIE="your-session-cookie-value"
+export OLLAMA_API_KEY="your-api-key"
 ```
 
-Or use one of these config files (cookie without the `__Secure-session=` prefix, or with — the plugin normalizes it):
+Credentials resolve in this order:
 
-- `~/.config/opencode/opencode-quota/ollama-cloud.json`: `{ "cookie": "..." }`
-- `~/.config/ollama-usage/config.yaml`: `cookie: "..."`
+1. `OLLAMA_API_KEY`
+2. Trusted user/global OpenCode config: `provider.ollama-cloud.options.apiKey`
+3. A strict `ollama-cloud` API-key entry in OpenCode `auth.json`: `{ "type": "api", "key": "..." }`
 
-To find the cookie, open `ollama.com/settings` in your browser, open Developer Tools → Storage → Cookies, and copy the value of `__Secure-session`.
+Project-local `opencode.json` and `opencode.jsonc` files are not read for this secret. The old `OLLAMA_USAGE_COOKIE`, `ollama-cloud.json`, and `ollama-usage/config.yaml` cookie setup is no longer supported.
 
 <a id="opencode-go"></a>
 

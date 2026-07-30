@@ -79,6 +79,21 @@ const providers = [
     },
   },
   {
+    name: "Ollama Cloud",
+    envVars: ["OLLAMA_API_KEY"],
+    providerKeys: ["ollama-cloud"],
+    authKeys: ["ollama-cloud"],
+    load: async () => {
+      const module = await import("../src/lib/ollama-cloud-config.js");
+      return {
+        resolve: module.resolveOllamaCloudApiKey,
+        has: module.hasOllamaCloudApiKey,
+        diagnostics: module.getOllamaCloudKeyDiagnostics,
+        getConfigCandidates: module.getOpencodeConfigCandidatePaths,
+      };
+    },
+  },
+  {
     name: "DeepSeek",
     envVars: ["DEEPSEEK_API_KEY"],
     providerKeys: ["deepseek"],
