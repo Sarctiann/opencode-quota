@@ -131,51 +131,51 @@ Use the CLI for scripts, CI, or a quick terminal check outside OpenCode.
 
 ## Providers
 
-Most providers work automatically. If a provider has a “Needs setup” link, open that setup note only if you use that provider. Providers can appear in both audience sections when the vendor supports both.
+Most providers work automatically. `Automatic` means OpenCode Quota reuses the credential saved through OpenCode's `/connect`. If a provider has a “Needs setup” link, open that setup note only if you use that provider. Providers can appear in both audience sections when the vendor supports both.
 
 ### Pre-configured American providers
 
 <details open>
 <summary><strong>Personal</strong></summary>
 
-| Provider           | Auth/setup                                                               | Data from          | Reports            |
-| ------------------ | ------------------------------------------------------------------------ | ------------------ | ------------------ |
-| Anthropic (Claude) | [Needs setup](docs/readme/providers.md#anthropic-claude)                 | Local CLI/OAuth    | Quota              |
-| Chutes AI          | API key/config                                                           | Remote API         | Quota              |
-| Cursor             | [Needs setup](docs/readme/providers.md#cursor)                           | Local estimate     | Budget and spend   |
-| GitHub Copilot     | Automatic OAuth / [billing PAT](docs/readme/providers.md#github-copilot) | Remote API         | Usage and budget   |
-| Google AGY         | [Needs setup](docs/readme/providers.md#google-agy-quick-setup)           | Remote API         | Quota              |
-| Google Antigravity | [Needs setup](docs/readme/providers.md#google-antigravity)               | Remote API         | Quota              |
-| Kilo Gateway       | API key/config                                                           | Remote API         | Balance            |
-| NanoGPT            | API key/config                                                           | Remote API         | Quota and balance  |
-| Ollama Cloud       | Automatic                                                                | Remote API         | Quota and usage    |
-| OpenAI             | Automatic                                                                | Remote API         | Quota              |
-| OpenCode Go        | [Needs setup](docs/readme/providers.md#opencode-go)                      | Dashboard scraping | Quota              |
-| OpenCode Zen       | [Needs setup](docs/readme/providers.md#opencode-zen)                     | Dashboard scraping | Budget and balance |
-| OpenRouter         | Automatic                                                                | Remote API         | Budget and spend   |
-| Synthetic          | Automatic                                                                | Remote API         | Quota              |
-| xAI SuperGrok      | Automatic                                                                | Remote API         | Quota              |
+| Provider           | Auth/setup                                                     | Data from          | Reports            |
+| ------------------ | -------------------------------------------------------------- | ------------------ | ------------------ |
+| Anthropic (Claude) | [Needs setup](docs/readme/providers.md#anthropic-claude)       | Local CLI/OAuth    | Quota              |
+| Chutes AI          | Automatic                                                      | Remote API         | Quota              |
+| Cursor             | [Needs setup](docs/readme/providers.md#cursor)                 | Local estimate     | Budget and spend   |
+| GitHub Copilot     | Automatic                                                      | Remote API         | Usage and budget   |
+| Google AGY         | [Needs setup](docs/readme/providers.md#google-agy-quick-setup) | Remote API         | Quota              |
+| Google Antigravity | [Needs setup](docs/readme/providers.md#google-antigravity)     | Remote API         | Quota              |
+| Kilo Gateway       | Automatic                                                      | Remote API         | Balance            |
+| NanoGPT            | Automatic                                                      | Remote API         | Quota and balance  |
+| Ollama Cloud       | Automatic                                                      | Remote API         | Quota and usage    |
+| OpenAI             | Automatic                                                      | Remote API         | Quota              |
+| OpenCode Go        | [Needs setup](docs/readme/providers.md#opencode-go)            | Dashboard scraping | Quota              |
+| OpenCode Zen       | [Needs setup](docs/readme/providers.md#opencode-zen)           | Dashboard scraping | Budget and balance |
+| OpenRouter         | Automatic                                                      | Remote API         | Budget and spend   |
+| Synthetic          | Automatic                                                      | Remote API         | Quota              |
+| xAI SuperGrok      | Automatic                                                      | Remote API         | Quota              |
 
 </details>
 
 <details>
 <summary><strong>Business / Enterprise</strong></summary>
 
-| Provider                | Auth/setup                                                               | Data from          | Reports            |
-| ----------------------- | ------------------------------------------------------------------------ | ------------------ | ------------------ |
-| Anthropic (Claude)      | [Needs setup](docs/readme/providers.md#anthropic-claude)                 | Local CLI/OAuth    | Quota              |
-| Chutes AI               | API key/config                                                           | Remote API         | Quota              |
-| Cursor                  | [Needs setup](docs/readme/providers.md#cursor)                           | Local estimate     | Budget and spend   |
-| Gemini CLI (deprecated) | [Existing setups only](docs/readme/providers.md#gemini-cli)              | Remote API         | Quota              |
-| GitHub Copilot          | Automatic OAuth / [billing PAT](docs/readme/providers.md#github-copilot) | Remote API         | Usage and budget   |
-| Google AGY              | [Needs setup](docs/readme/providers.md#google-agy-quick-setup)           | Remote API         | Quota              |
-| Google Antigravity      | [Needs setup](docs/readme/providers.md#google-antigravity)               | Remote API         | Quota              |
-| NanoGPT                 | API key/config                                                           | Remote API         | Quota and balance  |
-| OpenAI                  | Automatic                                                                | Remote API         | Quota              |
-| OpenCode Zen            | [Needs setup](docs/readme/providers.md#opencode-zen)                     | Dashboard scraping | Budget and balance |
-| OpenRouter              | Automatic                                                                | Remote API         | Budget and spend   |
-| Synthetic               | Automatic                                                                | Remote API         | Quota              |
-| xAI SuperGrok           | Automatic                                                                | Remote API         | Quota              |
+| Provider                | Auth/setup                                                     | Data from          | Reports            |
+| ----------------------- | -------------------------------------------------------------- | ------------------ | ------------------ |
+| Anthropic (Claude)      | [Needs setup](docs/readme/providers.md#anthropic-claude)       | Local CLI/OAuth    | Quota              |
+| Chutes AI               | Automatic                                                      | Remote API         | Quota              |
+| Cursor                  | [Needs setup](docs/readme/providers.md#cursor)                 | Local estimate     | Budget and spend   |
+| Gemini CLI (deprecated) | [Existing setups only](docs/readme/providers.md#gemini-cli)    | Remote API         | Quota              |
+| GitHub Copilot          | [Needs setup](docs/readme/providers.md#github-copilot)         | Remote API         | Usage and budget   |
+| Google AGY              | [Needs setup](docs/readme/providers.md#google-agy-quick-setup) | Remote API         | Quota              |
+| Google Antigravity      | [Needs setup](docs/readme/providers.md#google-antigravity)     | Remote API         | Quota              |
+| NanoGPT                 | Automatic                                                      | Remote API         | Quota and balance  |
+| OpenAI                  | Automatic                                                      | Remote API         | Quota              |
+| OpenCode Zen            | [Needs setup](docs/readme/providers.md#opencode-zen)           | Dashboard scraping | Budget and balance |
+| OpenRouter              | Automatic                                                      | Remote API         | Budget and spend   |
+| Synthetic               | Automatic                                                      | Remote API         | Quota              |
+| xAI SuperGrok           | Automatic                                                      | Remote API         | Quota              |
 
 Business placement describes vendor plan availability. Except for configured Copilot organization/enterprise billing, current integrations generally report one signed-in account, seat, API key, or workspace.
 
@@ -190,27 +190,27 @@ Gemini CLI quota support is deprecated for new installs. Existing v4 configurati
 
 | Provider                 | Auth/setup                                          | Data from      | Reports            |
 | ------------------------ | --------------------------------------------------- | -------------- | ------------------ |
-| Alibaba Coding Plan      | OpenCode config                                     | Local estimate | Quota              |
-| DeepSeek                 | API key/config                                      | Remote API     | Balance and status |
-| Kimi Code                | OpenCode config                                     | Remote API     | Quota              |
-| MiniMax Coding Plan      | OpenCode config                                     | Remote API     | Quota              |
-| MiniMax Coding Plan (CN) | OpenCode config                                     | Remote API     | Quota              |
+| Alibaba Coding Plan      | Automatic                                           | Local estimate | Quota              |
+| DeepSeek                 | Automatic                                           | Remote API     | Balance and status |
+| Kimi Code                | Automatic                                           | Remote API     | Quota              |
+| MiniMax Coding Plan      | Automatic                                           | Remote API     | Quota              |
+| MiniMax Coding Plan (CN) | Automatic                                           | Remote API     | Quota              |
 | Qwen Code                | [Needs setup](docs/readme/providers.md#qwen-code)   | Local estimate | Quota              |
 | Xiaomi MiMo              | [Needs setup](docs/readme/providers.md#xiaomi-mimo) | Dashboard API  | Quota and balance  |
-| Z.ai Coding Plan         | OpenCode config                                     | Remote API     | Quota              |
-| Zhipu Coding Plan        | OpenCode config                                     | Remote API     | Quota              |
+| Z.ai Coding Plan         | Automatic                                           | Remote API     | Quota              |
+| Zhipu Coding Plan        | Automatic                                           | Remote API     | Quota              |
 
 </details>
 
 <details>
 <summary><strong>Business / Team</strong></summary>
 
-| Provider                 | Auth/setup      | Data from  | Reports |
-| ------------------------ | --------------- | ---------- | ------- |
-| Kimi Code                | OpenCode config | Remote API | Quota   |
-| MiniMax Coding Plan      | OpenCode config | Remote API | Quota   |
-| MiniMax Coding Plan (CN) | OpenCode config | Remote API | Quota   |
-| Zhipu Coding Plan        | OpenCode config | Remote API | Quota   |
+| Provider                 | Auth/setup | Data from  | Reports |
+| ------------------------ | ---------- | ---------- | ------- |
+| Kimi Code                | Automatic  | Remote API | Quota   |
+| MiniMax Coding Plan      | Automatic  | Remote API | Quota   |
+| MiniMax Coding Plan (CN) | Automatic  | Remote API | Quota   |
+| Zhipu Coding Plan        | Automatic  | Remote API | Quota   |
 
 These vendors offer team or business plans, but the current integrations report only the configured member API key rather than organization-wide usage.
 

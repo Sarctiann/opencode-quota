@@ -7,9 +7,14 @@ function read(path: string): string {
 
 type ProviderLedgerRow = {
   provider: string;
+  authSetup: string;
   dataFrom: string;
   reports: string;
 };
+
+function readVisibleCellText(cell: string): string {
+  return cell.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+}
 
 function readPreConfiguredProviderSection(document: string): string {
   const headingIndex = document.search(
@@ -34,11 +39,16 @@ function readPreConfiguredProviderTables(document: string): ProviderLedgerRow[][
     const rows: ProviderLedgerRow[] = [];
     index += 2;
     while (index < lines.length && lines[index].startsWith("|")) {
-      const [provider, , dataFrom, reports] = lines[index]
+      const [provider, authSetup, dataFrom, reports] = lines[index]
         .split("|")
         .slice(1, -1)
         .map((cell) => cell.trim());
-      rows.push({ provider, dataFrom, reports });
+      rows.push({
+        provider,
+        authSetup: readVisibleCellText(authSetup),
+        dataFrom,
+        reports,
+      });
       index += 1;
     }
     tables.push(rows);
@@ -133,6 +143,16 @@ describe("README provider ledger", () => {
         { region: "chinese", label: "Personal", open: true },
         { region: "chinese", label: "Business / Team", open: false },
       ]);
+    }
+  });
+
+  it("uses the minimal auth/setup label vocabulary", () => {
+    const allowedAuthSetupLabels = new Set(["Automatic", "Needs setup", "Existing setups only"]);
+
+    for (const row of readPreConfiguredProviderLedger(readme)) {
+      expect(allowedAuthSetupLabels.has(row.authSetup), `${row.provider}: ${row.authSetup}`).toBe(
+        true,
+      );
     }
   });
 
