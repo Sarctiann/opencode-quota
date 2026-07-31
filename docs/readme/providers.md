@@ -485,7 +485,7 @@ If you use manual provider selection, include `deepseek` in `enabledProviders`.
 
 ### Kilo Gateway
 
-Kilo Gateway reports the personal credit account from the authenticated user endpoint, `GET https://api.kilo.ai/api/user`, deriving credit-remaining percentage, USD balance, and usage from the reported `total_microdollars_acquired` and `microdollars_used` totals.
+Kilo Gateway reports the personal Kilo Pass subscription state from the authenticated endpoint, `GET https://app.kilo.ai/api/trpc/kiloPass.getState`, deriving credit-remaining percentage (from base + bonus period credits), USD balance, and usage from the reported `currentPeriodBaseCreditsUsd`, `currentPeriodUsageUsd`, and `currentPeriodBonusCreditsUsd` values.
 
 Create a Kilo Gateway API key in your personal profile, then set:
 
