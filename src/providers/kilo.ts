@@ -6,7 +6,7 @@ import type { AccountingMetadata } from "../lib/entries.js";
 import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult, QuotaToastEntry } from "../lib/entries.js";
 import { fmtUsdAmount } from "../lib/format-utils.js";
 import { getKiloKeyDiagnostics, hasKiloApiKey } from "../lib/kilo-config.js";
-import { queryKiloUser, type KiloUserResult } from "../lib/kilo.js";
+import { queryKiloPassState, type KiloPassStateResult } from "../lib/kilo.js";
 import { modelProviderMatchesRuntimeId } from "../lib/provider-model-matching.js";
 import {
   attemptedResult,
@@ -23,22 +23,23 @@ const KILO_ACCOUNTING: AccountingMetadata = {
   authority: "provider_reported",
 };
 
-type KiloUserSuccess = Extract<NonNullable<KiloUserResult>, { success: true }>;
+type KiloPassStateSuccess = Extract<NonNullable<KiloPassStateResult>, { success: true }>;
 
-function buildKiloGatewayEntries(user: KiloUserSuccess): QuotaToastEntry[] {
+function buildKiloGatewayEntries(state: KiloPassStateSuccess): QuotaToastEntry[] {
+  const total = state.totalUsd + state.bonusUsd;
+
   const percentEntry: QuotaToastEntry | undefined =
-    user.totalMicrodollars > 0
+    total > 0
       ? {
           accounting: KILO_ACCOUNTING,
           name: "Kilo Gateway",
           group: "Kilo Gateway",
           label: "Credits:",
-          percentRemaining: Math.min(
-            100,
-            Math.max(0, ((user.totalMicrodollars - user.microdollarsUsed) / user.totalMicrodollars) * 100),
-          ),
+          percentRemaining: Math.min(100, Math.max(0, ((total - state.usageUsd) / total) * 100)),
         }
       : undefined;
+
+  const bonusText = state.bonusUsd > 0 ? ` + ${fmtUsdAmount(state.bonusUsd)}` : "";
 
   return [
     ...(percentEntry ? [percentEntry] : []),
@@ -47,8 +48,8 @@ function buildKiloGatewayEntries(user: KiloUserSuccess): QuotaToastEntry[] {
       accounting: KILO_ACCOUNTING,
       name: "Kilo Gateway Balance",
       group: "Kilo Gateway",
-      label: "Balance:",
-      value: `${fmtUsdAmount(user.balanceUsd)}  │  Usage: ${fmtUsdAmount(user.microdollarsUsed / 1_000_000)}`,
+      label: `U: ${fmtUsdAmount(state.usageUsd)}`,
+      value: `B: ${fmtUsdAmount(state.balanceUsd)}${bonusText}`,
     },
   ];
 }
@@ -72,26 +73,26 @@ export const kiloProvider: QuotaProvider = {
       authPaths: [],
     }));
 
-    const userResult = await queryKiloUser({ requestTimeoutMs: ctx.config?.requestTimeoutMs });
+    const stateResult = await queryKiloPassState({ requestTimeoutMs: ctx.config?.requestTimeoutMs });
 
     const keyStatusDetails = simpleApiKeyStatusDetails(diagnostics);
 
-    if (!userResult) {
+    if (!stateResult) {
       return withStatusDetails(notAttemptedResult(), [...keyStatusDetails]);
     }
 
-    if (!userResult.success) {
+    if (!stateResult.success) {
       return withStatusDetails(
-        { attempted: true, entries: [], errors: [{ label: "Kilo Gateway", message: userResult.error }] },
+        { attempted: true, entries: [], errors: [{ label: "Kilo Gateway", message: stateResult.error }] },
         [...keyStatusDetails],
       );
     }
 
-    const entries = buildKiloGatewayEntries(userResult);
+    const entries = buildKiloGatewayEntries(stateResult);
 
     return withStatusDetails(attemptedResult(entries), [
       ...keyStatusDetails,
-      ...statusDetailsFromRecord({ balance_usd: fmtUsdAmount(userResult.balanceUsd) }),
+      ...statusDetailsFromRecord({ balance_usd: fmtUsdAmount(stateResult.balanceUsd) }),
     ]);
   },
 };

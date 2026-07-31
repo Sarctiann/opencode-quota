@@ -27,7 +27,7 @@ vi.mock("../src/lib/kilo-config.js", () => ({
   resolveKiloApiKey: mocks.resolveKiloApiKey,
 }));
 
-import { queryKiloUser } from "../src/lib/kilo.js";
+import { queryKiloPassState } from "../src/lib/kilo.js";
 
 function mockResponse(params: { ok: boolean; status: number; json?: unknown; text?: string }) {
   mocks.fetchResponse.mockResolvedValueOnce({
@@ -37,7 +37,22 @@ function mockResponse(params: { ok: boolean; status: number; json?: unknown; tex
   });
 }
 
-describe("queryKiloUser", () => {
+function statePayload(overrides: Record<string, unknown> = {}) {
+  return {
+    result: {
+      data: {
+        subscription: {
+          currentPeriodBaseCreditsUsd: 19,
+          currentPeriodUsageUsd: 2.76,
+          currentPeriodBonusCreditsUsd: 9.5,
+          ...overrides,
+        },
+      },
+    },
+  };
+}
+
+describe("queryKiloPassState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.resolveKiloApiKey.mockResolvedValue({
@@ -49,24 +64,17 @@ describe("queryKiloUser", () => {
   it("returns null without a configured API key", async () => {
     mocks.resolveKiloApiKey.mockResolvedValueOnce(null);
 
-    await expect(queryKiloUser()).resolves.toBeNull();
+    await expect(queryKiloPassState()).resolves.toBeNull();
     expect(mocks.fetchWithTimeout).not.toHaveBeenCalled();
   });
 
-  it("sends the documented user request with Bearer auth", async () => {
-    mockResponse({
-      ok: true,
-      status: 200,
-      json: {
-        total_microdollars_acquired: 19_000_000,
-        microdollars_used: 2_760_000,
-      },
-    });
+  it("sends the state request with Bearer auth", async () => {
+    mockResponse({ ok: true, status: 200, json: statePayload() });
 
-    await queryKiloUser({ requestTimeoutMs: 1234 });
+    await queryKiloPassState({ requestTimeoutMs: 1234 });
 
     expect(mocks.fetchWithTimeout).toHaveBeenCalledWith(
-      "https://api.kilo.ai/api/user",
+      "https://app.kilo.ai/api/trpc/kiloPass.getState",
       expect.objectContaining({
         request: {
           method: "GET",
@@ -83,48 +91,52 @@ describe("queryKiloUser", () => {
     );
   });
 
-  it("derives the USD balance from acquired and used microdollars", async () => {
+  it("derives balance and bonus from the subscription state", async () => {
+    mockResponse({ ok: true, status: 200, json: statePayload() });
+
+    await expect(queryKiloPassState()).resolves.toEqual({
+      success: true,
+      totalUsd: 19,
+      usageUsd: 2.76,
+      balanceUsd: 16.24,
+      bonusUsd: 9.5,
+    });
+  });
+
+  it("defaults missing usage and bonus to zero", async () => {
     mockResponse({
       ok: true,
       status: 200,
       json: {
-        total_microdollars_acquired: 19_000_000,
-        microdollars_used: 2_760_000,
+        result: {
+          data: {
+            subscription: { currentPeriodBaseCreditsUsd: 5 },
+          },
+        },
       },
     });
 
-    await expect(queryKiloUser()).resolves.toEqual({
+    await expect(queryKiloPassState()).resolves.toEqual({
       success: true,
-      totalMicrodollars: 19_000_000,
-      microdollarsUsed: 2_760_000,
-      balanceUsd: 16.24,
-    });
-  });
-
-  it("defaults missing usage to zero", async () => {
-    mockResponse({
-      ok: true,
-      status: 200,
-      json: { total_microdollars_acquired: 5_000_000 },
-    });
-
-    await expect(queryKiloUser()).resolves.toEqual({
-      success: true,
-      totalMicrodollars: 5_000_000,
-      microdollarsUsed: 0,
+      totalUsd: 5,
+      usageUsd: 0,
       balanceUsd: 5,
+      bonusUsd: 0,
     });
   });
 
-  it("rejects unsupported user shapes", async () => {
+  it("rejects unsupported state shapes", async () => {
     mockResponse({ ok: true, status: 200, json: null });
-    await expect(queryKiloUser()).resolves.toMatchObject({ success: false });
+    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
 
-    mockResponse({ ok: true, status: 200, json: { total_microdollars_acquired: -1 } });
-    await expect(queryKiloUser()).resolves.toMatchObject({ success: false });
+    mockResponse({ ok: true, status: 200, json: { result: { data: {} } } });
+    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
 
-    mockResponse({ ok: true, status: 200, json: { total_microdollars_acquired: "19" } });
-    await expect(queryKiloUser()).resolves.toMatchObject({ success: false });
+    mockResponse({ ok: true, status: 200, json: statePayload({ currentPeriodBaseCreditsUsd: -1 }) });
+    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
+
+    mockResponse({ ok: true, status: 200, json: statePayload({ currentPeriodBaseCreditsUsd: "19" }) });
+    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
   });
 
   it("reports HTTP errors without leaking the API key", async () => {
@@ -134,10 +146,10 @@ describe("queryKiloUser", () => {
       text: "Unauthorized\nkilo-secret-key\u001b[31m",
     });
 
-    const out = await queryKiloUser();
+    const out = await queryKiloPassState();
     const error = out && !out.success ? out.error : "";
 
-    expect(error).toBe("Kilo Gateway user API error 401: Unauthorized [redacted]");
+    expect(error).toBe("Kilo Gateway state API error 401: Unauthorized [redacted]");
     expect(error).not.toContain("kilo-secret-key");
     expect(error).not.toContain("\u001b");
   });
@@ -145,21 +157,21 @@ describe("queryKiloUser", () => {
   it("rejects oversized responses before parsing", async () => {
     mockResponse({ ok: true, status: 200, text: "x".repeat(64 * 1024 + 1) });
 
-    const out = await queryKiloUser();
+    const out = await queryKiloPassState();
     expect(out && !out.success ? out.error : "").toBe(
-      "Kilo Gateway user API response exceeded 65536 bytes",
+      "Kilo Gateway state API response exceeded 65536 bytes",
     );
   });
 
   it("sanitizes parse and transport errors without leaking the key", async () => {
     mockResponse({ ok: true, status: 200, text: "not json kilo-secret-key\nnext" });
 
-    const malformed = await queryKiloUser();
+    const malformed = await queryKiloPassState();
     expect(malformed && !malformed.success ? malformed.error : "").toContain("Unexpected token");
     expect(JSON.stringify(malformed)).not.toContain("kilo-secret-key");
 
     mocks.fetchWithTimeout.mockRejectedValueOnce(new Error("timeout kilo-secret-key\nnext"));
-    const timedOut = await queryKiloUser();
+    const timedOut = await queryKiloPassState();
     expect(timedOut && !timedOut.success ? timedOut.error : "").toBe("timeout [redacted] next");
   });
 });

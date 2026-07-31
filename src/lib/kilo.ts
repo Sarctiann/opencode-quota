@@ -1,8 +1,8 @@
 /**
  * Kilo Gateway API client.
  *
- * Reports credit-remaining percentage, USD balance, and usage from the user
- * account endpoint alone.
+ * Reports credit-remaining percentage, USD balance, and usage from the Kilo
+ * Pass subscription state endpoint (tRPC) alone.
  */
 
 import type { QuotaError } from "./types.js";
@@ -10,15 +10,16 @@ import { sanitizeSingleLineDisplayText } from "./display-sanitize.js";
 import { fetchWithTimeout } from "./http.js";
 import { resolveKiloApiKey } from "./kilo-config.js";
 
-const KILO_USER_URL = "https://api.kilo.ai/api/user";
+const KILO_PASS_STATE_URL = "https://app.kilo.ai/api/trpc/kiloPass.getState";
 const MAX_RESPONSE_BYTES = 64 * 1024;
 
-export type KiloUserResult =
+export type KiloPassStateResult =
   | {
       success: true;
-      totalMicrodollars: number;
-      microdollarsUsed: number;
+      totalUsd: number;
+      usageUsd: number;
       balanceUsd: number;
+      bonusUsd: number;
     }
   | QuotaError
   | null;
@@ -34,44 +35,57 @@ function sanitizeMessage(text: string, secret?: string, maxLength = 200): string
   return (sanitizeSingleLineDisplayText(redacted) || "unknown").slice(0, maxLength);
 }
 
-function parseKiloUser(payload: unknown): KiloUserResult {
-  if (!isRecord(payload)) {
+function parseKiloPassState(payload: unknown): KiloPassStateResult {
+  if (
+    !isRecord(payload) ||
+    !isRecord(payload.result) ||
+    !isRecord(payload.result.data) ||
+    !isRecord(payload.result.data.subscription)
+  ) {
     return {
       success: false,
-      error: "Kilo Gateway user API returned an unexpected response shape",
+      error: "Kilo Gateway state API returned an unexpected response shape",
     };
   }
 
-  const totalMicrodollars = payload.total_microdollars_acquired;
-  const microdollarsUsed = payload.microdollars_used;
+  const subscription = payload.result.data.subscription;
+  const baseCreditsUsd = subscription.currentPeriodBaseCreditsUsd;
+  const usageUsd = subscription.currentPeriodUsageUsd;
+  const bonusCreditsUsd = subscription.currentPeriodBonusCreditsUsd;
 
-  if (typeof totalMicrodollars !== "number" || !Number.isFinite(totalMicrodollars) || totalMicrodollars < 0) {
+  if (typeof baseCreditsUsd !== "number" || !Number.isFinite(baseCreditsUsd) || baseCreditsUsd < 0) {
     return {
       success: false,
-      error: "Kilo Gateway user API returned invalid total_microdollars_acquired",
+      error: "Kilo Gateway state API returned invalid currentPeriodBaseCreditsUsd",
     };
   }
 
-  const used = typeof microdollarsUsed === "number" && Number.isFinite(microdollarsUsed) && microdollarsUsed >= 0
-    ? microdollarsUsed
-    : 0;
+  const used =
+    typeof usageUsd === "number" && Number.isFinite(usageUsd) && usageUsd >= 0 ? usageUsd : 0;
+  const bonus =
+    typeof bonusCreditsUsd === "number" && Number.isFinite(bonusCreditsUsd) && bonusCreditsUsd >= 0
+      ? bonusCreditsUsd
+      : 0;
+
+  const balanceUsd = Math.round((baseCreditsUsd - used) * 100) / 100;
 
   return {
     success: true,
-    totalMicrodollars,
-    microdollarsUsed: used,
-    balanceUsd: (totalMicrodollars - used) / 1_000_000,
+    totalUsd: baseCreditsUsd,
+    usageUsd: used,
+    balanceUsd,
+    bonusUsd: bonus,
   };
 }
 
-export async function queryKiloUser(
+export async function queryKiloPassState(
   options: { requestTimeoutMs?: number } = {},
-): Promise<KiloUserResult> {
+): Promise<KiloPassStateResult> {
   const resolved = await resolveKiloApiKey();
   if (!resolved) return null;
 
   try {
-    return await fetchWithTimeout(KILO_USER_URL, {
+    return await fetchWithTimeout(KILO_PASS_STATE_URL, {
       request: {
         method: "GET",
         headers: {
@@ -85,16 +99,16 @@ export async function queryKiloUser(
       consume: async (response) => {
         const text = await response.text();
         if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
-          throw new Error(`Kilo Gateway user API response exceeded ${MAX_RESPONSE_BYTES} bytes`);
+          throw new Error(`Kilo Gateway state API response exceeded ${MAX_RESPONSE_BYTES} bytes`);
         }
         if (!response.ok) {
           return {
             success: false,
-            error: `Kilo Gateway user API error ${response.status}: ${sanitizeMessage(text, resolved.key)}`,
+            error: `Kilo Gateway state API error ${response.status}: ${sanitizeMessage(text, resolved.key)}`,
           };
         }
 
-        return parseKiloUser(JSON.parse(text) as unknown);
+        return parseKiloPassState(JSON.parse(text) as unknown);
       },
     });
   } catch (error) {

@@ -116,7 +116,7 @@ export function formatQuotaRowsGrouped(params: {
       const right = entry.right ? entry.right.trim() : "";
 
       if (isValueEntry(entry)) {
-        const label = entry.label?.trim() || entry.name;
+        const label = entry.label?.trim() ?? entry.name;
         const timeStr = formatResetCountdown(entry.resetTimeIso, {
           compactRounded: true,
           decimals: params.resetTimeDecimals,
@@ -159,7 +159,7 @@ export function formatQuotaRowsGrouped(params: {
               padLeft(timeStr, timeWidth)
             ).slice(0, maxWidth),
           );
-        } else {
+        } else if (leftText) {
           const valueWidth = Math.max(value.length, 6);
           const leftMax = Math.max(1, maxWidth - separator.length - valueWidth);
           lines.push(
@@ -168,6 +168,8 @@ export function formatQuotaRowsGrouped(params: {
               maxWidth,
             ),
           );
+        } else {
+          lines.push(padRight(value, maxWidth).slice(0, maxWidth));
         }
         continue;
       }
