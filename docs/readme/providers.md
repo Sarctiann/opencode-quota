@@ -485,7 +485,7 @@ If you use manual provider selection, include `deepseek` in `enabledProviders`.
 
 ### Kilo Gateway
 
-Kilo Gateway reports the personal USD credit balance returned by the documented authenticated profile endpoint, `GET https://api.kilo.ai/api/profile/balance`. Kilo's public Gateway API does not currently document quota or usage-history totals, so this provider does not invent percentages, reset times, spend, or usage rows.
+Kilo Gateway reports the personal credit account from the authenticated user endpoint, `GET https://api.kilo.ai/api/user`, deriving credit-remaining percentage, USD balance, and usage from the reported `total_microdollars_acquired` and `microdollars_used` totals.
 
 Create a Kilo Gateway API key in your personal profile, then set:
 

@@ -1,9 +1,8 @@
 /**
- * Kilo Gateway balance API client.
+ * Kilo Gateway API client.
  *
- * Kilo's public gateway API does not expose quota or usage-history totals.
- * Its official gateway package documents the authenticated profile balance API,
- * so this client intentionally reports only that provider-reported USD balance.
+ * Reports credit-remaining percentage, USD balance, and usage from the user
+ * account endpoint alone.
  */
 
 import type { QuotaError } from "./types.js";
@@ -11,10 +10,18 @@ import { sanitizeSingleLineDisplayText } from "./display-sanitize.js";
 import { fetchWithTimeout } from "./http.js";
 import { resolveKiloApiKey } from "./kilo-config.js";
 
-const KILO_BALANCE_URL = "https://api.kilo.ai/api/profile/balance";
+const KILO_USER_URL = "https://api.kilo.ai/api/user";
 const MAX_RESPONSE_BYTES = 64 * 1024;
 
-type KiloResult = { success: true; balanceUsd: number } | QuotaError | null;
+export type KiloUserResult =
+  | {
+      success: true;
+      totalMicrodollars: number;
+      microdollarsUsed: number;
+      balanceUsd: number;
+    }
+  | QuotaError
+  | null;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -27,33 +34,44 @@ function sanitizeMessage(text: string, secret?: string, maxLength = 200): string
   return (sanitizeSingleLineDisplayText(redacted) || "unknown").slice(0, maxLength);
 }
 
-function parseKiloBalance(payload: unknown): KiloResult {
+function parseKiloUser(payload: unknown): KiloUserResult {
   if (!isRecord(payload)) {
     return {
       success: false,
-      error: "Kilo Gateway balance API returned an unexpected response shape",
+      error: "Kilo Gateway user API returned an unexpected response shape",
     };
   }
 
-  const balanceUsd = payload.balance;
-  if (typeof balanceUsd !== "number" || !Number.isFinite(balanceUsd) || balanceUsd < 0) {
+  const totalMicrodollars = payload.total_microdollars_acquired;
+  const microdollarsUsed = payload.microdollars_used;
+
+  if (typeof totalMicrodollars !== "number" || !Number.isFinite(totalMicrodollars) || totalMicrodollars < 0) {
     return {
       success: false,
-      error: "Kilo Gateway balance API returned an invalid balance",
+      error: "Kilo Gateway user API returned invalid total_microdollars_acquired",
     };
   }
 
-  return { success: true, balanceUsd };
+  const used = typeof microdollarsUsed === "number" && Number.isFinite(microdollarsUsed) && microdollarsUsed >= 0
+    ? microdollarsUsed
+    : 0;
+
+  return {
+    success: true,
+    totalMicrodollars,
+    microdollarsUsed: used,
+    balanceUsd: (totalMicrodollars - used) / 1_000_000,
+  };
 }
 
-export async function queryKiloBalance(
+export async function queryKiloUser(
   options: { requestTimeoutMs?: number } = {},
-): Promise<KiloResult> {
+): Promise<KiloUserResult> {
   const resolved = await resolveKiloApiKey();
   if (!resolved) return null;
 
   try {
-    return await fetchWithTimeout(KILO_BALANCE_URL, {
+    return await fetchWithTimeout(KILO_USER_URL, {
       request: {
         method: "GET",
         headers: {
@@ -67,16 +85,16 @@ export async function queryKiloBalance(
       consume: async (response) => {
         const text = await response.text();
         if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
-          throw new Error(`Kilo Gateway balance API response exceeded ${MAX_RESPONSE_BYTES} bytes`);
+          throw new Error(`Kilo Gateway user API response exceeded ${MAX_RESPONSE_BYTES} bytes`);
         }
         if (!response.ok) {
           return {
             success: false,
-            error: `Kilo Gateway balance API error ${response.status}: ${sanitizeMessage(text, resolved.key)}`,
+            error: `Kilo Gateway user API error ${response.status}: ${sanitizeMessage(text, resolved.key)}`,
           };
         }
 
-        return parseKiloBalance(JSON.parse(text) as unknown);
+        return parseKiloUser(JSON.parse(text) as unknown);
       },
     });
   } catch (error) {
@@ -86,6 +104,3 @@ export async function queryKiloBalance(
     };
   }
 }
-
-export { parseKiloBalance as _parseKiloBalance };
-export type { KiloResult };

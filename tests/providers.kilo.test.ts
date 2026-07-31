@@ -10,7 +10,7 @@ import {
 const mocks = vi.hoisted(() => ({
   getKiloKeyDiagnostics: vi.fn(),
   hasKiloApiKey: vi.fn(),
-  queryKiloBalance: vi.fn(),
+  queryKiloUser: vi.fn(),
 }));
 
 vi.mock("../src/lib/kilo-config.js", () => ({
@@ -19,7 +19,7 @@ vi.mock("../src/lib/kilo-config.js", () => ({
 }));
 
 vi.mock("../src/lib/kilo.js", () => ({
-  queryKiloBalance: mocks.queryKiloBalance,
+  queryKiloUser: mocks.queryKiloUser,
 }));
 
 import { kiloProvider } from "../src/providers/kilo.js";
@@ -50,7 +50,7 @@ describe("Kilo Gateway provider", () => {
   });
 
   it("does not attempt a request without trusted configuration", async () => {
-    mocks.queryKiloBalance.mockResolvedValueOnce(null);
+    mocks.queryKiloUser.mockResolvedValueOnce(null);
 
     const out = await kiloProvider.fetch({} as any);
 
@@ -63,27 +63,60 @@ describe("Kilo Gateway provider", () => {
     );
   });
 
-  it("maps the documented USD balance into one provider-reported value row", async () => {
-    mocks.queryKiloBalance.mockResolvedValueOnce({ success: true, balanceUsd: 12.345 });
+  it("shows credit percentage, balance, and usage from the user API", async () => {
+    mocks.queryKiloUser.mockResolvedValueOnce({
+      success: true,
+      totalMicrodollars: 10_000_000,
+      microdollarsUsed: 2_500_000,
+      balanceUsd: 7.5,
+    });
 
     const out = await kiloProvider.fetch({ config: { requestTimeoutMs: 9000 } } as any);
 
     expectAttemptedWithNoErrors(out);
-    expect(mocks.queryKiloBalance).toHaveBeenCalledWith({ requestTimeoutMs: 9000 });
+    expect(mocks.queryKiloUser).toHaveBeenCalledWith({ requestTimeoutMs: 9000 });
+    expect(visibleEntries(out.entries, "kilo")).toEqual([
+      {
+        name: "Kilo Gateway",
+        group: "Kilo Gateway",
+        label: "Credits:",
+        percentRemaining: 75,
+      },
+      {
+        kind: "value",
+        name: "Kilo Gateway Balance",
+        group: "Kilo Gateway",
+        label: "Balance:",
+        value: "$7.50  │  Usage: $2.50",
+      },
+    ]);
+    expect(out.statusDetails).toContainEqual({ key: "balance_usd", value: "$7.50" });
+  });
+
+  it("hides the percent entry when no credits were acquired", async () => {
+    mocks.queryKiloUser.mockResolvedValueOnce({
+      success: true,
+      totalMicrodollars: 0,
+      microdollarsUsed: 0,
+      balanceUsd: 0,
+    });
+
+    const out = await kiloProvider.fetch({} as any);
+
+    expectAttemptedWithNoErrors(out);
     expect(visibleEntries(out.entries, "kilo")).toEqual([
       {
         kind: "value",
         name: "Kilo Gateway Balance",
         group: "Kilo Gateway",
         label: "Balance:",
-        value: "$12.35",
+        value: "$0.00  │  Usage: $0.00",
       },
     ]);
-    expect(out.statusDetails).toContainEqual({ key: "balance_usd", value: "$12.35" });
   });
 
   it("maps API failures into a safe Kilo Gateway error", async () => {
-    mocks.queryKiloBalance.mockResolvedValueOnce({ success: false, error: "Unauthorized" });
+    mocks.queryKiloUser.mockResolvedValueOnce({ success: false, error: "Unauthorized" });
 
     const out = await kiloProvider.fetch({} as any);
 

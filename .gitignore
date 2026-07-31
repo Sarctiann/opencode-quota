@@ -28,6 +28,7 @@ references/*
 !references/upstream-plugins/
 !references/upstream-plugins/**
 .git.backup-*/
+/.worktrees
 docs/*
 !docs/readme/
 !docs/readme/**
