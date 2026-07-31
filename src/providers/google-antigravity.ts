@@ -19,7 +19,7 @@ import {
   inspectAntigravityAccountsPresence,
   queryGoogleQuota,
 } from "../lib/google.js";
-import { modelProviderIncludesAny } from "../lib/provider-model-matching.js";
+import { parseProviderModelRef } from "../lib/provider-model-matching.js";
 import {
   createGoogleAccountLabelMap,
   formatGoogleAccountErrors,
@@ -53,7 +53,10 @@ export const googleAntigravityProvider: QuotaProvider = {
   },
 
   matchesCurrentModel(model: string): boolean {
-    return modelProviderIncludesAny(model, ["google", "antigravity", "opencode"]);
+    const { providerId, modelId } = parseProviderModelRef(model.trim());
+    if (providerId === "google-antigravity" || providerId === "antigravity") return true;
+    if (providerId === "google") return modelId.startsWith("antigravity-");
+    return modelId.length === 0 && providerId.startsWith("antigravity-");
   },
 
   async fetch(ctx: QuotaProviderContext): Promise<QuotaProviderResult> {
@@ -104,6 +107,20 @@ export const googleAntigravityProvider: QuotaProvider = {
       ],
       "fixedGmailHint",
     );
+    const modelIdsByAccount = new Map<string | undefined, Set<GoogleModelId>>();
+    const returnedModelIds = new Set<GoogleModelId>();
+    for (const model of result.models) {
+      const accountModelIds = modelIdsByAccount.get(model.accountEmail) ?? new Set<GoogleModelId>();
+      accountModelIds.add(model.modelId);
+      modelIdsByAccount.set(model.accountEmail, accountModelIds);
+      returnedModelIds.add(model.modelId);
+    }
+    const redundantQuotaFamily =
+      result.models.length > 0 &&
+      returnedModelIds.size === 1 &&
+      [...modelIdsByAccount.values()].every((modelIds) => modelIds.size === 1)
+        ? result.models[0]!.displayName
+        : undefined;
     const entries: QuotaToastEntry[] = result.models.map((m) => {
       const accountLabel = m.accountEmail
         ? (accountLabels.get(m.accountEmail) ??
@@ -134,6 +151,7 @@ export const googleAntigravityProvider: QuotaProvider = {
         formatGoogleAccountErrors(result.errors, "fixedGmailHint", accountLabels),
         {
           classicStrategy: "preserve",
+          ...(redundantQuotaFamily ? { redundantQuotaFamily } : {}),
         },
       ),
       statusDetails,

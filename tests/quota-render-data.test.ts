@@ -510,7 +510,7 @@ describe("collectQuotaRenderData shared quota state", () => {
     expect(syntheticProvider.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps two Antigravity accounts distinct in single-window and all-windows", async () => {
+  it("suppresses a redundant Antigravity family only in render projections", async () => {
     const aliceAccounting = { ...TEST_ACCOUNTING, sourceId: "alice@example.com" };
     const bobAccounting = { ...TEST_ACCOUNTING, sourceId: "bob@example.com" };
     const googleProvider = testProvider("google-antigravity", {
@@ -534,7 +534,7 @@ describe("collectQuotaRenderData shared quota state", () => {
           resetTimeIso: "2026-01-01T08:00:00.000Z",
         },
       ],
-      presentation: { classicStrategy: "preserve" },
+      presentation: { classicStrategy: "preserve", redundantQuotaFamily: "Claude" },
     });
 
     mockProviders.push(googleProvider);
@@ -554,13 +554,13 @@ describe("collectQuotaRenderData shared quota state", () => {
     expect(singleWindow.data?.entries).toEqual([
       {
         accounting: aliceAccounting,
-        name: "[Antigravity (ali…): Claude]",
+        name: "[Antigravity (ali…)]",
         percentRemaining: 12,
         resetTimeIso: "2026-01-01T12:00:00.000Z",
       },
       {
         accounting: bobAccounting,
-        name: "[Antigravity (bob…): Claude]",
+        name: "[Antigravity (bob…)]",
         percentRemaining: 83,
         resetTimeIso: "2026-01-01T08:00:00.000Z",
       },
@@ -573,19 +573,19 @@ describe("collectQuotaRenderData shared quota state", () => {
     expect(allWindows.data?.entries).toEqual([
       {
         accounting: aliceAccounting,
-        name: "Antigravity (ali…): Claude",
+        name: "Antigravity (ali…)",
         group: "[Antigravity (ali…)]",
-        label: "Claude:",
-        metricLabel: "Claude:",
+        label: undefined,
+        metricLabel: "Quota",
         percentRemaining: 12,
         resetTimeIso: "2026-01-01T12:00:00.000Z",
       },
       {
         accounting: bobAccounting,
-        name: "Antigravity (bob…): Claude",
+        name: "Antigravity (bob…)",
         group: "[Antigravity (bob…)]",
-        label: "Claude:",
-        metricLabel: "Claude:",
+        label: undefined,
+        metricLabel: "Quota",
         percentRemaining: 83,
         resetTimeIso: "2026-01-01T08:00:00.000Z",
       },
@@ -747,7 +747,7 @@ describe("collectQuotaRenderData shared quota state", () => {
     expect(cursorProvider.fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("collects live probes in order, projects them to single-window rows, and bypasses shared cache reuse", async () => {
+  it("collects raw live probes in order and bypasses shared cache reuse", async () => {
     const syntheticProvider = testProvider("synthetic", {
       entries: [
         {
@@ -774,7 +774,6 @@ describe("collectQuotaRenderData shared quota state", () => {
     const params = {
       client: TEST_CLIENT,
       config: renderConfig({ minIntervalMs: 60_000 }),
-      formatStyle: "singleWindow" as const,
       providers: [syntheticProvider, openaiProvider],
     };
 
@@ -789,7 +788,9 @@ describe("collectQuotaRenderData shared quota state", () => {
           entries: [
             {
               accounting: TEST_ACCOUNTING,
-              name: "[Synthetic] Weekly",
+              name: "Synthetic Weekly",
+              group: "Synthetic",
+              label: "Weekly:",
               percentRemaining: 84,
               right: "$8/$50",
               resetTimeIso: "2026-04-21T18:00:00.000Z",
@@ -830,7 +831,6 @@ describe("collectQuotaRenderData shared quota state", () => {
     const probes = await collectQuotaStatusLiveProbes({
       client: TEST_CLIENT,
       config: renderConfig({ enabledProviders: ["openai"] }),
-      formatStyle: "singleWindow",
       providers: [firstProvider, duplicateProvider],
     });
 
@@ -856,6 +856,43 @@ describe("collectQuotaRenderData shared quota state", () => {
     ]);
     expect(firstProvider.fetch).toHaveBeenCalledOnce();
     expect(duplicateProvider.fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps raw family metadata in quota status live probes", async () => {
+    const accounting = { ...TEST_ACCOUNTING, sourceId: "alice@example.com" };
+    const provider = testProvider("google-antigravity", {
+      entries: [
+        {
+          accounting,
+          name: "Antigravity (ali…): Claude",
+          group: "[Antigravity (ali…)]",
+          label: "Claude:",
+          metricLabel: "Claude",
+          percentRemaining: 64,
+        },
+      ],
+      presentation: {
+        classicStrategy: "preserve",
+        redundantQuotaFamily: "Claude",
+      },
+    });
+
+    const probes = await collectQuotaStatusLiveProbes({
+      client: TEST_CLIENT,
+      config: renderConfig({ enabledProviders: ["google-antigravity"] }),
+      providers: [provider],
+    });
+
+    expect(probes[0]?.result.entries).toEqual([
+      {
+        accounting,
+        name: "Antigravity (ali…): Claude",
+        group: "[Antigravity (ali…)]",
+        label: "Claude:",
+        metricLabel: "Claude",
+        percentRemaining: 64,
+      },
+    ]);
   });
 
   it("selects one limiting percent or first value row per ordered source identity", async () => {

@@ -45,12 +45,14 @@ describe("google antigravity provider", () => {
       success: true,
       models: [
         {
+          modelId: "CLAUDE",
           displayName: "Claude",
           accountEmail: "alice@example.com",
           percentRemaining: 64,
           resetTimeIso: "2026-01-01T00:00:00.000Z",
         },
         {
+          modelId: "CLAUDE",
           displayName: "Claude",
           accountEmail: "bob@example.com",
           percentRemaining: 37,
@@ -97,6 +99,10 @@ describe("google antigravity provider", () => {
       },
     ]);
     expect(JSON.stringify(out.entries)).not.toContain("Anthropic");
+    expect(out.presentation).toEqual({
+      classicStrategy: "preserve",
+      redundantQuotaFamily: "Claude",
+    });
     expect(out.errors).toEqual([{ label: "bob…", message: "Unauthorized" }]);
   });
 
@@ -106,11 +112,13 @@ describe("google antigravity provider", () => {
       success: true,
       models: [
         {
+          modelId: "CLAUDE",
           displayName: "Claude",
           accountEmail: "alice@work.com",
           percentRemaining: 64,
         },
         {
+          modelId: "CLAUDE",
           displayName: "Claude",
           accountEmail: "alice@personal.com",
           percentRemaining: 37,
@@ -124,6 +132,7 @@ describe("google antigravity provider", () => {
       "[Antigravity (alice… 1)]",
       "[Antigravity (alice… 2)]",
     ]);
+    expect(out.presentation?.redundantQuotaFamily).toBe("Claude");
 
     const grouped = formatQuotaRowsGrouped({ entries: out.entries, errors: out.errors });
     const command = formatQuotaCommand({ entries: out.entries, errors: out.errors });
@@ -143,6 +152,7 @@ describe("google antigravity provider", () => {
       success: true,
       models: [
         {
+          modelId: "CLAUDE",
           displayName: "Claude",
           percentRemaining: 64,
         },
@@ -162,6 +172,64 @@ describe("google antigravity provider", () => {
     ]);
   });
 
+  it("keeps family labels when one account returns multiple families", async () => {
+    const { queryGoogleQuota } = await import("../src/lib/google.js");
+    (queryGoogleQuota as any).mockResolvedValueOnce({
+      success: true,
+      models: [
+        {
+          modelId: "CLAUDE",
+          displayName: "Claude",
+          accountEmail: "alice@example.com",
+          percentRemaining: 64,
+        },
+        {
+          modelId: "G3PRO",
+          displayName: "G3Pro",
+          accountEmail: "alice@example.com",
+          percentRemaining: 37,
+        },
+      ],
+      errors: [],
+    });
+
+    const out = await googleAntigravityProvider.fetch({ config: { googleModels: [] } } as any);
+    expect(out.presentation).toEqual({ classicStrategy: "preserve" });
+    expect(out.entries.map((entry) => entry.name)).toEqual([
+      "Antigravity (ali…): Claude",
+      "Antigravity (ali…): G3Pro",
+    ]);
+  });
+
+  it("keeps family labels when accounts return different singleton families", async () => {
+    const { queryGoogleQuota } = await import("../src/lib/google.js");
+    (queryGoogleQuota as any).mockResolvedValueOnce({
+      success: true,
+      models: [
+        {
+          modelId: "CLAUDE",
+          displayName: "Claude",
+          accountEmail: "alice@example.com",
+          percentRemaining: 64,
+        },
+        {
+          modelId: "G3PRO",
+          displayName: "G3Pro",
+          accountEmail: "bob@example.com",
+          percentRemaining: 37,
+        },
+      ],
+      errors: [],
+    });
+
+    const out = await googleAntigravityProvider.fetch({ config: { googleModels: [] } } as any);
+    expect(out.presentation).toEqual({ classicStrategy: "preserve" });
+    expect(out.entries.map((entry) => entry.name)).toEqual([
+      "Antigravity (ali…): Claude",
+      "Antigravity (bob…): G3Pro",
+    ]);
+  });
+
   it("maps fetch failures into toast errors", async () => {
     const { queryGoogleQuota } = await import("../src/lib/google.js");
     (queryGoogleQuota as any).mockResolvedValueOnce({
@@ -171,6 +239,20 @@ describe("google antigravity provider", () => {
 
     const out = await googleAntigravityProvider.fetch({ config: { googleModels: [] } } as any);
     expectAttemptedWithErrorLabel(out, "Antigravity");
+  });
+
+  it.each([
+    ["google/antigravity-claude-opus-4-6-thinking", true],
+    ["google/antigravity-gemini-3-pro", true],
+    ["google-antigravity/claude-opus", true],
+    ["antigravity/gemini-pro", true],
+    ["antigravity-claude-sonnet-4-6", true],
+    ["google/gemini-3-pro", false],
+    ["google/claude-opus", false],
+    ["google-gemini-cli/gemini-3-pro", false],
+    ["opencode/gpt-5", false],
+  ] as const)("matchesCurrentModel(%s) -> %s", (model, expected) => {
+    expect(googleAntigravityProvider.matchesCurrentModel?.(model)).toBe(expected);
   });
 
   it("is available only when the antigravity runtime is configured", async () => {

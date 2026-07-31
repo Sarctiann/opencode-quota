@@ -50,6 +50,11 @@ function resolveGroupedRowLabel(entry: QuotaToastEntry): string {
   if (fromLabel) return fromLabel;
   if (rawLabel) return rawLabel;
 
+  const metricLabel = normalizeLabelText(entry.metricLabel);
+  const fromMetricLabel = extractWindowLabel(metricLabel);
+  if (fromMetricLabel) return fromMetricLabel;
+  if (metricLabel) return metricLabel;
+
   const fromName = extractWindowLabel(entry.name);
   if (fromName) return fromName;
 

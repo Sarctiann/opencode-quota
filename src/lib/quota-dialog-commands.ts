@@ -30,10 +30,7 @@ import {
 } from "./command-parsing.js";
 import { renderCommandHeading } from "./format-utils.js";
 import type { PricingSnapshotSource } from "./types.js";
-import {
-  ALL_WINDOWS_FORMAT_STYLE,
-  SINGLE_WINDOW_PER_PROVIDER_FORMAT_STYLE,
-} from "./quota-format-style.js";
+import { ALL_WINDOWS_FORMAT_STYLE } from "./quota-format-style.js";
 import {
   collectConcreteEnabledProviderIds,
   collectQuotaRenderData,
@@ -554,7 +551,6 @@ export async function buildStatusReportData(params: {
         config: runtimeConfig,
         configMeta: params.runtime.configMeta,
         request: createQuotaRuntimeRequestContext(params.runtime),
-        formatStyle: SINGLE_WINDOW_PER_PROVIDER_FORMAT_STYLE,
         providers: liveProbeProviders,
       });
     } catch (error) {
@@ -586,6 +582,7 @@ export async function buildStatusReportData(params: {
     settingSources: params.runtime.configMeta.settingSources,
     configIssues: params.runtime.configMeta.configIssues,
     enabledProviders: runtimeConfig.enabledProviders,
+    googleModels: runtimeConfig.googleModels,
     anthropicBinaryPath: runtimeConfig.anthropicBinaryPath,
     cursorPlan: runtimeConfig.cursorPlan,
     cursorIncludedApiUsd: runtimeConfig.cursorIncludedApiUsd,

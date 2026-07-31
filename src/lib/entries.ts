@@ -134,6 +134,11 @@ export interface QuotaProviderPresentation {
   singleWindowDisplayName?: string;
   singleWindowShowRight?: boolean;
   /**
+   * A family label that display projections should replace with a generic
+   * quota label. Raw provider entries remain unchanged.
+   */
+  redundantQuotaFamily?: string;
+  /**
    * When set to "preserve", the provider's entries are kept individually
    * (one per window) even in single-window format styles.
    */

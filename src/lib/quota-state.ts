@@ -304,12 +304,15 @@ function isQuotaProviderPresentation(value: unknown): boolean {
     hasOnlyKeys(presentation, [
       "singleWindowDisplayName",
       "singleWindowShowRight",
+      "redundantQuotaFamily",
       "classicStrategy",
     ]) &&
     (presentation.singleWindowDisplayName === undefined ||
       typeof presentation.singleWindowDisplayName === "string") &&
     (presentation.singleWindowShowRight === undefined ||
       typeof presentation.singleWindowShowRight === "boolean") &&
+    (presentation.redundantQuotaFamily === undefined ||
+      typeof presentation.redundantQuotaFamily === "string") &&
     (presentation.classicStrategy === undefined || presentation.classicStrategy === "preserve")
   );
 }

@@ -436,6 +436,26 @@ describe("formatQuotaRows", () => {
     expect(out).not.toContain("Quota window");
   });
 
+  it("uses metricLabel for grouped percent rows without a visible compact label", () => {
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      style: "allWindows",
+      layout: { maxWidth: 80, narrowAt: 42, tinyAt: 32 },
+      entries: [
+        {
+          name: "Antigravity (ali…)",
+          group: "[Antigravity (ali…)]",
+          metricLabel: "Quota",
+          percentRemaining: 75,
+        },
+      ],
+    });
+
+    expect(out).toContain("[Antigravity (ali…)]");
+    expect(out).toContain("\nQuota ");
+    expect(out).not.toContain("Quota window");
+  });
+
   it("uses Quota window only for unlabeled grouped percent rows", () => {
     const out = formatQuotaRows({
       version: "1.0.0",

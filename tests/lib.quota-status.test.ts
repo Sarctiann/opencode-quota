@@ -216,6 +216,56 @@ describe("buildQuotaStatusReport", () => {
     );
   });
 
+  it("reports effective googleModels and whether they came from defaults or a config file", async () => {
+    const defaultsReport = await buildQuotaStatusReportForTest({
+      configSource: "defaults",
+      googleModels: ["CLAUDE"],
+    });
+    expect(defaultsReport).toContain("- googleModels: CLAUDE");
+    expect(defaultsReport).toContain("- googleModels_source: default");
+
+    const configPath =
+      "/tmp/config/opencode-quota/quota-toast.json (opencode-quota/quota-toast.json)";
+    const configuredReport = await buildQuotaStatusReportForTest({
+      configSource: "files",
+      googleModels: ["CLAUDE", "G3PRO"],
+      settingSources: { googleModels: configPath },
+    });
+    expect(configuredReport).toContain("- googleModels: CLAUDE,G3PRO");
+    expect(configuredReport).toContain(`- googleModels_source: configuration file (${configPath})`);
+  });
+
+  it("keeps the raw Antigravity family in live quota diagnostics", async () => {
+    const report = await buildProviderStatusReport("google-antigravity", {
+      providerLiveProbes: [
+        makeProviderSuccessProbe(
+          "google-antigravity",
+          {},
+          {
+            entries: [
+              {
+                accounting: QUOTA_ACCOUNTING,
+                name: "Antigravity (ali…): Claude",
+                group: "[Antigravity (ali…)]",
+                label: "Claude:",
+                metricLabel: "Claude",
+                percentRemaining: 64,
+              },
+            ],
+            presentation: {
+              classicStrategy: "preserve",
+              redundantQuotaFamily: "Claude",
+            },
+          },
+        ),
+      ],
+    });
+
+    const section = getReportSection(report, "google_antigravity:");
+    expect(section).toContain("- live_entry_1: Claude: percent_remaining=64");
+    expect(section).not.toContain("- live_entry_1: Quota:");
+  });
+
   it("renders only safe quota-provider identity and diagnostic fields", async () => {
     const report = await buildQuotaStatusReportForTest({
       enabledProviders: ["quota-providers"],
@@ -1273,7 +1323,7 @@ describe("buildQuotaStatusReport", () => {
     );
     expect(blank).toBe("");
 
-    const excerpt = body.slice(0, 46).join("\n");
+    const excerpt = body.slice(0, 48).join("\n");
     expect(excerpt).toMatchInlineSnapshot(`
       "toast:
       - configSource: defaults
@@ -1283,6 +1333,8 @@ describe("buildQuotaStatusReport", () => {
       - workspace_config_paths: (none)
       - setting_sources: (none)
       - enabledProviders: copilot
+      - googleModels: CLAUDE
+      - googleModels_source: default
       - onlyCurrentModel: false
       - currentModel: (unknown)
       - providers:

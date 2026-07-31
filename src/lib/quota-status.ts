@@ -107,6 +107,11 @@ function formatSettingSources(sources: QuotaToastSettingSources | undefined): st
   return parts.length > 0 ? parts.join(" | ") : "(none)";
 }
 
+function formatGoogleModelsSource(sources: QuotaToastSettingSources | undefined): string {
+  const source = sources?.googleModels;
+  return source ? `configuration file (${sanitizeSingleLineDisplayText(source)})` : "default";
+}
+
 function getConfigPrecedenceLabel(configSource: string): string {
   switch (configSource) {
     case "files":
@@ -663,6 +668,7 @@ export async function buildQuotaStatusReport(params: {
     quotaPluginConfigPaths: string[];
   };
   enabledProviders: string[] | "auto";
+  googleModels: readonly string[];
   anthropicBinaryPath?: string;
   cursorPlan: CursorQuotaPlan;
   cursorIncludedApiUsd?: number;
@@ -709,6 +715,8 @@ export async function buildQuotaStatusReport(params: {
     `- workspace_config_paths: ${joinOrNone(params.workspaceConfigPaths ?? [])}`,
     `- setting_sources: ${formatSettingSources(params.settingSources)}`,
     `- enabledProviders: ${params.enabledProviders === "auto" ? "(auto)" : params.enabledProviders.length ? params.enabledProviders.join(",") : "(none)"}`,
+    `- googleModels: ${params.googleModels.length > 0 ? params.googleModels.join(",") : "(none)"}`,
+    `- googleModels_source: ${formatGoogleModelsSource(params.settingSources)}`,
     `- onlyCurrentModel: ${params.onlyCurrentModel ? "true" : "false"}`,
     `- currentModel: ${modelDisplay}`,
   ];

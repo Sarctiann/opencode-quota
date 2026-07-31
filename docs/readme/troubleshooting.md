@@ -172,7 +172,7 @@ For security, repo-local `opencode.json` / `opencode.jsonc` is ignored for provi
 <details>
 <summary><strong>Google Antigravity</strong></summary>
 
-Run `/quota_status` and check the `google_antigravity` section.
+Run `/quota_status` and check the `google_antigravity` section. The toast diagnostics also show the effective `googleModels` value and `googleModels_source` (`default` or the configuration file path).
 
 | Symptom                  | Fix                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------ |

@@ -119,8 +119,55 @@ async function expectHandled(value: unknown): Promise<void> {
 function expectNoProviderMisattribution(output: string): void {
   expect(output).toContain("Antigravity");
   expect(output).not.toContain("Google Antigravity");
-  expect(output).not.toContain("[Claude]");
+  expect(output).not.toMatch(/\bClaude\b/u);
   expect(output).not.toMatch(/Anthropic|subscription/iu);
+}
+
+async function collectSurfaceOutputs() {
+  const client = createPluginTestClient({
+    modelID: "google/antigravity-claude",
+    providerID: "google",
+  });
+  client.config.providers.mockResolvedValue({
+    data: { providers: [{ id: "google" }] },
+  });
+
+  const { QuotaToastPlugin } = await import("../src/plugin.js");
+  const hooks = (await QuotaToastPlugin({ client } as never)) as PluginHooks;
+
+  await expectHandled(
+    hooks["command.execute.before"]?.({
+      command: "quota",
+      sessionID: "antigravity-session",
+    }),
+  );
+  const command = getPromptText(client);
+
+  await hooks.event?.({
+    event: {
+      type: "session.idle",
+      properties: { sessionID: "antigravity-session" },
+    },
+  });
+  const toast = getToastMessage(client);
+
+  const tuiApi = {
+    state: {
+      provider: [{ id: "google" }],
+      path: { worktree: process.cwd(), directory: process.cwd() },
+      session: { messages: () => [] },
+    },
+    client,
+  } as never;
+  const { loadTuiSessionQuotaSurfaces } = await import("../src/lib/tui-runtime.js");
+  const surfaces = await loadTuiSessionQuotaSurfaces({
+    api: tuiApi,
+    sessionID: "antigravity-session",
+  });
+  const sidebar = [...surfaces.sidebar.lines, ...(surfaces.sidebar.linesExpanded ?? [])].join("\n");
+  const compact = surfaces.compact.status === "ready" ? surfaces.compact.text : "";
+
+  return { command, toast, sidebar, compact, surfaces, hooks };
 }
 
 describe("Google Antigravity provider surfaces", () => {
@@ -137,12 +184,14 @@ describe("Google Antigravity provider surfaces", () => {
       success: true,
       models: [
         {
+          modelId: "CLAUDE",
           displayName: "Claude",
           accountEmail: "alice@example.com",
           percentRemaining: 0,
           resetTimeIso: "2026-08-01T00:00:00.000Z",
         },
         {
+          modelId: "CLAUDE",
           displayName: "Claude",
           accountEmail: "bob@example.com",
           percentRemaining: 0,
@@ -163,70 +212,111 @@ describe("Google Antigravity provider surfaces", () => {
     await rm(TEST_RUNTIME_ROOT, { recursive: true, force: true });
   });
 
-  it("keeps two Antigravity accounts distinct on real Web, toast, sidebar, and compact paths", async () => {
-    const client = createPluginTestClient({
-      modelID: "google/antigravity-claude",
-      providerID: "google",
-    });
-    client.config.providers.mockResolvedValue({
-      data: { providers: [{ id: "google" }] },
-    });
+  it("keeps two same-family accounts distinct without redundant family wording", async () => {
+    const { command, toast, sidebar, compact, surfaces, hooks } = await collectSurfaceOutputs();
 
-    const { QuotaToastPlugin } = await import("../src/plugin.js");
-    const hooks = (await QuotaToastPlugin({ client } as never)) as PluginHooks;
-
-    await expectHandled(
-      hooks["command.execute.before"]?.({
-        command: "quota",
-        sessionID: "antigravity-session",
-      }),
-    );
-    const command = getPromptText(client);
-    expectNoProviderMisattribution(command);
-    expect(command).toContain("→ [Antigravity (ali…)]");
-    expect(command).toContain("→ [Antigravity (bob…)]");
-    expect(command.match(/Claude/g)).toHaveLength(2);
-
-    await hooks.event?.({
-      event: {
-        type: "session.idle",
-        properties: { sessionID: "antigravity-session" },
-      },
-    });
-    const toast = getToastMessage(client);
-    expectNoProviderMisattribution(toast);
-    expect(toast).toContain("[Antigravity (ali…): Claude]");
-    expect(toast).toContain("[Antigravity (bob…): Claude]");
-    expect(toast).not.toMatch(/5h|7d|Weekly|Five-hour/u);
-
-    const tuiApi = {
-      state: {
-        provider: [{ id: "google" }],
-        path: { worktree: process.cwd(), directory: process.cwd() },
-        session: { messages: () => [] },
-      },
-      client,
-    } as never;
-    const { loadTuiSessionQuotaSurfaces } = await import("../src/lib/tui-runtime.js");
-    const surfaces = await loadTuiSessionQuotaSurfaces({
-      api: tuiApi,
-      sessionID: "antigravity-session",
-    });
-
+    for (const output of [command, toast, sidebar, compact]) {
+      expectNoProviderMisattribution(output);
+      expect(output).toContain("Antigravity (ali…)");
+      expect(output).toContain("Antigravity (bob…)");
+    }
+    expect(command.match(/\n  Quota\s/gu)).toHaveLength(2);
+    expect(toast).not.toMatch(/\n(?:5h|7d|Weekly|Five-hour)\s/u);
     expect(surfaces.sidebar.status).toBe("ready");
-    const sidebar = [...surfaces.sidebar.lines, ...(surfaces.sidebar.linesExpanded ?? [])].join(
-      "\n",
-    );
-    expectNoProviderMisattribution(sidebar);
-    expect(sidebar).toContain("[Antigravity (ali…): Claude]");
-    expect(sidebar).toContain("[Antigravity (bob…): Claude]");
-
+    expect(sidebar.match(/\nQuota\s/gu)).toHaveLength(2);
     expect(surfaces.compact.status).toBe("ready");
-    const compact = surfaces.compact.status === "ready" ? surfaces.compact.text : "";
-    expectNoProviderMisattribution(compact);
-    expect(compact).toBe("Antigravity (ali…): Claude 0% | Antigravity (bob…): Claude 0%");
-
+    expect(compact).toBe("Antigravity (ali…) 0% | Antigravity (bob…) 0%");
     expect(mocks.queryGoogleQuota).toHaveBeenCalledTimes(1);
+
+    await hooks.dispose?.();
+  });
+
+  it("keeps family names when one account returns multiple families", async () => {
+    mocks.queryGoogleQuota.mockResolvedValue({
+      success: true,
+      models: [
+        {
+          modelId: "CLAUDE",
+          displayName: "Claude",
+          accountEmail: "alice@example.com",
+          percentRemaining: 64,
+        },
+        {
+          modelId: "G3PRO",
+          displayName: "G3Pro",
+          accountEmail: "alice@example.com",
+          percentRemaining: 37,
+        },
+      ],
+      errors: [],
+    });
+
+    const { command, toast, sidebar, compact, hooks } = await collectSurfaceOutputs();
+    for (const output of [command, toast, sidebar, compact]) {
+      expect(output).toMatch(/\bClaude\b/u);
+      expect(output).toMatch(/\bG3Pro\b/u);
+    }
+
+    await hooks.dispose?.();
+  });
+
+  it("keeps family names when accounts return different singleton families", async () => {
+    mocks.queryGoogleQuota.mockResolvedValue({
+      success: true,
+      models: [
+        {
+          modelId: "CLAUDE",
+          displayName: "Claude",
+          accountEmail: "alice@example.com",
+          percentRemaining: 64,
+        },
+        {
+          modelId: "G3PRO",
+          displayName: "G3Pro",
+          accountEmail: "bob@example.com",
+          percentRemaining: 37,
+        },
+      ],
+      errors: [],
+    });
+
+    const { command, toast, sidebar, compact, hooks } = await collectSurfaceOutputs();
+    for (const output of [command, toast, sidebar, compact]) {
+      expect(output).toMatch(/Antigravity \(ali…\).*Claude/su);
+      expect(output).toMatch(/Antigravity \(bob…\).*G3Pro/su);
+    }
+
+    await hooks.dispose?.();
+  });
+
+  it("preserves collision-safe account labels while hiding a shared family", async () => {
+    mocks.queryGoogleQuota.mockResolvedValue({
+      success: true,
+      models: [
+        {
+          modelId: "CLAUDE",
+          displayName: "Claude",
+          accountEmail: "alice@work.com",
+          percentRemaining: 64,
+        },
+        {
+          modelId: "CLAUDE",
+          displayName: "Claude",
+          accountEmail: "alice@personal.com",
+          percentRemaining: 37,
+        },
+      ],
+      errors: [],
+    });
+
+    const { command, toast, sidebar, compact, hooks } = await collectSurfaceOutputs();
+    for (const output of [command, toast, sidebar, compact]) {
+      expectNoProviderMisattribution(output);
+      expect(output).toContain("Antigravity (alice… 1)");
+      expect(output).toContain("Antigravity (alice… 2)");
+    }
+    expect(compact).toBe("Antigravity (alice… 1) 64% | Antigravity (alice… 2) 37%");
+
     await hooks.dispose?.();
   });
 });

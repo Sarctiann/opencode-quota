@@ -190,7 +190,7 @@ describe("buildQuotaExport", () => {
     }
   });
 
-  it("preserves updated human-readable display strings without changing the schema", async () => {
+  it("preserves raw Antigravity family names when display projections suppress them", async () => {
     mockReadCachedProviderResult.mockResolvedValue({
       hit: true,
       result: {
@@ -209,6 +209,10 @@ describe("buildQuotaExport", () => {
           },
         ],
         errors: [{ label: "bob…", message: "Unauthorized" }],
+        presentation: {
+          classicStrategy: "preserve",
+          redundantQuotaFamily: "Claude",
+        },
       },
       timestamp: Date.now(),
     });

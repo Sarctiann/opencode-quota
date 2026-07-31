@@ -36,7 +36,7 @@ After installation:
 2. Run a slash command in OpenCode, or use `opencode-quota show` from your terminal.
 3. If you enabled the sidebar, open the session sidebar and look for `Quota`.
 4. If you enabled the compact status line, look at the bottom of Home or below the message input.
-5. If something looks wrong, run `/quota_status` in OpenCode or see [Troubleshooting](docs/readme/troubleshooting.md).
+5. If something looks wrong, run `/quota_status` in OpenCode or see [Troubleshooting](docs/readme/troubleshooting.md). For Antigravity, the report shows the effective `googleModels` value and whether it came from the built-in default or a configuration file.
 
 ## Updating
 

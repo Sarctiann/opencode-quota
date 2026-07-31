@@ -23,7 +23,7 @@ import {
   createRuntimeProviderIdResolver,
   type RuntimeProviderIdResolver,
 } from "./runtime-provider-ids.js";
-import { DEFAULT_QUOTA_FORMAT_STYLE, getQuotaFormatStyleDefinition } from "./quota-format-style.js";
+import { getQuotaFormatStyleDefinition } from "./quota-format-style.js";
 import { formatGroupedHeader } from "./grouped-header-format.js";
 import { getProviders } from "../providers/registry.js";
 import { getAnthropicNoDataMessage } from "../providers/anthropic.js";
@@ -284,7 +284,6 @@ export async function collectQuotaStatusLiveProbes(params: {
   client: QuotaProviderContext["client"];
   config: QuotaToastConfig;
   request?: QuotaRequestContext;
-  formatStyle?: QuotaFormatStyle;
   configMeta?: Pick<LoadConfigMeta, "settingSources">;
   providers: QuotaProvider[];
   resolveRuntimeProviderIds?: RuntimeProviderIdResolver;
@@ -335,10 +334,7 @@ export async function collectQuotaStatusLiveProbes(params: {
     providerId: provider.id,
     result: {
       ...results[index]!,
-      entries: projectProviderResultToStyle(
-        results[index]!,
-        params.formatStyle ?? DEFAULT_QUOTA_FORMAT_STYLE,
-      ),
+      entries: results[index]!.entries.map((entry) => ({ ...entry })),
       errors: results[index]!.errors.map((error) => ({ ...error })),
       ...(results[index]!.statusDetails
         ? { statusDetails: results[index]!.statusDetails!.map((detail) => ({ ...detail })) }
@@ -398,6 +394,24 @@ function renameSingleWindowEntry(entry: QuotaToastEntry, name: string): QuotaToa
   return { ...entry, name };
 }
 
+function suppressRedundantQuotaFamily(
+  entry: QuotaToastEntry,
+  redundantQuotaFamily?: string,
+): QuotaToastEntry {
+  if (!redundantQuotaFamily) return entry;
+
+  const familySuffix = `: ${redundantQuotaFamily}`;
+  const name = entry.name.endsWith(familySuffix)
+    ? entry.name.slice(0, -familySuffix.length)
+    : entry.name;
+  return {
+    ...entry,
+    name,
+    label: undefined,
+    metricLabel: "Quota",
+  };
+}
+
 type LegacyQuotaProviderPresentation = QuotaProviderPresentation & {
   classicDisplayName?: string;
   classicShowRight?: boolean;
@@ -427,10 +441,15 @@ function normalizeSingleWindowPresentation(
     legacyPresentation.classicStrategy === "preserve"
       ? legacyPresentation.classicStrategy
       : undefined;
+  const redundantQuotaFamily =
+    typeof legacyPresentation.redundantQuotaFamily === "string"
+      ? legacyPresentation.redundantQuotaFamily.trim()
+      : "";
 
   return {
     ...(singleWindowDisplayName ? { singleWindowDisplayName } : {}),
     ...(singleWindowShowRight ? { singleWindowShowRight } : {}),
+    ...(redundantQuotaFamily ? { redundantQuotaFamily } : {}),
     ...(classicStrategy ? { classicStrategy } : {}),
   };
 }
@@ -474,16 +493,18 @@ function projectProviderResultToStyle(
   result: QuotaProviderResult,
   style: QuotaFormatStyle,
 ): QuotaToastEntry[] {
-  const entries = result.entries.map((entry) => ({ ...entry }));
+  const presentation = normalizeSingleWindowPresentation(result.presentation);
+  const entries = result.entries.map((entry) =>
+    suppressRedundantQuotaFamily({ ...entry }, presentation?.redundantQuotaFamily),
+  );
   const definition = getQuotaFormatStyleDefinition(style);
   if (definition.projection === "allWindows") {
     return entries;
   }
 
-  const presentation = normalizeSingleWindowPresentation(result.presentation);
   if (presentation?.classicStrategy === "preserve") {
     return entries.map((entry) => {
-      const nameEntry = { ...entry, group: undefined };
+      const nameEntry = presentation.redundantQuotaFamily ? entry : { ...entry, group: undefined };
       return renameSingleWindowEntry(
         stripSingleWindowEntryMeta(entry, presentation?.singleWindowShowRight ?? false),
         buildSingleWindowName({

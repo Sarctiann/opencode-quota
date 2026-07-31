@@ -11,6 +11,7 @@ describe("sanitizeQuotaProviderResult", () => {
       presentation: {
         singleWindowDisplayName: "Fixture",
         singleWindowShowRight: true,
+        redundantQuotaFamily: "Claude",
         classicStrategy: "preserve" as const,
       },
     };

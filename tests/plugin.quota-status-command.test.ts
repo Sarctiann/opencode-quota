@@ -288,7 +288,6 @@ describe("/quota_status command behavior", () => {
         config: expect.objectContaining({
           enabledProviders: ["openai", "synthetic", "copilot", "cursor"],
         }),
-        formatStyle: "singleWindow",
         providers: [openai, synthetic, copilot, cursor],
       }),
     );
@@ -298,6 +297,7 @@ describe("/quota_status command behavior", () => {
         workspaceConfigPaths: [],
         settingSources: {},
         configIssues: [],
+        googleModels: ["CLAUDE"],
         providerLiveProbes: [
           {
             providerId: "openai",
