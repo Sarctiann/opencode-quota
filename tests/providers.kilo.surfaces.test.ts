@@ -6,66 +6,123 @@ import { formatQuotaRowsGrouped } from "../src/lib/toast-format-grouped.js";
 import { buildCompactQuotaStatusLine } from "../src/lib/tui-compact-format.js";
 import { buildSidebarQuotaPanelLines } from "../src/lib/tui-sidebar-format.js";
 
-const resetTimeIso = "2099-02-01T00:00:00.000Z";
-const data: QuotaRenderData = {
-  entries: [
-    {
-      accounting: {
-        resultType: "quota",
-        acquisitionMethod: "remote_api",
-        ownership: "maintained",
-        authority: "locally_derived",
-      },
-      name: "Kilo Gateway Credits",
-      group: "Kilo Gateway",
-      label: "Credits:",
-      right: "$2.50/$15.00 used",
-      percentRemaining: 83.33333333333334,
-      resetTimeIso,
-    },
-    {
-      kind: "value",
-      accounting: {
-        resultType: "quota",
-        acquisitionMethod: "remote_api",
-        ownership: "maintained",
-        authority: "locally_derived",
-      },
-      name: "Kilo Gateway Remaining Credits",
-      group: "Kilo Gateway",
-      label: "Credits:",
-      value: "Used: $2.50 · Remaining: $12.50 ($5.00 bonus)",
-      resetTimeIso,
-    },
-  ],
-  errors: [],
+const quotaAccounting = {
+  resultType: "quota" as const,
+  acquisitionMethod: "remote_api" as const,
+  ownership: "maintained" as const,
+  authority: "locally_derived" as const,
 };
+const balanceAccounting = {
+  resultType: "balance" as const,
+  acquisitionMethod: "remote_api" as const,
+  ownership: "maintained" as const,
+  authority: "provider_reported" as const,
+};
+const resetTimeIso = "2099-02-01T00:00:00.000Z";
 
-describe("Kilo Gateway four-surface formatting", () => {
-  it("shows Kilo Pass quota, usage, remaining credits, bonus, and reset data", () => {
-    const web = formatQuotaCommand({ ...data, generatedAtMs: 0 });
-    const toast = formatQuotaRowsGrouped(data);
-    const sidebar = buildSidebarQuotaPanelLines({
+function renderFourSurfaces(data: QuotaRenderData): string[] {
+  return [
+    formatQuotaCommand({ ...data, generatedAtMs: 0 }),
+    formatQuotaRowsGrouped(data),
+    buildSidebarQuotaPanelLines({
       data,
       config: { formatStyle: "allWindows", percentDisplayMode: "remaining" },
-    }).join("\n");
-    const compact = buildCompactQuotaStatusLine({
+    }).join("\n"),
+    buildCompactQuotaStatusLine({
       data,
       percentDisplayMode: "remaining",
       maxWidth: 240,
-    });
+    }),
+  ];
+}
 
-    for (const output of [web, toast, sidebar, compact]) {
+describe("Kilo Gateway four-surface formatting", () => {
+  it("shows Credits, percent, and amount left without used, base, or bonus amounts", () => {
+    const data: QuotaRenderData = {
+      entries: [
+        {
+          accounting: quotaAccounting,
+          name: "Kilo Gateway Credits",
+          group: "Kilo Gateway",
+          label: "Credits:",
+          metricLabel: "Credits",
+          right: "$12.50 left",
+          percentRemaining: 83.33333333333334,
+          resetTimeIso,
+        },
+        {
+          kind: "value",
+          accounting: quotaAccounting,
+          name: "Kilo Gateway Remaining Credits",
+          group: "Kilo Gateway",
+          label: "Left:",
+          metricLabel: "Left",
+          value: "$12.50",
+          resetTimeIso,
+        },
+      ],
+      errors: [],
+    };
+
+    for (const output of renderFourSurfaces(data)) {
       expect(output).toContain("Kilo Gateway");
+      expect(output).toContain("Credits");
       expect(output).toContain("83%");
-      expect(output).toContain("$2.50");
       expect(output).toContain("$12.50");
+      expect(output).not.toContain("$2.50");
+      expect(output).not.toContain("$10.00");
+      expect(output).not.toContain("$5.00");
+      expect(output.toLowerCase()).not.toContain("used");
+      expect(output.toLowerCase()).not.toContain("bonus");
+      expect(output.toLowerCase()).not.toContain("base");
     }
+  });
 
-    for (const output of [web, compact]) {
-      expect(output).toContain("$5.00 bonus");
+  it("shows only the Left value when total Kilo Pass credits are zero", () => {
+    const data: QuotaRenderData = {
+      entries: [
+        {
+          kind: "value",
+          accounting: quotaAccounting,
+          name: "Kilo Gateway Remaining Credits",
+          group: "Kilo Gateway",
+          label: "Left:",
+          metricLabel: "Left",
+          value: "$0.00",
+        },
+      ],
+      errors: [],
+    };
+
+    for (const output of renderFourSurfaces(data)) {
+      expect(output).toContain("Kilo Gateway");
+      expect(output).toContain("$0.00");
+      expect(output).not.toContain("%");
     }
-    expect(web.toLowerCase()).toContain("reset");
-    expect(toast).toMatch(/\d+d/u);
+  });
+
+  it("keeps Gateway fallback balance-only on every human surface", () => {
+    const data: QuotaRenderData = {
+      entries: [
+        {
+          kind: "value",
+          accounting: balanceAccounting,
+          name: "Kilo Gateway Balance",
+          group: "Kilo Gateway",
+          label: "Balance:",
+          value: "$8.25",
+        },
+      ],
+      errors: [],
+    };
+
+    for (const output of renderFourSurfaces(data)) {
+      expect(output).toContain("Kilo Gateway");
+      expect(output).toContain("$8.25");
+      expect(output).not.toContain("%");
+      expect(output.toLowerCase()).not.toContain("left");
+      expect(output.toLowerCase()).not.toContain("used");
+      expect(output.toLowerCase()).not.toContain("reset");
+    }
   });
 });

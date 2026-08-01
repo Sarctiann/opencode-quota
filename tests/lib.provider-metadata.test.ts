@@ -49,7 +49,7 @@ describe("provider-metadata", () => {
         authFallbacks: ["env_api_key", "global_opencode_config"],
         quota: "remote_api",
         notes:
-          "Queries the Kilo Pass subscription state endpoint; reports Kilo Pass quota, usage, bonus credits, and derived remaining credits",
+          "Queries Kilo Pass state first, then falls back to the documented personal Gateway balance when no active subscription exists",
       },
       {
         id: "cursor",
@@ -438,7 +438,7 @@ describe("provider-metadata", () => {
       authFallbacks: ["env_api_key", "global_opencode_config"],
       quota: "remote_api",
       notes:
-        "Queries the Kilo Pass subscription state endpoint; reports Kilo Pass quota, usage, bonus credits, and derived remaining credits",
+        "Queries Kilo Pass state first, then falls back to the documented personal Gateway balance when no active subscription exists",
     });
     expect(getQuotaProviderShape("xai")).toEqual({
       id: "xai",

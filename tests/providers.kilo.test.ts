@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { collectQuotaRenderData } from "../src/lib/quota-render-data.js";
+import { DEFAULT_CONFIG } from "../src/lib/types.js";
 import {
   expectAttemptedWithErrorLabel,
   expectAttemptedWithNoErrors,
@@ -10,7 +12,7 @@ import {
 const mocks = vi.hoisted(() => ({
   getKiloKeyDiagnostics: vi.fn(),
   hasKiloApiKey: vi.fn(),
-  queryKiloPassState: vi.fn(),
+  queryKiloQuota: vi.fn(),
 }));
 
 vi.mock("../src/lib/kilo-config.js", () => ({
@@ -19,7 +21,7 @@ vi.mock("../src/lib/kilo-config.js", () => ({
 }));
 
 vi.mock("../src/lib/kilo.js", () => ({
-  queryKiloPassState: mocks.queryKiloPassState,
+  queryKiloQuota: mocks.queryKiloQuota,
 }));
 
 import { kiloProvider } from "../src/providers/kilo.js";
@@ -50,7 +52,7 @@ describe("Kilo Gateway provider", () => {
   });
 
   it("does not attempt a request without trusted configuration", async () => {
-    mocks.queryKiloPassState.mockResolvedValueOnce(null);
+    mocks.queryKiloQuota.mockResolvedValueOnce(null);
 
     const out = await kiloProvider.fetch({} as any);
 
@@ -63,9 +65,10 @@ describe("Kilo Gateway provider", () => {
     );
   });
 
-  it("shows credit percentage, balance, usage, and bonus from the state API", async () => {
-    mocks.queryKiloPassState.mockResolvedValueOnce({
+  it("shows only the Kilo Pass percentage and amount left on human entries", async () => {
+    mocks.queryKiloQuota.mockResolvedValueOnce({
       success: true,
+      mode: "kilo_pass",
       baseCreditsUsd: 10,
       usageUsd: 2.5,
       bonusCreditsUsd: 5,
@@ -76,13 +79,14 @@ describe("Kilo Gateway provider", () => {
     const out = await kiloProvider.fetch({ config: { requestTimeoutMs: 9000 } } as any);
 
     expectAttemptedWithNoErrors(out);
-    expect(mocks.queryKiloPassState).toHaveBeenCalledWith({ requestTimeoutMs: 9000 });
+    expect(mocks.queryKiloQuota).toHaveBeenCalledWith({ requestTimeoutMs: 9000 });
     expect(visibleEntries(out.entries, "kilo")).toEqual([
       {
         name: "Kilo Gateway Credits",
         group: "Kilo Gateway",
         label: "Credits:",
-        right: "$2.50/$15.00 used",
+        metricLabel: "Credits",
+        right: "$12.50 left",
         percentRemaining: 83.33333333333334,
         resetTimeIso: "2099-02-01T00:00:00.000Z",
       },
@@ -90,13 +94,33 @@ describe("Kilo Gateway provider", () => {
         kind: "value",
         name: "Kilo Gateway Remaining Credits",
         group: "Kilo Gateway",
-        label: "Credits:",
-        value: "Used: $2.50 · Remaining: $12.50 ($5.00 bonus)",
+        label: "Left:",
+        metricLabel: "Left",
+        value: "$12.50",
         resetTimeIso: "2099-02-01T00:00:00.000Z",
       },
     ]);
+    expect(out.entries.map((entry) => entry.accounting)).toEqual([
+      {
+        resultType: "quota",
+        acquisitionMethod: "remote_api",
+        ownership: "maintained",
+        authority: "locally_derived",
+      },
+      {
+        resultType: "quota",
+        acquisitionMethod: "remote_api",
+        ownership: "maintained",
+        authority: "locally_derived",
+      },
+    ]);
+    expect(out.presentation).toEqual({
+      singleWindowDisplayName: "Kilo Gateway",
+      singleWindowShowRight: true,
+    });
     expect(out.statusDetails).toEqual(
       expect.arrayContaining([
+        { key: "accounting_mode", value: "kilo_pass" },
         { key: "base_credits_usd", value: "$10.00" },
         { key: "usage_usd", value: "$2.50" },
         { key: "bonus_credits_usd", value: "$5.00" },
@@ -104,11 +128,59 @@ describe("Kilo Gateway provider", () => {
         { key: "reset_at", value: "2099-02-01T00:00:00.000Z" },
       ]),
     );
+    expect(JSON.stringify(out.entries)).not.toContain("$10.00");
+    expect(JSON.stringify(out.entries)).not.toContain("$2.50");
+    expect(JSON.stringify(out.entries)).not.toContain("$5.00");
   });
 
-  it("omits the bonus segment and counts only base credits when no bonus exists", async () => {
-    mocks.queryKiloPassState.mockResolvedValueOnce({
+  it("preserves the amount-left summary through single-window projection", async () => {
+    mocks.queryKiloQuota.mockResolvedValueOnce({
       success: true,
+      mode: "kilo_pass",
+      baseCreditsUsd: 10,
+      usageUsd: 2.5,
+      bonusCreditsUsd: 5,
+      remainingUsd: 12.5,
+    });
+    const raw = await kiloProvider.fetch({} as any);
+    const projectedProvider = {
+      id: "kilo",
+      isAvailable: vi.fn().mockResolvedValue(true),
+      fetch: vi.fn().mockResolvedValue(raw),
+    };
+
+    const projected = await collectQuotaRenderData({
+      client: {
+        config: {
+          providers: async () => ({ data: { providers: [] } }),
+          get: async () => ({ data: {} }),
+        },
+      } as any,
+      config: {
+        ...DEFAULT_CONFIG,
+        enabledProviders: ["kilo"],
+        formatStyle: "singleWindow",
+        showSessionTokens: false,
+      },
+      surfaceExplicitProviderIssues: false,
+      formatStyle: "singleWindow",
+      providers: [projectedProvider],
+      bypassProviderCache: true,
+    });
+
+    expect(projected.data?.entries).toEqual([
+      expect.objectContaining({
+        name: "[Kilo Gateway]",
+        percentRemaining: 83.33333333333334,
+        right: "$12.50 left",
+      }),
+    ]);
+  });
+
+  it("does not expose used or bonus amounts when no bonus exists", async () => {
+    mocks.queryKiloQuota.mockResolvedValueOnce({
+      success: true,
+      mode: "kilo_pass",
       baseCreditsUsd: 10,
       usageUsd: 2.5,
       bonusCreditsUsd: 0,
@@ -123,22 +195,25 @@ describe("Kilo Gateway provider", () => {
         name: "Kilo Gateway Credits",
         group: "Kilo Gateway",
         label: "Credits:",
-        right: "$2.50/$10.00 used",
+        metricLabel: "Credits",
+        right: "$7.50 left",
         percentRemaining: 75,
       },
       {
         kind: "value",
         name: "Kilo Gateway Remaining Credits",
         group: "Kilo Gateway",
-        label: "Credits:",
-        value: "Used: $2.50 · Remaining: $7.50",
+        label: "Left:",
+        metricLabel: "Left",
+        value: "$7.50",
       },
     ]);
   });
 
-  it("shows zero percent and zero remaining credits when usage exceeds the quota", async () => {
-    mocks.queryKiloPassState.mockResolvedValueOnce({
+  it("shows zero percent and zero left when usage exceeds the quota", async () => {
+    mocks.queryKiloQuota.mockResolvedValueOnce({
       success: true,
+      mode: "kilo_pass",
       baseCreditsUsd: 10,
       usageUsd: 12,
       bonusCreditsUsd: 0,
@@ -153,22 +228,25 @@ describe("Kilo Gateway provider", () => {
         name: "Kilo Gateway Credits",
         group: "Kilo Gateway",
         label: "Credits:",
-        right: "$12.00/$10.00 used",
+        metricLabel: "Credits",
+        right: "$0.00 left",
         percentRemaining: 0,
       },
       {
         kind: "value",
         name: "Kilo Gateway Remaining Credits",
         group: "Kilo Gateway",
-        label: "Credits:",
-        value: "Used: $12.00 · Remaining: $0.00",
+        label: "Left:",
+        metricLabel: "Left",
+        value: "$0.00",
       },
     ]);
   });
 
-  it("hides the percent entry when no credits were acquired", async () => {
-    mocks.queryKiloPassState.mockResolvedValueOnce({
+  it("omits the percent entry when total credits are zero", async () => {
+    mocks.queryKiloQuota.mockResolvedValueOnce({
       success: true,
+      mode: "kilo_pass",
       baseCreditsUsd: 0,
       usageUsd: 0,
       bonusCreditsUsd: 0,
@@ -183,14 +261,52 @@ describe("Kilo Gateway provider", () => {
         kind: "value",
         name: "Kilo Gateway Remaining Credits",
         group: "Kilo Gateway",
-        label: "Credits:",
-        value: "Used: $0.00 · Remaining: $0.00",
+        label: "Left:",
+        metricLabel: "Left",
+        value: "$0.00",
       },
     ]);
   });
 
+  it("restores the provider-reported Gateway balance-only fallback", async () => {
+    mocks.queryKiloQuota.mockResolvedValueOnce({
+      success: true,
+      mode: "gateway_balance",
+      balanceUsd: 8.25,
+    });
+
+    const out = await kiloProvider.fetch({} as any);
+
+    expectAttemptedWithNoErrors(out);
+    expect(visibleEntries(out.entries, "kilo")).toEqual([
+      {
+        kind: "value",
+        name: "Kilo Gateway Balance",
+        group: "Kilo Gateway",
+        label: "Balance:",
+        value: "$8.25",
+      },
+    ]);
+    expect(out.entries[0]?.accounting).toEqual({
+      resultType: "balance",
+      acquisitionMethod: "remote_api",
+      ownership: "maintained",
+      authority: "provider_reported",
+    });
+    expect(out.presentation).toBeUndefined();
+    expect(out.statusDetails).toEqual(
+      expect.arrayContaining([
+        { key: "accounting_mode", value: "gateway_balance" },
+        { key: "balance_usd", value: "$8.25" },
+      ]),
+    );
+    expect(out.statusDetails).not.toEqual(
+      expect.arrayContaining([{ key: "usage_usd", value: expect.any(String) }]),
+    );
+  });
+
   it("maps API failures into a safe Kilo Gateway error", async () => {
-    mocks.queryKiloPassState.mockResolvedValueOnce({ success: false, error: "Unauthorized" });
+    mocks.queryKiloQuota.mockResolvedValueOnce({ success: false, error: "Unauthorized" });
 
     const out = await kiloProvider.fetch({} as any);
 

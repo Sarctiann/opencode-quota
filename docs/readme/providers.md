@@ -27,7 +27,7 @@ Most providers work automatically. `Automatic` means OpenCode Quota reuses the c
 | GitHub Copilot     | Automatic                              | Remote API         | Usage and budget   |
 | Google AGY         | [Needs setup](#google-agy-quick-setup) | Remote API         | Quota              |
 | Google Antigravity | [Needs setup](#google-antigravity)     | Remote API         | Quota              |
-| Kilo Gateway       | Automatic                              | Remote API         | Balance            |
+| Kilo Gateway       | Automatic                              | Remote API         | Quota and balance  |
 | NanoGPT            | Automatic                              | Remote API         | Quota and balance  |
 | Ollama Cloud       | Automatic                              | Remote API         | Quota and usage    |
 | OpenAI             | Automatic                              | Remote API         | Quota              |
@@ -485,7 +485,9 @@ If you use manual provider selection, include `deepseek` in `enabledProviders`.
 
 ### Kilo Gateway
 
-Kilo Gateway reports personal Kilo Pass quota from the authenticated `kiloPass.getState` tRPC endpoint. It shows the percentage of base plus bonus period credits remaining, current usage, derived remaining credits, bonus credits, and the next billing or renewal time when Kilo provides one.
+Kilo Gateway checks the authenticated `kiloPass.getState` tRPC endpoint first. Kilo Pass subscribers see the percentage and dollar amount left, plus the next billing or renewal time when Kilo provides one. Base, used, and bonus amounts stay available in diagnostics instead of the everyday quota display; exported rows keep their quota accounting.
+
+If the account has no active Kilo Pass, OpenCode Quota falls back to Kilo's documented personal Gateway balance. This balance-only path does not invent usage, quota percentages, or reset times.
 
 Create a Kilo Gateway API key in your personal profile, then set:
 

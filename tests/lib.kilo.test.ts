@@ -27,7 +27,7 @@ vi.mock("../src/lib/kilo-config.js", () => ({
   resolveKiloApiKey: mocks.resolveKiloApiKey,
 }));
 
-import { queryKiloPassState } from "../src/lib/kilo.js";
+import { queryKiloPassState, queryKiloQuota } from "../src/lib/kilo.js";
 
 function mockResponse(params: { ok: boolean; status: number; json?: unknown; text?: string }) {
   mocks.fetchResponse.mockResolvedValueOnce({
@@ -57,7 +57,11 @@ function statePayload(overrides: Record<string, unknown> = {}) {
   ];
 }
 
-describe("queryKiloPassState", () => {
+function noSubscriptionPayload() {
+  return [{ result: { data: { json: { subscription: null } } } }];
+}
+
+describe("Kilo Gateway API client", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.resolveKiloApiKey.mockResolvedValue({
@@ -69,7 +73,7 @@ describe("queryKiloPassState", () => {
   it("returns null without a configured API key", async () => {
     mocks.resolveKiloApiKey.mockResolvedValueOnce(null);
 
-    await expect(queryKiloPassState()).resolves.toBeNull();
+    await expect(queryKiloQuota()).resolves.toBeNull();
     expect(mocks.fetchWithTimeout).not.toHaveBeenCalled();
   });
 
@@ -109,24 +113,7 @@ describe("queryKiloPassState", () => {
     });
   });
 
-  it("clamps remaining credits to zero when usage exceeds the period credits", async () => {
-    mockResponse({
-      ok: true,
-      status: 200,
-      json: statePayload({
-        currentPeriodBaseCreditsUsd: 10,
-        currentPeriodUsageUsd: 12,
-        currentPeriodBonusCreditsUsd: 0,
-      }),
-    });
-
-    await expect(queryKiloPassState()).resolves.toMatchObject({
-      success: true,
-      remainingUsd: 0,
-    });
-  });
-
-  it("accepts the unwrapped data envelope and treats a missing bonus as zero", async () => {
+  it("accepts the unwrapped envelope, defaults missing bonus to zero, and uses renewal", async () => {
     mockResponse({
       ok: true,
       status: 200,
@@ -153,48 +140,171 @@ describe("queryKiloPassState", () => {
     });
   });
 
-  it("rejects missing subscriptions and invalid credit fields", async () => {
-    mockResponse({ ok: true, status: 200, json: null });
-    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
+  it("clamps overage to zero and falls back to a valid renewal time", async () => {
+    mockResponse({
+      ok: true,
+      status: 200,
+      json: statePayload({
+        currentPeriodBaseCreditsUsd: 10,
+        currentPeriodUsageUsd: 12,
+        currentPeriodBonusCreditsUsd: 0,
+        nextBillingAt: "not-a-date",
+        nextRenewalAt: "2099-03-01T00:00:00.000Z",
+      }),
+    });
 
+    await expect(queryKiloPassState()).resolves.toEqual({
+      success: true,
+      baseCreditsUsd: 10,
+      usageUsd: 12,
+      bonusCreditsUsd: 0,
+      remainingUsd: 0,
+      resetTimeIso: "2099-03-01T00:00:00.000Z",
+    });
+  });
+
+  it("normalizes a parseable reset into the cache-safe ISO shape", async () => {
+    mockResponse({
+      ok: true,
+      status: 200,
+      json: statePayload({ nextBillingAt: "2099-02-01" }),
+    });
+
+    await expect(queryKiloPassState()).resolves.toMatchObject({
+      success: true,
+      resetTimeIso: "2099-02-01T00:00:00.000Z",
+    });
+  });
+
+  it.each([
+    ["currentPeriodBaseCreditsUsd", -1],
+    ["currentPeriodUsageUsd", "2.76"],
+    ["currentPeriodBonusCreditsUsd", -1],
+  ])("rejects an invalid %s field", async (field, value) => {
+    mockResponse({ ok: true, status: 200, json: statePayload({ [field]: value }) });
+
+    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
+  });
+
+  it("keeps direct Kilo Pass queries isolated from the balance fallback", async () => {
+    mockResponse({ ok: true, status: 200, json: noSubscriptionPayload() });
+
+    await expect(queryKiloPassState()).resolves.toEqual({
+      success: false,
+      error: "Kilo Gateway state API returned no active Kilo Pass subscription",
+    });
+    expect(mocks.fetchWithTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns tagged Kilo Pass data without calling the balance endpoint", async () => {
+    mockResponse({ ok: true, status: 200, json: statePayload() });
+
+    await expect(queryKiloQuota()).resolves.toMatchObject({
+      success: true,
+      mode: "kilo_pass",
+      remainingUsd: 25.74,
+    });
+    expect(mocks.resolveKiloApiKey).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchWithTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the documented Gateway balance for a valid no-subscription response", async () => {
+    mockResponse({ ok: true, status: 200, json: noSubscriptionPayload() });
+    mockResponse({ ok: true, status: 200, json: { balance: 12.5 } });
+
+    await expect(queryKiloQuota({ requestTimeoutMs: 2345 })).resolves.toEqual({
+      success: true,
+      mode: "gateway_balance",
+      balanceUsd: 12.5,
+    });
+    expect(mocks.resolveKiloApiKey).toHaveBeenCalledTimes(1);
+    expect(mocks.fetchWithTimeout).toHaveBeenNthCalledWith(
+      2,
+      "https://api.kilo.ai/api/profile/balance",
+      expect.objectContaining({
+        request: expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({ Authorization: "Bearer kilo-secret-key" }),
+        }),
+        timeoutMs: 2345,
+      }),
+    );
+  });
+
+  it("also falls back when a valid state envelope omits subscription", async () => {
     mockResponse({ ok: true, status: 200, json: [{ result: { data: { json: {} } } }] });
-    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
+    mockResponse({ ok: true, status: 200, json: { balance: 4.5 } });
 
+    await expect(queryKiloQuota()).resolves.toEqual({
+      success: true,
+      mode: "gateway_balance",
+      balanceUsd: 4.5,
+    });
+  });
+
+  it("does not hide malformed state data or invalid credit fields with a balance fallback", async () => {
+    mockResponse({ ok: true, status: 200, json: null });
+    await expect(queryKiloQuota()).resolves.toMatchObject({ success: false });
+    expect(mocks.fetchWithTimeout).toHaveBeenCalledTimes(1);
+
+    vi.clearAllMocks();
+    mocks.resolveKiloApiKey.mockResolvedValue({ key: "kilo-secret-key" });
+    mockResponse({
+      ok: true,
+      status: 200,
+      json: [{ result: { data: { json: "invalid" } } }],
+    });
+    await expect(queryKiloQuota()).resolves.toMatchObject({ success: false });
+    expect(mocks.fetchWithTimeout).toHaveBeenCalledTimes(1);
+
+    vi.clearAllMocks();
+    mocks.resolveKiloApiKey.mockResolvedValue({ key: "kilo-secret-key" });
     mockResponse({
       ok: true,
       status: 200,
       json: statePayload({ currentPeriodBaseCreditsUsd: -1 }),
     });
-    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
-
-    mockResponse({
-      ok: true,
-      status: 200,
-      json: statePayload({ currentPeriodUsageUsd: "2.76" }),
-    });
-    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
-
-    mockResponse({
-      ok: true,
-      status: 200,
-      json: statePayload({ currentPeriodBonusCreditsUsd: -1 }),
-    });
-    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
+    await expect(queryKiloQuota()).resolves.toMatchObject({ success: false });
+    expect(mocks.fetchWithTimeout).toHaveBeenCalledTimes(1);
   });
 
-  it("reports HTTP errors without leaking the API key", async () => {
-    mockResponse({
-      ok: false,
-      status: 401,
-      text: "Unauthorized\nkilo-secret-key\u001b[31m",
-    });
+  it("does not fall back after a Kilo Pass HTTP failure", async () => {
+    mockResponse({ ok: false, status: 401, text: "Unauthorized\nkilo-secret-key\u001b[31m" });
 
-    const out = await queryKiloPassState();
+    const out = await queryKiloQuota();
     const error = out && !out.success ? out.error : "";
 
     expect(error).toBe("Kilo Gateway state API error 401: Unauthorized [redacted]");
+    expect(mocks.fetchWithTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a sanitized balance fallback failure", async () => {
+    mockResponse({ ok: true, status: 200, json: noSubscriptionPayload() });
+    mockResponse({
+      ok: false,
+      status: 503,
+      text: "down\nkilo-secret-key\u001b[31m",
+    });
+
+    const out = await queryKiloQuota();
+    const error = out && !out.success ? out.error : "";
+
+    expect(error).toBe(
+      "Kilo Gateway has no active Kilo Pass subscription; balance fallback failed: Kilo Gateway balance API error 503: down [redacted]",
+    );
     expect(error).not.toContain("kilo-secret-key");
     expect(error).not.toContain("\u001b");
+  });
+
+  it("rejects an invalid balance without inventing quota data", async () => {
+    mockResponse({ ok: true, status: 200, json: noSubscriptionPayload() });
+    mockResponse({ ok: true, status: 200, json: { balance: -1 } });
+
+    await expect(queryKiloQuota()).resolves.toEqual({
+      success: false,
+      error:
+        "Kilo Gateway has no active Kilo Pass subscription; balance fallback failed: Kilo Gateway balance API returned an invalid balance",
+    });
   });
 
   it("rejects oversized responses before parsing", async () => {
