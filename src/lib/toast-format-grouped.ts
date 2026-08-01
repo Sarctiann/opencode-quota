@@ -21,11 +21,11 @@ import {
 import { formatGroupedHeader } from "./grouped-header-format.js";
 import { normalizeGroupedQuotaEntries } from "./grouped-entry-normalization.js";
 import { renderSessionTokensLines } from "./session-tokens-format.js";
-import {
-  classifyQuotaWindowText,
-  normalizeSingleWindowLabelText,
-  type QuotaWindowKind,
-} from "./quota-entry-display.js";
+import { classifyQuotaWindowText, type QuotaWindowKind } from "./quota-entry-display.js";
+
+function normalizeLabelText(value?: string): string {
+  return value?.trim().replace(/:+$/u, "").trim() ?? "";
+}
 
 const GROUPED_WINDOW_LABELS: Readonly<Record<QuotaWindowKind, string>> = {
   rpm: "RPM",
@@ -45,12 +45,12 @@ function extractWindowLabel(text: string): string | null {
 }
 
 function resolveGroupedRowLabel(entry: QuotaToastEntry): string {
-  const rawLabel = normalizeSingleWindowLabelText(entry.label);
+  const rawLabel = normalizeLabelText(entry.label);
   const fromLabel = extractWindowLabel(rawLabel);
   if (fromLabel) return fromLabel;
   if (rawLabel) return rawLabel;
 
-  const metricLabel = normalizeSingleWindowLabelText(entry.metricLabel);
+  const metricLabel = normalizeLabelText(entry.metricLabel);
   const fromMetricLabel = extractWindowLabel(metricLabel);
   if (fromMetricLabel) return fromMetricLabel;
   if (metricLabel) return metricLabel;
@@ -58,7 +58,7 @@ function resolveGroupedRowLabel(entry: QuotaToastEntry): string {
   const fromName = extractWindowLabel(entry.name);
   if (fromName) return fromName;
 
-  return normalizeSingleWindowLabelText(entry.group) || "Quota window";
+  return normalizeLabelText(entry.group) || "Quota window";
 }
 
 export function formatQuotaRowsGrouped(params: {
@@ -116,13 +116,12 @@ export function formatQuotaRowsGrouped(params: {
       const right = entry.right ? entry.right.trim() : "";
 
       if (isValueEntry(entry)) {
-        const label = entry.label?.trim() ?? entry.name;
+        const label = entry.label?.trim() || entry.name;
         const timeStr = formatResetCountdown(entry.resetTimeIso, {
           compactRounded: true,
           decimals: params.resetTimeDecimals,
         });
         const value = entry.value.trim();
-        const leftText = right ? `${label} ${right}` : label;
 
         if (isTiny) {
           // Tiny: "label  time  value"
@@ -134,6 +133,7 @@ export function formatQuotaRowsGrouped(params: {
             1,
             maxWidth - separator.length - timeWidth - separator.length - valueCol,
           );
+          const leftText = right ? `${label} ${right}` : label;
           const line = [
             padRight(leftText, tinyNameCol),
             padLeft(timeStr, timeWidth),
@@ -143,34 +143,23 @@ export function formatQuotaRowsGrouped(params: {
           continue;
         }
 
-        if (timeStr) {
-          const timeWidth = Math.max(timeStr.length, timeCol);
-          const valueWidth = Math.max(value.length, 6);
-          const leftMax = Math.max(
-            1,
-            maxWidth - separator.length - valueWidth - separator.length - timeWidth,
-          );
-          lines.push(
-            (
-              padRight(leftText, leftMax) +
-              separator +
-              padLeft(value, valueWidth) +
-              separator +
-              padLeft(timeStr, timeWidth)
-            ).slice(0, maxWidth),
-          );
-        } else if (leftText) {
-          const valueWidth = Math.max(value.length, 6);
-          const leftMax = Math.max(1, maxWidth - separator.length - valueWidth);
-          lines.push(
-            (padRight(leftText, leftMax) + separator + padLeft(value, valueWidth)).slice(
-              0,
-              maxWidth,
-            ),
-          );
-        } else {
-          lines.push(padRight(value, maxWidth).slice(0, maxWidth));
-        }
+        // Non-tiny: single line (no bar)
+        const timeWidth = Math.max(timeStr.length, timeCol);
+        const valueWidth = Math.max(value.length, 6);
+        const leftMax = Math.max(
+          1,
+          barWidth - separator.length - valueWidth - separator.length - timeWidth,
+        );
+        const leftText = right ? `${label} ${right}` : label;
+        lines.push(
+          (
+            padRight(leftText, leftMax) +
+            separator +
+            padLeft(value, valueWidth) +
+            separator +
+            padLeft(timeStr, timeWidth)
+          ).slice(0, maxWidth),
+        );
         continue;
       }
 

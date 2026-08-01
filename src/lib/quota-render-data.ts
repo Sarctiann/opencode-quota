@@ -27,11 +27,7 @@ import { getQuotaFormatStyleDefinition } from "./quota-format-style.js";
 import { formatGroupedHeader } from "./grouped-header-format.js";
 import { getProviders } from "../providers/registry.js";
 import { getAnthropicNoDataMessage } from "../providers/anthropic.js";
-import {
-  classifyQuotaWindowText,
-  normalizeSingleWindowLabelText,
-  type QuotaWindowKind,
-} from "./quota-entry-display.js";
+import { classifyQuotaWindowText, type QuotaWindowKind } from "./quota-entry-display.js";
 
 export type SessionModelMeta = {
   modelID?: string;
@@ -391,19 +387,7 @@ function buildSingleWindowName(params: {
     normalizeSingleWindowWindowLabel(params.entry.label) ??
     normalizeSingleWindowWindowLabel(params.entry.name);
 
-  if (windowLabel) return `${provider} ${windowLabel}`;
-
-  const customLabel = normalizeSingleWindowLabelText(params.entry.label);
-  if (
-    customLabel &&
-    params.entry.kind !== "value" &&
-    !providerText.toLowerCase().includes(customLabel.toLowerCase()) &&
-    !params.entry.name.toLowerCase().includes(customLabel.toLowerCase())
-  ) {
-    return `${provider} ${customLabel}`;
-  }
-
-  return provider;
+  return windowLabel ? `${provider} ${windowLabel}` : provider;
 }
 
 function renameSingleWindowEntry(entry: QuotaToastEntry, name: string): QuotaToastEntry {

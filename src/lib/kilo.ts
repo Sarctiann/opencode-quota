@@ -1,8 +1,8 @@
 /**
  * Kilo Gateway API client.
  *
- * Reports credit-remaining percentage, USD balance, and usage from the Kilo
- * Pass subscription state endpoint (tRPC) alone.
+ * Reports Kilo Pass credit totals and usage from the authenticated tRPC
+ * subscription-state endpoint.
  */
 
 import type { QuotaError } from "./types.js";
@@ -10,16 +10,17 @@ import { sanitizeSingleLineDisplayText } from "./display-sanitize.js";
 import { fetchWithTimeout } from "./http.js";
 import { resolveKiloApiKey } from "./kilo-config.js";
 
-const KILO_PASS_STATE_URL = "https://app.kilo.ai/api/trpc/kiloPass.getState";
+const KILO_PASS_STATE_ENDPOINT = "https://app.kilo.ai/api/trpc/kiloPass.getState";
 const MAX_RESPONSE_BYTES = 64 * 1024;
 
 export type KiloPassStateResult =
   | {
       success: true;
-      totalUsd: number;
+      baseCreditsUsd: number;
       usageUsd: number;
-      balanceUsd: number;
-      bonusUsd: number;
+      bonusCreditsUsd: number;
+      remainingUsd: number;
+      resetTimeIso?: string;
     }
   | QuotaError
   | null;
@@ -35,46 +36,66 @@ function sanitizeMessage(text: string, secret?: string, maxLength = 200): string
   return (sanitizeSingleLineDisplayText(redacted) || "unknown").slice(0, maxLength);
 }
 
+function nonnegativeNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 function parseKiloPassState(payload: unknown): KiloPassStateResult {
-  if (
-    !isRecord(payload) ||
-    !isRecord(payload.result) ||
-    !isRecord(payload.result.data) ||
-    !isRecord(payload.result.data.subscription)
-  ) {
+  const item = Array.isArray(payload) ? payload[0] : payload;
+  const result = isRecord(item) ? item.result : undefined;
+  const data = isRecord(result) ? result.data : undefined;
+  const root = isRecord(data) && isRecord(data.json) ? data.json : data;
+  const subscription = isRecord(root) ? root.subscription : undefined;
+
+  if (!isRecord(subscription)) {
     return {
       success: false,
-      error: "Kilo Gateway state API returned an unexpected response shape",
+      error: "Kilo Gateway state API returned no active Kilo Pass subscription",
     };
   }
 
-  const subscription = payload.result.data.subscription;
-  const baseCreditsUsd = subscription.currentPeriodBaseCreditsUsd;
-  const usageUsd = subscription.currentPeriodUsageUsd;
-  const bonusCreditsUsd = subscription.currentPeriodBonusCreditsUsd;
+  const baseCreditsUsd = nonnegativeNumber(subscription.currentPeriodBaseCreditsUsd);
+  const usageUsd = nonnegativeNumber(subscription.currentPeriodUsageUsd);
+  const rawBonusCreditsUsd = subscription.currentPeriodBonusCreditsUsd;
+  const bonusCreditsUsd =
+    rawBonusCreditsUsd === null || rawBonusCreditsUsd === undefined
+      ? 0
+      : nonnegativeNumber(rawBonusCreditsUsd);
 
-  if (typeof baseCreditsUsd !== "number" || !Number.isFinite(baseCreditsUsd) || baseCreditsUsd < 0) {
+  if (baseCreditsUsd === null) {
     return {
       success: false,
       error: "Kilo Gateway state API returned invalid currentPeriodBaseCreditsUsd",
     };
   }
+  if (usageUsd === null) {
+    return {
+      success: false,
+      error: "Kilo Gateway state API returned invalid currentPeriodUsageUsd",
+    };
+  }
+  if (bonusCreditsUsd === null) {
+    return {
+      success: false,
+      error: "Kilo Gateway state API returned invalid currentPeriodBonusCreditsUsd",
+    };
+  }
 
-  const used =
-    typeof usageUsd === "number" && Number.isFinite(usageUsd) && usageUsd >= 0 ? usageUsd : 0;
-  const bonus =
-    typeof bonusCreditsUsd === "number" && Number.isFinite(bonusCreditsUsd) && bonusCreditsUsd >= 0
-      ? bonusCreditsUsd
-      : 0;
-
-  const balanceUsd = Math.round((baseCreditsUsd - used) * 100) / 100;
+  const resetValue = subscription.nextBillingAt ?? subscription.nextRenewalAt;
+  const resetTimeIso =
+    typeof resetValue === "string" && Number.isFinite(Date.parse(resetValue))
+      ? resetValue
+      : undefined;
+  const remainingUsd =
+    Math.round(Math.max(0, baseCreditsUsd + bonusCreditsUsd - usageUsd) * 100) / 100;
 
   return {
     success: true,
-    totalUsd: baseCreditsUsd,
-    usageUsd: used,
-    balanceUsd,
-    bonusUsd: bonus,
+    baseCreditsUsd,
+    usageUsd,
+    bonusCreditsUsd,
+    remainingUsd,
+    ...(resetTimeIso ? { resetTimeIso } : {}),
   };
 }
 
@@ -84,8 +105,13 @@ export async function queryKiloPassState(
   const resolved = await resolveKiloApiKey();
   if (!resolved) return null;
 
+  const query = new URLSearchParams({
+    batch: "1",
+    input: JSON.stringify({ "0": null }),
+  });
+
   try {
-    return await fetchWithTimeout(KILO_PASS_STATE_URL, {
+    return await fetchWithTimeout(`${KILO_PASS_STATE_ENDPOINT}?${query.toString()}`, {
       request: {
         method: "GET",
         headers: {

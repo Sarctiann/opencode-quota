@@ -79,10 +79,10 @@ export const PROVIDER_ACCOUNTING_LEDGER: Record<string, Array<QuotaToastEntry["a
   ],
   kilo: [
     {
-      resultType: "balance",
+      resultType: "quota",
       acquisitionMethod: "remote_api",
       ownership: "maintained",
-      authority: "provider_reported",
+      authority: "locally_derived",
     },
   ],
   cursor: [

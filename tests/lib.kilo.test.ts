@@ -38,18 +38,23 @@ function mockResponse(params: { ok: boolean; status: number; json?: unknown; tex
 }
 
 function statePayload(overrides: Record<string, unknown> = {}) {
-  return {
-    result: {
-      data: {
-        subscription: {
-          currentPeriodBaseCreditsUsd: 19,
-          currentPeriodUsageUsd: 2.76,
-          currentPeriodBonusCreditsUsd: 9.5,
-          ...overrides,
+  return [
+    {
+      result: {
+        data: {
+          json: {
+            subscription: {
+              currentPeriodBaseCreditsUsd: 19,
+              currentPeriodUsageUsd: 2.76,
+              currentPeriodBonusCreditsUsd: 9.5,
+              nextBillingAt: "2099-02-01T00:00:00.000Z",
+              ...overrides,
+            },
+          },
         },
       },
     },
-  };
+  ];
 }
 
 describe("queryKiloPassState", () => {
@@ -68,13 +73,13 @@ describe("queryKiloPassState", () => {
     expect(mocks.fetchWithTimeout).not.toHaveBeenCalled();
   });
 
-  it("sends the state request with Bearer auth", async () => {
+  it("sends the batched tRPC state request with Bearer auth", async () => {
     mockResponse({ ok: true, status: 200, json: statePayload() });
 
     await queryKiloPassState({ requestTimeoutMs: 1234 });
 
     expect(mocks.fetchWithTimeout).toHaveBeenCalledWith(
-      "https://app.kilo.ai/api/trpc/kiloPass.getState",
+      "https://app.kilo.ai/api/trpc/kiloPass.getState?batch=1&input=%7B%220%22%3Anull%7D",
       expect.objectContaining({
         request: {
           method: "GET",
@@ -91,26 +96,48 @@ describe("queryKiloPassState", () => {
     );
   });
 
-  it("derives balance and bonus from the subscription state", async () => {
+  it("parses the batched tRPC json envelope and derives remaining credits", async () => {
     mockResponse({ ok: true, status: 200, json: statePayload() });
 
     await expect(queryKiloPassState()).resolves.toEqual({
       success: true,
-      totalUsd: 19,
+      baseCreditsUsd: 19,
       usageUsd: 2.76,
-      balanceUsd: 16.24,
-      bonusUsd: 9.5,
+      bonusCreditsUsd: 9.5,
+      remainingUsd: 25.74,
+      resetTimeIso: "2099-02-01T00:00:00.000Z",
     });
   });
 
-  it("defaults missing usage and bonus to zero", async () => {
+  it("clamps remaining credits to zero when usage exceeds the period credits", async () => {
+    mockResponse({
+      ok: true,
+      status: 200,
+      json: statePayload({
+        currentPeriodBaseCreditsUsd: 10,
+        currentPeriodUsageUsd: 12,
+        currentPeriodBonusCreditsUsd: 0,
+      }),
+    });
+
+    await expect(queryKiloPassState()).resolves.toMatchObject({
+      success: true,
+      remainingUsd: 0,
+    });
+  });
+
+  it("accepts the unwrapped data envelope and treats a missing bonus as zero", async () => {
     mockResponse({
       ok: true,
       status: 200,
       json: {
         result: {
           data: {
-            subscription: { currentPeriodBaseCreditsUsd: 5 },
+            subscription: {
+              currentPeriodBaseCreditsUsd: 5,
+              currentPeriodUsageUsd: 1,
+              nextRenewalAt: "2099-03-01T00:00:00.000Z",
+            },
           },
         },
       },
@@ -118,24 +145,40 @@ describe("queryKiloPassState", () => {
 
     await expect(queryKiloPassState()).resolves.toEqual({
       success: true,
-      totalUsd: 5,
-      usageUsd: 0,
-      balanceUsd: 5,
-      bonusUsd: 0,
+      baseCreditsUsd: 5,
+      usageUsd: 1,
+      bonusCreditsUsd: 0,
+      remainingUsd: 4,
+      resetTimeIso: "2099-03-01T00:00:00.000Z",
     });
   });
 
-  it("rejects unsupported state shapes", async () => {
+  it("rejects missing subscriptions and invalid credit fields", async () => {
     mockResponse({ ok: true, status: 200, json: null });
     await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
 
-    mockResponse({ ok: true, status: 200, json: { result: { data: {} } } });
+    mockResponse({ ok: true, status: 200, json: [{ result: { data: { json: {} } } }] });
     await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
 
-    mockResponse({ ok: true, status: 200, json: statePayload({ currentPeriodBaseCreditsUsd: -1 }) });
+    mockResponse({
+      ok: true,
+      status: 200,
+      json: statePayload({ currentPeriodBaseCreditsUsd: -1 }),
+    });
     await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
 
-    mockResponse({ ok: true, status: 200, json: statePayload({ currentPeriodBaseCreditsUsd: "19" }) });
+    mockResponse({
+      ok: true,
+      status: 200,
+      json: statePayload({ currentPeriodUsageUsd: "2.76" }),
+    });
+    await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
+
+    mockResponse({
+      ok: true,
+      status: 200,
+      json: statePayload({ currentPeriodBonusCreditsUsd: -1 }),
+    });
     await expect(queryKiloPassState()).resolves.toMatchObject({ success: false });
   });
 

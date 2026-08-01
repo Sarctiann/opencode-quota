@@ -3,7 +3,12 @@
  */
 
 import type { AccountingMetadata } from "../lib/entries.js";
-import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult, QuotaToastEntry } from "../lib/entries.js";
+import type {
+  QuotaProvider,
+  QuotaProviderContext,
+  QuotaProviderResult,
+  QuotaToastEntry,
+} from "../lib/entries.js";
 import { fmtUsdAmount } from "../lib/format-utils.js";
 import { getKiloKeyDiagnostics, hasKiloApiKey } from "../lib/kilo-config.js";
 import { queryKiloPassState, type KiloPassStateResult } from "../lib/kilo.js";
@@ -16,42 +21,54 @@ import {
   withStatusDetails,
 } from "./result-helpers.js";
 
-const KILO_ACCOUNTING: AccountingMetadata = {
-  resultType: "balance",
+const KILO_QUOTA_ACCOUNTING: AccountingMetadata = {
+  resultType: "quota",
   acquisitionMethod: "remote_api",
   ownership: "maintained",
-  authority: "provider_reported",
+  authority: "locally_derived",
+};
+
+const KILO_REMAINING_ACCOUNTING: AccountingMetadata = {
+  resultType: "quota",
+  acquisitionMethod: "remote_api",
+  ownership: "maintained",
+  authority: "locally_derived",
 };
 
 type KiloPassStateSuccess = Extract<NonNullable<KiloPassStateResult>, { success: true }>;
 
 function buildKiloGatewayEntries(state: KiloPassStateSuccess): QuotaToastEntry[] {
-  const total = state.totalUsd + state.bonusUsd;
+  const totalCreditsUsd = state.baseCreditsUsd + state.bonusCreditsUsd;
+  const entries: QuotaToastEntry[] = [];
 
-  const percentEntry: QuotaToastEntry | undefined =
-    total > 0
-      ? {
-          accounting: KILO_ACCOUNTING,
-          name: "Kilo Gateway",
-          group: "Kilo Gateway",
-          label: "Credits:",
-          percentRemaining: Math.min(100, Math.max(0, ((total - state.usageUsd) / total) * 100)),
-        }
-      : undefined;
-
-  const bonusText = state.bonusUsd > 0 ? ` + ${fmtUsdAmount(state.bonusUsd)}` : "";
-
-  return [
-    ...(percentEntry ? [percentEntry] : []),
-    {
-      kind: "value",
-      accounting: KILO_ACCOUNTING,
-      name: "Kilo Gateway Balance",
+  if (totalCreditsUsd > 0) {
+    entries.push({
+      accounting: KILO_QUOTA_ACCOUNTING,
+      name: "Kilo Gateway Credits",
       group: "Kilo Gateway",
-      label: `U: ${fmtUsdAmount(state.usageUsd)}`,
-      value: `B: ${fmtUsdAmount(state.balanceUsd)}${bonusText}`,
-    },
-  ];
+      label: "Credits:",
+      right: `${fmtUsdAmount(state.usageUsd)}/${fmtUsdAmount(totalCreditsUsd)} used`,
+      percentRemaining: Math.min(
+        100,
+        Math.max(0, ((totalCreditsUsd - state.usageUsd) / totalCreditsUsd) * 100),
+      ),
+      resetTimeIso: state.resetTimeIso,
+    });
+  }
+
+  const bonusText =
+    state.bonusCreditsUsd > 0 ? ` (${fmtUsdAmount(state.bonusCreditsUsd)} bonus)` : "";
+  entries.push({
+    kind: "value",
+    accounting: KILO_REMAINING_ACCOUNTING,
+    name: "Kilo Gateway Remaining Credits",
+    group: "Kilo Gateway",
+    label: "Credits:",
+    value: `Used: ${fmtUsdAmount(state.usageUsd)} · Remaining: ${fmtUsdAmount(state.remainingUsd)}${bonusText}`,
+    resetTimeIso: state.resetTimeIso,
+  });
+
+  return entries;
 }
 
 export const kiloProvider: QuotaProvider = {
@@ -72,27 +89,34 @@ export const kiloProvider: QuotaProvider = {
       checkedPaths: [],
       authPaths: [],
     }));
-
-    const stateResult = await queryKiloPassState({ requestTimeoutMs: ctx.config?.requestTimeoutMs });
-
+    const stateResult = await queryKiloPassState({
+      requestTimeoutMs: ctx.config?.requestTimeoutMs,
+    });
     const keyStatusDetails = simpleApiKeyStatusDetails(diagnostics);
 
     if (!stateResult) {
-      return withStatusDetails(notAttemptedResult(), [...keyStatusDetails]);
+      return withStatusDetails(notAttemptedResult(), keyStatusDetails);
     }
-
     if (!stateResult.success) {
       return withStatusDetails(
-        { attempted: true, entries: [], errors: [{ label: "Kilo Gateway", message: stateResult.error }] },
-        [...keyStatusDetails],
+        {
+          attempted: true,
+          entries: [],
+          errors: [{ label: "Kilo Gateway", message: stateResult.error }],
+        },
+        keyStatusDetails,
       );
     }
 
-    const entries = buildKiloGatewayEntries(stateResult);
-
-    return withStatusDetails(attemptedResult(entries), [
+    return withStatusDetails(attemptedResult(buildKiloGatewayEntries(stateResult)), [
       ...keyStatusDetails,
-      ...statusDetailsFromRecord({ balance_usd: fmtUsdAmount(stateResult.balanceUsd) }),
+      ...statusDetailsFromRecord({
+        base_credits_usd: fmtUsdAmount(stateResult.baseCreditsUsd),
+        usage_usd: fmtUsdAmount(stateResult.usageUsd),
+        bonus_credits_usd: fmtUsdAmount(stateResult.bonusCreditsUsd),
+        remaining_usd: fmtUsdAmount(stateResult.remainingUsd),
+        reset_at: stateResult.resetTimeIso ?? "(none)",
+      }),
     ]);
   },
 };
