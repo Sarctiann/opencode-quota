@@ -97,7 +97,6 @@ describe("Kilo Gateway provider", () => {
         label: "Left:",
         metricLabel: "Left",
         value: "$12.50",
-        resetTimeIso: "2099-02-01T00:00:00.000Z",
       },
     ]);
     expect(out.entries.map((entry) => entry.accounting)).toEqual([

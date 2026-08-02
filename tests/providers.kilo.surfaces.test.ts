@@ -58,13 +58,13 @@ describe("Kilo Gateway four-surface formatting", () => {
           label: "Left:",
           metricLabel: "Left",
           value: "$12.50",
-          resetTimeIso,
         },
       ],
       errors: [],
     };
 
-    for (const output of renderFourSurfaces(data)) {
+    const outputs = renderFourSurfaces(data);
+    for (const output of outputs) {
       expect(output).toContain("Kilo Gateway");
       expect(output).toContain("Credits");
       expect(output).toContain("83%");
@@ -75,6 +75,11 @@ describe("Kilo Gateway four-surface formatting", () => {
       expect(output.toLowerCase()).not.toContain("used");
       expect(output.toLowerCase()).not.toContain("bonus");
       expect(output.toLowerCase()).not.toContain("base");
+    }
+
+    for (const groupedOutput of outputs.slice(1, 3)) {
+      const leftLine = groupedOutput.split("\n").find((line) => line.startsWith("Left:"));
+      expect(leftLine?.trim().replace(/\s+/gu, " ")).toBe("Left: $12.50");
     }
   });
 
