@@ -12,6 +12,7 @@ import type {
   QuotaExportEntry,
   QuotaExportError,
   QuotaExportProvider,
+  QuotaExportRawDetail,
   QuotaExportSource,
 } from "./quota-export-types.js";
 import type { QuotaRuntimeContext } from "./quota-runtime-context.js";
@@ -83,6 +84,13 @@ function toExportError(error: { label: string; message: string }): QuotaExportEr
   return {
     label: sanitizeSingleLineDisplaySnippet(error.label, EXPORT_ERROR_MAX_LENGTH),
     message: sanitizeSingleLineDisplaySnippet(error.message, EXPORT_ERROR_MAX_LENGTH),
+  };
+}
+
+function toExportRawDetail(detail: { key: string; value: string }): QuotaExportRawDetail {
+  return {
+    key: sanitizeSingleLineDisplaySnippet(detail.key, EXPORT_ERROR_MAX_LENGTH),
+    value: sanitizeSingleLineDisplaySnippet(detail.value, EXPORT_ERROR_MAX_LENGTH),
   };
 }
 
@@ -171,6 +179,10 @@ export async function buildQuotaExport(params: {
       continue;
     }
 
+    const withRawDetails = read.result.rawDetails?.length
+      ? { rawDetails: read.result.rawDetails.map(toExportRawDetail) }
+      : {};
+
     const fetchedAt = Math.floor(read.timestamp / 1000);
 
     if (read.result.entries.length > 0 && read.result.errors.length > 0) {
@@ -180,6 +192,7 @@ export async function buildQuotaExport(params: {
         entries: read.result.entries.map(toExportEntry),
         errors: read.result.errors.map(toExportError),
         ...withSources,
+        ...withRawDetails,
       };
       fetchedAtValues.push(fetchedAt);
       continue;
@@ -194,6 +207,7 @@ export async function buildQuotaExport(params: {
           EXPORT_ERROR_MAX_LENGTH,
         ),
         ...withSources,
+        ...withRawDetails,
       };
       fetchedAtValues.push(fetchedAt);
       continue;
@@ -205,6 +219,7 @@ export async function buildQuotaExport(params: {
       fetchedAt,
       entries,
       ...withSources,
+      ...withRawDetails,
     };
     fetchedAtValues.push(fetchedAt);
   }

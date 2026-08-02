@@ -858,6 +858,7 @@ describe("quota-state shared cache", () => {
         ],
         errors: [{ label: "Other", message: "request failed" }],
         statusDetails: [{ key: "balance_usd", value: "$42.50" }],
+        rawDetails: [{ key: "usage_usd", value: "$2.50" }],
         diagnostics: [
           {
             sourceId: "custom",
@@ -898,12 +899,14 @@ describe("quota-state shared cache", () => {
     const first = await fetchQuotaProviderResult({ provider, ctx, ttlMs: 60_000 });
     first.diagnostics![0]!.checkedPaths[0] = "mutated";
     first.statusDetails![0]!.value = "mutated";
+    first.rawDetails![0]!.value = "mutated";
     const second = await fetchQuotaProviderResult({ provider, ctx, ttlMs: 60_000 });
 
     expect(provider.fetch).toHaveBeenCalledTimes(1);
     expect(second.errors).toEqual([{ label: "Other", message: "request failed" }]);
     expect(second.diagnostics?.[0]?.checkedPaths).toEqual(["env:EXPLICIT_KEY"]);
     expect(second.statusDetails).toEqual([{ key: "balance_usd", value: "$42.50" }]);
+    expect(second.rawDetails).toEqual([{ key: "usage_usd", value: "$2.50" }]);
   });
 
   it("rejects persisted diagnostics that use the deprecated format name", async () => {

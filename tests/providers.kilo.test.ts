@@ -73,6 +73,7 @@ describe("Kilo Gateway provider", () => {
       usageUsd: 2.5,
       bonusCreditsUsd: 5,
       remainingUsd: 12.5,
+      overageUsd: 0,
       resetTimeIso: "2099-02-01T00:00:00.000Z",
     });
 
@@ -124,9 +125,18 @@ describe("Kilo Gateway provider", () => {
         { key: "usage_usd", value: "$2.50" },
         { key: "bonus_credits_usd", value: "$5.00" },
         { key: "remaining_usd", value: "$12.50" },
+        { key: "overage_usd", value: "$0.00" },
         { key: "reset_at", value: "2099-02-01T00:00:00.000Z" },
       ]),
     );
+    expect(out.rawDetails).toEqual([
+      { key: "base_credits_usd", value: "$10.00" },
+      { key: "usage_usd", value: "$2.50" },
+      { key: "bonus_credits_usd", value: "$5.00" },
+      { key: "remaining_usd", value: "$12.50" },
+      { key: "overage_usd", value: "$0.00" },
+      { key: "reset_at", value: "2099-02-01T00:00:00.000Z" },
+    ]);
     expect(JSON.stringify(out.entries)).not.toContain("$10.00");
     expect(JSON.stringify(out.entries)).not.toContain("$2.50");
     expect(JSON.stringify(out.entries)).not.toContain("$5.00");
@@ -140,6 +150,7 @@ describe("Kilo Gateway provider", () => {
       usageUsd: 2.5,
       bonusCreditsUsd: 5,
       remainingUsd: 12.5,
+      overageUsd: 0,
     });
     const raw = await kiloProvider.fetch({} as any);
     const projectedProvider = {
@@ -184,6 +195,7 @@ describe("Kilo Gateway provider", () => {
       usageUsd: 2.5,
       bonusCreditsUsd: 0,
       remainingUsd: 7.5,
+      overageUsd: 0,
     });
 
     const out = await kiloProvider.fetch({} as any);
@@ -217,6 +229,7 @@ describe("Kilo Gateway provider", () => {
       usageUsd: 12,
       bonusCreditsUsd: 0,
       remainingUsd: 0,
+      overageUsd: 2,
     });
 
     const out = await kiloProvider.fetch({} as any);
@@ -240,6 +253,17 @@ describe("Kilo Gateway provider", () => {
         value: "$0.00",
       },
     ]);
+    expect(out.statusDetails).toEqual(
+      expect.arrayContaining([{ key: "overage_usd", value: "$2.00" }]),
+    );
+    expect(out.rawDetails).toEqual(
+      expect.arrayContaining([
+        { key: "usage_usd", value: "$12.00" },
+        { key: "remaining_usd", value: "$0.00" },
+        { key: "overage_usd", value: "$2.00" },
+      ]),
+    );
+    expect(JSON.stringify(out.entries)).not.toContain("$2.00");
   });
 
   it("omits the percent entry when total credits are zero", async () => {
@@ -250,6 +274,7 @@ describe("Kilo Gateway provider", () => {
       usageUsd: 0,
       bonusCreditsUsd: 0,
       remainingUsd: 0,
+      overageUsd: 0,
     });
 
     const out = await kiloProvider.fetch({} as any);
@@ -293,6 +318,7 @@ describe("Kilo Gateway provider", () => {
       authority: "provider_reported",
     });
     expect(out.presentation).toBeUndefined();
+    expect(out.rawDetails).toBeUndefined();
     expect(out.statusDetails).toEqual(
       expect.arrayContaining([
         { key: "accounting_mode", value: "gateway_balance" },

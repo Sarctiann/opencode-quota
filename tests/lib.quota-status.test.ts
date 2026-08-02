@@ -957,6 +957,29 @@ describe("buildQuotaStatusReport", () => {
     expect(report).toContain("- live_error_balance: NanoGPT API error 401: Unauthorized");
   });
 
+  it("reports all Kilo Pass raw accounting values in /quota_status", async () => {
+    const report = await buildProviderStatusReport("kilo", {
+      providerLiveProbes: [
+        makeProviderSuccessProbe("kilo", {
+          base_credits_usd: "$10.00",
+          usage_usd: "$12.00",
+          bonus_credits_usd: "$0.00",
+          remaining_usd: "$0.00",
+          overage_usd: "$2.00",
+          reset_at: "2026-07-01T00:00:00.000Z",
+        }),
+      ],
+    });
+
+    expect(report).toContain("kilo:");
+    expect(report).toContain("- base_credits_usd: $10.00");
+    expect(report).toContain("- usage_usd: $12.00");
+    expect(report).toContain("- bonus_credits_usd: $0.00");
+    expect(report).toContain("- remaining_usd: $0.00");
+    expect(report).toContain("- overage_usd: $2.00");
+    expect(report).toContain("- reset_at: 2026-07-01T00:00:00.000Z");
+  });
+
   it("reports DeepSeek API key diagnostics", async () => {
     const report = await buildProviderStatusReport("deepseek", {
       providerLiveProbes: [

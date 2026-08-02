@@ -274,6 +274,7 @@ Entry fields:
 - `resultType` is one of `quota`, `rate_limit`, `usage`, `spend`, `budget`, `balance`, or `status`.
 - `window`, `resetAt`, and `observedAt` appear only when provider accounting data supplies them.
 - `sourceId` is the stable `quotaProviders` definition id stamped onto rows from the `quota-providers` aggregate; it is identity, not a display label.
+- `rawDetails` is an optional list of safe provider-owned key/value facts that stay out of human quota rows. Kilo Pass uses it for base, usage, bonus, remaining, overage, and reset values.
 - `sources` preserves `quotaProviders` definition order. Each summary is exactly `id`, effective `providerId`, coarse `status`, and `entryCount`; the count is the cached normalized row count for that definition, and duplicate labels remain separate by stable `id`. A `json-v1` source can be `ok` after producing valid rows while its rejected mapping candidates make the aggregate provider `partial`.
 
 </details>

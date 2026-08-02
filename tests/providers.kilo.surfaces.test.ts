@@ -106,6 +106,42 @@ describe("Kilo Gateway four-surface formatting", () => {
     }
   });
 
+  it("hides overage details on every human surface", () => {
+    const data: QuotaRenderData = {
+      entries: [
+        {
+          accounting: quotaAccounting,
+          name: "Kilo Gateway Credits",
+          group: "Kilo Gateway",
+          label: "Credits:",
+          metricLabel: "Credits",
+          right: "$0.00 left",
+          percentRemaining: 0,
+        },
+        {
+          kind: "value",
+          accounting: quotaAccounting,
+          name: "Kilo Gateway Remaining Credits",
+          group: "Kilo Gateway",
+          label: "Left:",
+          metricLabel: "Left",
+          value: "$0.00",
+        },
+      ],
+      errors: [],
+    };
+
+    for (const output of renderFourSurfaces(data)) {
+      expect(output).toContain("0%");
+      expect(output).toContain("$0.00");
+      expect(output).not.toContain("$2.00");
+      expect(output.toLowerCase()).not.toContain("overage");
+      expect(output.toLowerCase()).not.toContain("used");
+      expect(output.toLowerCase()).not.toContain("bonus");
+      expect(output.toLowerCase()).not.toContain("base");
+    }
+  });
+
   it("keeps Gateway fallback balance-only on every human surface", () => {
     const data: QuotaRenderData = {
       entries: [

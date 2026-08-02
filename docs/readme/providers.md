@@ -485,7 +485,7 @@ If you use manual provider selection, include `deepseek` in `enabledProviders`.
 
 ### Kilo Gateway
 
-Kilo Gateway checks the authenticated `kiloPass.getState` tRPC endpoint first. Kilo Pass subscribers see the percentage and dollar amount left, plus the next billing or renewal time when Kilo provides one. Base, used, and bonus amounts stay available in diagnostics instead of the everyday quota display; exported rows keep their quota accounting.
+Kilo Gateway checks the authenticated `kiloPass.getState` tRPC endpoint first. Kilo Pass subscribers see the percentage and dollar amount left, plus the next billing or renewal time when Kilo provides one. Base, usage, bonus, remaining, overage, and reset values stay available in `/quota_status`, raw diagnostics, and JSON exports instead of the everyday quota display.
 
 If the account has no active Kilo Pass, OpenCode Quota falls back to Kilo's documented personal Gateway balance. This balance-only path does not invent usage, quota percentages, or reset times.
 

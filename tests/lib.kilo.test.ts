@@ -109,6 +109,7 @@ describe("Kilo Gateway API client", () => {
       usageUsd: 2.76,
       bonusCreditsUsd: 9.5,
       remainingUsd: 25.74,
+      overageUsd: 0,
       resetTimeIso: "2099-02-01T00:00:00.000Z",
     });
   });
@@ -136,6 +137,7 @@ describe("Kilo Gateway API client", () => {
       usageUsd: 1,
       bonusCreditsUsd: 0,
       remainingUsd: 4,
+      overageUsd: 0,
       resetTimeIso: "2099-03-01T00:00:00.000Z",
     });
   });
@@ -159,6 +161,7 @@ describe("Kilo Gateway API client", () => {
       usageUsd: 12,
       bonusCreditsUsd: 0,
       remainingUsd: 0,
+      overageUsd: 2,
       resetTimeIso: "2099-03-01T00:00:00.000Z",
     });
   });
@@ -203,6 +206,7 @@ describe("Kilo Gateway API client", () => {
       success: true,
       mode: "kilo_pass",
       remainingUsd: 25.74,
+      overageUsd: 0,
     });
     expect(mocks.resolveKiloApiKey).toHaveBeenCalledTimes(1);
     expect(mocks.fetchWithTimeout).toHaveBeenCalledTimes(1);

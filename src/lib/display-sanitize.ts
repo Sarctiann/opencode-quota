@@ -98,6 +98,14 @@ export function sanitizeQuotaProviderResult(result: QuotaProviderResult): QuotaP
           })),
         }
       : {}),
+    ...(result.rawDetails
+      ? {
+          rawDetails: result.rawDetails.map((detail) => ({
+            key: sanitizeDisplayText(detail.key),
+            value: sanitizeDisplayText(detail.value),
+          })),
+        }
+      : {}),
     ...(result.presentation ? { presentation: { ...result.presentation } } : {}),
   };
 }

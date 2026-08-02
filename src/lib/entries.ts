@@ -196,6 +196,8 @@ export interface QuotaProviderResult {
    * may reuse them, but must not refetch when details are absent.
    */
   statusDetails?: readonly QuotaProviderStatusDetail[];
+  /** Safe provider-owned facts preserved in cache and JSON exports, never human presentation. */
+  rawDetails?: readonly QuotaProviderStatusDetail[];
   presentation?: QuotaProviderPresentation;
 }
 

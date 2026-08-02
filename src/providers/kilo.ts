@@ -75,19 +75,24 @@ function buildKiloPassEntries(state: KiloPassSuccess): QuotaToastEntry[] {
 }
 
 function mapKiloPassSuccess(state: KiloPassSuccess): QuotaProviderResult {
+  const rawDetails = statusDetailsFromRecord({
+    base_credits_usd: fmtUsdAmount(state.baseCreditsUsd),
+    usage_usd: fmtUsdAmount(state.usageUsd),
+    bonus_credits_usd: fmtUsdAmount(state.bonusCreditsUsd),
+    remaining_usd: fmtUsdAmount(state.remainingUsd),
+    overage_usd: fmtUsdAmount(state.overageUsd),
+    reset_at: state.resetTimeIso ?? "(none)",
+  });
+
   return withStatusDetails(
-    attemptedResult(buildKiloPassEntries(state), [], {
-      singleWindowDisplayName: "Kilo Gateway",
-      singleWindowShowRight: true,
-    }),
-    statusDetailsFromRecord({
-      accounting_mode: "kilo_pass",
-      base_credits_usd: fmtUsdAmount(state.baseCreditsUsd),
-      usage_usd: fmtUsdAmount(state.usageUsd),
-      bonus_credits_usd: fmtUsdAmount(state.bonusCreditsUsd),
-      remaining_usd: fmtUsdAmount(state.remainingUsd),
-      reset_at: state.resetTimeIso ?? "(none)",
-    }),
+    {
+      ...attemptedResult(buildKiloPassEntries(state), [], {
+        singleWindowDisplayName: "Kilo Gateway",
+        singleWindowShowRight: true,
+      }),
+      rawDetails,
+    },
+    [...statusDetailsFromRecord({ accounting_mode: "kilo_pass" }), ...rawDetails],
   );
 }
 

@@ -21,6 +21,7 @@ type KiloPassStateSuccess = {
   usageUsd: number;
   bonusCreditsUsd: number;
   remainingUsd: number;
+  overageUsd: number;
   resetTimeIso?: string;
 };
 
@@ -147,8 +148,9 @@ function parseKiloPassState(payload: unknown): ParsedKiloPassState {
     subscription.nextBillingAt,
     subscription.nextRenewalAt,
   );
-  const remainingUsd =
-    Math.round(Math.max(0, baseCreditsUsd + bonusCreditsUsd - usageUsd) * 100) / 100;
+  const totalCreditsUsd = baseCreditsUsd + bonusCreditsUsd;
+  const remainingUsd = Math.round(Math.max(0, totalCreditsUsd - usageUsd) * 100) / 100;
+  const overageUsd = Math.round(Math.max(0, usageUsd - totalCreditsUsd) * 100) / 100;
 
   return {
     success: true,
@@ -156,6 +158,7 @@ function parseKiloPassState(payload: unknown): ParsedKiloPassState {
     usageUsd,
     bonusCreditsUsd,
     remainingUsd,
+    overageUsd,
     ...(resetTimeIso ? { resetTimeIso } : {}),
   };
 }
