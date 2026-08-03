@@ -48,7 +48,7 @@ function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
     encoding: "utf8",
-    env: { ...process.env, HUSKY: "0", npm_config_ignore_scripts: "true" },
+    env: { ...process.env, npm_config_ignore_scripts: "true" },
     ...options,
   });
 

@@ -12,7 +12,6 @@ function run(script, args = []) {
   const result = spawnSync(process.execPath, [script, ...args], {
     cwd: repoRoot,
     encoding: "utf8",
-    env: { ...process.env, HUSKY: "0" },
     stdio: "inherit",
   });
 

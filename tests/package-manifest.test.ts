@@ -45,6 +45,9 @@ const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url
 };
 
 const pnpmWorkspace = await readFile(new URL("../pnpm-workspace.yaml", import.meta.url), "utf8");
+const pnpmWorkspaceConfig = parse(pnpmWorkspace) as {
+  allowBuilds?: Record<string, boolean>;
+};
 const tsconfig = JSON.parse(
   await readFile(new URL("../tsconfig.json", import.meta.url), "utf8"),
 ) as {
@@ -67,9 +70,21 @@ const biomeConfig = JSON.parse(
     linter?: { domains?: Record<string, string> };
   }>;
 };
-const lintStaged = JSON.parse(
-  await readFile(new URL("../.lintstagedrc", import.meta.url), "utf8"),
-) as Record<string, string>;
+const lefthookConfig = parse(
+  await readFile(new URL("../lefthook.yml", import.meta.url), "utf8"),
+) as Record<
+  "pre-commit" | "pre-push",
+  {
+    commands?: Record<string, { glob?: string; run?: string; stage_fixed?: boolean }>;
+  }
+>;
+const packageScriptSources = await Promise.all(
+  [
+    "../scripts/pack-release-package.mjs",
+    "../scripts/verify-package-contents.mjs",
+    "../scripts/verify-release-package.mjs",
+  ].map((path) => readFile(new URL(path, import.meta.url), "utf8")),
+);
 const ciWorkflow = parse(
   await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"),
 ) as Workflow;
@@ -158,12 +173,10 @@ describe("package manifest compatibility", () => {
     );
   });
 
-  it("uses pinned Biome as the sole formatter and linter during the hook transition", async () => {
+  it("uses pinned Biome as the sole formatter and linter", async () => {
     expect(pkg.devDependencies?.["@biomejs/biome"]).toBe("2.3.11");
     expect(pkg.devDependencies).not.toHaveProperty("prettier");
     expect(pkg.devDependencies).not.toHaveProperty("eslint");
-    expect(pkg.devDependencies?.husky).toBe("^9.1.7");
-    expect(pkg.devDependencies?.["lint-staged"]).toBe("^16.2.7");
 
     expect(pkg.scripts?.format).toBe("biome format --write .");
     expect(pkg.scripts?.["format:check"]).toBe("biome format .");
@@ -182,16 +195,39 @@ describe("package manifest compatibility", () => {
       ),
     ).toBe(true);
 
-    expect(lintStaged).toEqual({
-      "*.{js,cjs,mjs,jsx,ts,tsx,json,jsonc,css}": "biome check --write --no-errors-on-unmatched",
-    });
-    expect(JSON.stringify(lintStaged)).not.toContain("prettier");
-
     for (const path of [
       "../.prettierignore",
       "../.prettierrc.json",
       "../scripts/verify-v4-formatting.mjs",
     ]) {
+      await expect(access(new URL(path, import.meta.url))).rejects.toThrow();
+    }
+  });
+
+  it("uses Lefthook for staged Biome fixes and canonical pre-push verification", async () => {
+    expect(pkg.devDependencies?.lefthook).toBe("2.0.15");
+    expect(pkg.devDependencies).not.toHaveProperty("husky");
+    expect(pkg.devDependencies).not.toHaveProperty("lint-staged");
+    expect(pkg.scripts?.prepare).toBe("lefthook install");
+
+    expect(lefthookConfig["pre-commit"]?.commands).toEqual({
+      biome: {
+        glob: "*.{js,cjs,mjs,jsx,ts,tsx,json,jsonc,css}",
+        run: "pnpm exec biome check --write --no-errors-on-unmatched {staged_files}",
+        stage_fixed: true,
+      },
+    });
+    expect(lefthookConfig["pre-push"]?.commands).toEqual({
+      verify: {
+        run: "pnpm verify",
+      },
+    });
+
+    const packageScripts = packageScriptSources.join("\n");
+    expect(packageScripts).not.toContain("HUSKY");
+    expect(packageScripts).not.toContain("LEFTHOOK");
+
+    for (const path of ["../.husky", "../.lintstagedrc"]) {
       await expect(access(new URL(path, import.meta.url))).rejects.toThrow();
     }
   });
@@ -222,9 +258,12 @@ describe("package manifest compatibility", () => {
     expect(pnpmWorkspace).toContain("minimumReleaseAgeStrict: true");
     expect(pnpmWorkspace).toContain("minimumReleaseAgeIgnoreMissingTime: false");
     expect(pnpmWorkspace).toContain("blockExoticSubdeps: true");
-    expect(pnpmWorkspace).toContain("allowBuilds:");
-    expect(pnpmWorkspace).toContain("esbuild: true");
-    expect(pnpmWorkspace).toContain("msgpackr-extract: true");
+    expect(pnpmWorkspaceConfig.allowBuilds).toEqual({
+      "better-sqlite3": true,
+      esbuild: true,
+      lefthook: true,
+      "msgpackr-extract": true,
+    });
   });
 
   it("defines one ordered canonical repository gate and a release-only compatibility alias", () => {

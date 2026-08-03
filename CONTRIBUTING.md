@@ -22,7 +22,7 @@ Thanks for contributing. This repo has strict local-only behavior and regression
 
 ## Development Setup
 
-- The published package runtime supports Node.js `>=20.0.0` (matches `package.json` engines).
+- The published package runtime supports Node.js `>=22.0.0` (matches `package.json` engines).
 - Repository development uses pnpm v11, which requires Node.js `>=22` for the pnpm CLI.
 - Enable the pinned package manager and install dependencies with:
 
@@ -32,19 +32,15 @@ corepack prepare pnpm@11.0.0 --activate
 pnpm install
 ```
 
-`pnpm install` runs `prepare`, which installs Husky hooks.
+`pnpm install` runs `prepare`, which installs Lefthook hooks.
 
 ## Local Quality Gates
 
-Pre-commit hooks currently run:
+The Lefthook pre-commit hook runs Biome only on staged supported files and re-stages formatting and safe fixes. It does not run typecheck or tests.
 
-- `pnpm exec lint-staged` (formats staged files via Prettier)
-- `pnpm run typecheck`
-- `pnpm test`
+The Lefthook pre-push hook runs exactly:
 
-Pre-push hooks currently run:
-
-- `pnpm install --frozen-lockfile`
+- `pnpm verify`
 
 Run the canonical repository gate before opening a PR:
 

@@ -33,7 +33,6 @@ if (manifestPath) {
   const result = spawnSync("pnpm", ["pack", "--json", "--dry-run"], {
     cwd: repoRoot,
     encoding: "utf8",
-    env: { ...process.env, HUSKY: "0" },
   });
 
   if (result.error) throw result.error;

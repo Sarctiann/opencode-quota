@@ -1,6 +1,0 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/h"
-
-pnpm exec lint-staged
-pnpm run typecheck
-pnpm test
