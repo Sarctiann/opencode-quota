@@ -6,6 +6,8 @@ import { parse } from "yaml";
 
 const EXPECTED_TYPESCRIPT_VERSION = "7.0.2";
 const EXPECTED_PLUGIN_VERSION = "1.18.11";
+const EXPECTED_OPENTUI_VERSION = "0.4.5";
+const EXPECTED_OPENTUI_PACKAGES = ["@opentui/core", "@opentui/solid"];
 const BUN_FFI_STRUCTS_VERSION = "0.2.4";
 const BUN_FFI_TYPESCRIPT_PEER = "^5";
 
@@ -62,6 +64,14 @@ if (configuredPlugin !== EXPECTED_PLUGIN_VERSION) {
     `@opencode-ai/plugin must be pinned exactly to ${EXPECTED_PLUGIN_VERSION}; package.json has ${String(configuredPlugin)}.`,
   );
 }
+for (const name of EXPECTED_OPENTUI_PACKAGES) {
+  const configuredVersion = packageJson.dependencies?.[name];
+  if (configuredVersion !== EXPECTED_OPENTUI_VERSION) {
+    fail(
+      `${name} must be pinned exactly to ${EXPECTED_OPENTUI_VERSION} for @opencode-ai/plugin ${EXPECTED_PLUGIN_VERSION} compatibility; package.json has ${String(configuredVersion)}.`,
+    );
+  }
+}
 
 const suppressions = [
   ...findPeerSuppressions(packageJson, "package.json"),
@@ -97,6 +107,19 @@ function verifyImporterDependency(name, expectedVersion) {
 }
 
 verifyImporterDependency("typescript", EXPECTED_TYPESCRIPT_VERSION);
+
+for (const name of EXPECTED_OPENTUI_PACKAGES) {
+  const dependency = rootImporter.dependencies?.[name];
+  if (
+    dependency?.specifier !== EXPECTED_OPENTUI_VERSION ||
+    (dependency?.version !== EXPECTED_OPENTUI_VERSION &&
+      !dependency?.version?.startsWith(`${EXPECTED_OPENTUI_VERSION}(`))
+  ) {
+    fail(
+      `${name} lock mismatch: expected ${EXPECTED_OPENTUI_VERSION}, found ${String(dependency?.specifier)} and ${String(dependency?.version)}.`,
+    );
+  }
+}
 
 const lockedPlugin = rootImporter.devDependencies?.["@opencode-ai/plugin"];
 if (
