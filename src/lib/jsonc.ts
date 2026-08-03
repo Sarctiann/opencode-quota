@@ -21,6 +21,6 @@ export function parseJsonOrJsonc(content: string, isJsonc: boolean): unknown {
  * Stringify data back to JSONC while preserving attached comments.
  */
 export function stringifyWithComments(data: unknown): string {
-  // @ts-ignore - Types for comment-json might complain, but it returns a string
+  // @ts-expect-error - Types for comment-json might complain, but it returns a string
   return stringify(data, null, 2);
 }

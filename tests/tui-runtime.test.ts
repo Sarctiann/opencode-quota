@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,10 +59,10 @@ vi.mock("../src/lib/quota-export.js", async () => {
 
 import {
   getTuiSessionModelMeta,
-  normalizeTuiSessionID,
   loadTuiHomeBottomStatus,
   loadTuiHomeCompactStatus,
   loadTuiSessionQuotaSurfaces,
+  normalizeTuiSessionID,
   resolveTuiSurfaceRegistration,
   resolveWorkspaceDir,
   writeTuiQuotaExportIfEnabled,

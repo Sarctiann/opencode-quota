@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const V4_BASE_COMMIT = process.env.V4_HISTORY_BASE ?? "0bfd899";
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));

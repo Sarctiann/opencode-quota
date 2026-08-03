@@ -25,7 +25,12 @@ function buildNewReleaseComment(pluginId, previousVersion, latestVersion) {
   return `Newer upstream npm release detected for ${pluginId}: ${previousVersion} -> ${latestVersion}.`;
 }
 
-function buildDuplicateIssueComment({ canonicalIssueNumber, issueState, latestVersion, referenceDir }) {
+function buildDuplicateIssueComment({
+  canonicalIssueNumber,
+  issueState,
+  latestVersion,
+  referenceDir,
+}) {
   if (issueState === UPSTREAM_PLUGIN_ISSUE_STATE.SYNCED_PENDING_REVIEW) {
     return `Closing as duplicate of #${canonicalIssueNumber}. ${referenceDir} now matches ${latestVersion}, but the maintainer review issue remains open.`;
   }

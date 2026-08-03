@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getQuotaProviderDisplayLabel,
+  getQuotaProviderRuntimeIds,
+  getQuotaProviderShape,
+  normalizeQuotaProviderId,
   QUOTA_PROVIDER_CATALOG,
   QUOTA_PROVIDER_ID_SYNONYMS,
   QUOTA_PROVIDER_LABELS,
   QUOTA_PROVIDER_RUNTIME_IDS,
   QUOTA_PROVIDER_SHAPES,
-  getQuotaProviderDisplayLabel,
-  getQuotaProviderRuntimeIds,
-  getQuotaProviderShape,
-  normalizeQuotaProviderId,
 } from "../src/lib/provider-metadata.js";
 
 describe("provider-metadata", () => {

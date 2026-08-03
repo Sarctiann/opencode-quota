@@ -37,11 +37,11 @@ vi.mock("../src/lib/quota-state.js", async () => {
 // --------------- imports ---------------
 
 import { writeJsonAtomic } from "../src/lib/atomic-json.js";
+import { buildQuotaExport, resolveExportPath, writeQuotaExport } from "../src/lib/quota-export.js";
 import {
   accountingContractExport,
   accountingContractResult,
 } from "./fixtures/accounting-contract.js";
-import { resolveExportPath, buildQuotaExport, writeQuotaExport } from "../src/lib/quota-export.js";
 
 // --------------- helpers ---------------
 

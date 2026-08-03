@@ -1,32 +1,30 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
-import type { TuiCommandDisplay } from "./types.js";
-import type { CompactStatusState, HomeBottomState, SidebarPanelState } from "./tui-panel-state.js";
-
-import type { CollectQuotaRenderDataResult, SessionModelMeta } from "./quota-render-data.js";
-import type { QuotaRuntimeContext } from "./quota-runtime-context.js";
-
-import { resolveRuntimeContextRoots, type RuntimeContextRootHints } from "./config-file-utils.js";
-import {
-  createQuotaProviderRuntimeContext,
-  createQuotaRuntimeRequestContext,
-  resolveQuotaRuntimeContext,
-} from "./quota-runtime-context.js";
-import { collectConcreteEnabledProviderIds, collectQuotaRenderData } from "./quota-render-data.js";
-import { resolveQuotaFormatStyle } from "./quota-format-style.js";
-import { buildCompactQuotaStatusLine } from "./tui-compact-format.js";
-import { hasNativeProviderQuotaClient } from "./tui-native-provider-quota.js";
-import { buildSidebarQuotaPanelLines, TUI_SIDEBAR_MAX_WIDTH } from "./tui-sidebar-format.js";
+import { type RuntimeContextRootHints, resolveRuntimeContextRoots } from "./config-file-utils.js";
 import {
   formatMaintainerAnnouncementHomeCountLine,
   getMaintainerAnnouncementsSummary,
   type MaintainerAnnouncement,
 } from "./maintainer-announcements.js";
 import {
-  resolveExportPath,
   buildQuotaExport,
-  writeQuotaExport,
   createExportProviderContext,
+  resolveExportPath,
+  writeQuotaExport,
 } from "./quota-export.js";
+import { resolveQuotaFormatStyle } from "./quota-format-style.js";
+import type { CollectQuotaRenderDataResult, SessionModelMeta } from "./quota-render-data.js";
+import { collectConcreteEnabledProviderIds, collectQuotaRenderData } from "./quota-render-data.js";
+import type { QuotaRuntimeContext } from "./quota-runtime-context.js";
+import {
+  createQuotaProviderRuntimeContext,
+  createQuotaRuntimeRequestContext,
+  resolveQuotaRuntimeContext,
+} from "./quota-runtime-context.js";
+import { buildCompactQuotaStatusLine } from "./tui-compact-format.js";
+import { hasNativeProviderQuotaClient } from "./tui-native-provider-quota.js";
+import type { CompactStatusState, HomeBottomState, SidebarPanelState } from "./tui-panel-state.js";
+import { buildSidebarQuotaPanelLines, TUI_SIDEBAR_MAX_WIDTH } from "./tui-sidebar-format.js";
+import type { TuiCommandDisplay } from "./types.js";
 
 const COMPACT_UNAVAILABLE_TEXT = "Quota unavailable";
 const tuiQuotaClients = new WeakMap<TuiPluginApi, ReturnType<typeof makeTuiQuotaClient>>();

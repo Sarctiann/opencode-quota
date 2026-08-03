@@ -1,12 +1,11 @@
-import type { QuotaRenderData } from "./quota-render-data.js";
-import type { QuotaToastConfig } from "./types.js";
+import { sanitizeQuotaRenderData, sanitizeSingleLineDisplayText } from "./display-sanitize.js";
 import type { QuotaToastEntry, QuotaToastError } from "./entries.js";
-
 import { isValueEntry } from "./entries.js";
 import { formatDisplayedPercentLabel } from "./format-utils.js";
-import { sanitizeQuotaRenderData, sanitizeSingleLineDisplayText } from "./display-sanitize.js";
-import { extractSingleWindowWindowLabel } from "./quota-entry-display.js";
 import { formatGroupedHeader } from "./grouped-header-format.js";
+import { extractSingleWindowWindowLabel } from "./quota-entry-display.js";
+import type { QuotaRenderData } from "./quota-render-data.js";
+import type { QuotaToastConfig } from "./types.js";
 
 const COMPACT_SEGMENT_SEPARATOR = " | ";
 const COMPACT_WINDOW_SEPARATOR = ", ";

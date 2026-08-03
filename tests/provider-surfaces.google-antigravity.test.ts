@@ -17,7 +17,7 @@ import {
 
 const TEST_RUNTIME_ROOT = "/tmp/opencode-quota-google-antigravity-surfaces";
 
-let provider: (typeof import("../src/providers/google-antigravity.js"))["googleAntigravityProvider"];
+let provider: typeof import("../src/providers/google-antigravity.js")["googleAntigravityProvider"];
 
 const mocks = vi.hoisted(() => ({
   loadConfig: vi.fn(),
@@ -220,7 +220,7 @@ describe("Google Antigravity provider surfaces", () => {
       expect(output).toContain("Antigravity (ali…)");
       expect(output).toContain("Antigravity (bob…)");
     }
-    expect(command.match(/\n  Quota\s/gu)).toHaveLength(2);
+    expect(command.match(/\n {2}Quota\s/gu)).toHaveLength(2);
     expect(toast).not.toMatch(/\n(?:5h|7d|Weekly|Five-hour)\s/u);
     expect(surfaces.sidebar.status).toBe("ready");
     expect(sidebar.match(/\nQuota\s/gu)).toHaveLength(2);

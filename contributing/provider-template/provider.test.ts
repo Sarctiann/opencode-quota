@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-
+import { exampleProviderProvider } from "../src/providers/example-provider.js";
 import {
   expectAttemptedWithErrorLabel,
   expectAttemptedWithNoErrors,
   expectNotAttempted,
 } from "./helpers/provider-assertions.js";
-import { exampleProviderProvider } from "../src/providers/example-provider.js";
 
 vi.mock("../src/lib/example-provider.js", () => ({
   queryExampleProviderQuota: vi.fn(),

@@ -1,4 +1,47 @@
+import {
+  formatYmd,
+  parseOptionalJsonArgs,
+  parseQuotaBetweenArgs,
+  startOfLocalDayMs,
+  startOfNextLocalDayMs,
+  type Ymd,
+} from "./command-parsing.js";
+import type { RuntimeContextRootHints } from "./config-file-utils.js";
+import { isCursorProviderId } from "./cursor-pricing.js";
+import { renderCommandHeading } from "./format-utils.js";
+import { refreshGoogleTokensForAllAccounts } from "./google.js";
+import {
+  BUNDLED_MAINTAINER_ANNOUNCEMENTS,
+  getMaintainerAnnouncementsSummary,
+} from "./maintainer-announcements.js";
+import {
+  getPricingSnapshotMeta,
+  getPricingSnapshotSource,
+  getRuntimePricingRefreshStatePath,
+  getRuntimePricingSnapshotPath,
+  maybeRefreshPricingSnapshot,
+  type PricingRefreshResult,
+  setPricingSnapshotAutoRefresh,
+  setPricingSnapshotSelection,
+} from "./modelsdev-pricing.js";
 import { formatQuotaCommand } from "./quota-command-format.js";
+import { ALL_WINDOWS_FORMAT_STYLE } from "./quota-format-style.js";
+import {
+  type CollectQuotaRenderDataResult,
+  collectConcreteEnabledProviderIds,
+  collectQuotaRenderData,
+  collectQuotaStatusLiveProbes,
+  matchesQuotaProviderCurrentSelection,
+  type QuotaStatusLiveProbe,
+  type SessionModelMeta,
+} from "./quota-render-data.js";
+import {
+  createQuotaProviderRuntimeContext,
+  createQuotaRuntimeRequestContext,
+  type QuotaRuntimeClient,
+  type QuotaRuntimeContext,
+  resolveQuotaRuntimeContext,
+} from "./quota-runtime-context.js";
 import {
   aggregateUsage,
   resolveSessionTree,
@@ -8,50 +51,7 @@ import {
 import { formatQuotaStatsReport } from "./quota-stats-format.js";
 import { buildQuotaStatusReport, type SessionTokenError } from "./quota-status.js";
 import { inspectTuiConfig } from "./tui-config-diagnostics.js";
-import {
-  getPricingSnapshotMeta,
-  getPricingSnapshotSource,
-  getRuntimePricingRefreshStatePath,
-  getRuntimePricingSnapshotPath,
-  maybeRefreshPricingSnapshot,
-  setPricingSnapshotAutoRefresh,
-  setPricingSnapshotSelection,
-  type PricingRefreshResult,
-} from "./modelsdev-pricing.js";
-import { refreshGoogleTokensForAllAccounts } from "./google.js";
-import { isCursorProviderId } from "./cursor-pricing.js";
-import {
-  parseOptionalJsonArgs,
-  parseQuotaBetweenArgs,
-  startOfLocalDayMs,
-  startOfNextLocalDayMs,
-  formatYmd,
-  type Ymd,
-} from "./command-parsing.js";
-import { renderCommandHeading } from "./format-utils.js";
 import type { PricingSnapshotSource } from "./types.js";
-import { ALL_WINDOWS_FORMAT_STYLE } from "./quota-format-style.js";
-import {
-  collectConcreteEnabledProviderIds,
-  collectQuotaRenderData,
-  collectQuotaStatusLiveProbes,
-  matchesQuotaProviderCurrentSelection,
-  type CollectQuotaRenderDataResult,
-  type QuotaStatusLiveProbe,
-  type SessionModelMeta,
-} from "./quota-render-data.js";
-import {
-  createQuotaProviderRuntimeContext,
-  createQuotaRuntimeRequestContext,
-  resolveQuotaRuntimeContext,
-  type QuotaRuntimeClient,
-  type QuotaRuntimeContext,
-} from "./quota-runtime-context.js";
-import type { RuntimeContextRootHints } from "./config-file-utils.js";
-import {
-  BUNDLED_MAINTAINER_ANNOUNCEMENTS,
-  getMaintainerAnnouncementsSummary,
-} from "./maintainer-announcements.js";
 import { getPackageVersion } from "./version.js";
 
 export type QuotaDialogCommandId =

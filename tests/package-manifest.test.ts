@@ -45,13 +45,31 @@ const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url
 };
 
 const pnpmWorkspace = await readFile(new URL("../pnpm-workspace.yaml", import.meta.url), "utf8");
-const tsconfig = JSON.parse(await readFile(new URL("../tsconfig.json", import.meta.url), "utf8")) as {
+const tsconfig = JSON.parse(
+  await readFile(new URL("../tsconfig.json", import.meta.url), "utf8"),
+) as {
   compilerOptions?: { types?: string[] };
 };
 const typescriptValidator = await readFile(
   new URL("../scripts/verify-typescript-version.mjs", import.meta.url),
   "utf8",
 );
+const biomeConfig = JSON.parse(
+  await readFile(new URL("../biome.json", import.meta.url), "utf8"),
+) as {
+  $schema?: string;
+  linter?: {
+    domains?: Record<string, string>;
+    rules?: { recommended?: boolean };
+  };
+  overrides?: Array<{
+    includes?: string[];
+    linter?: { domains?: Record<string, string> };
+  }>;
+};
+const lintStaged = JSON.parse(
+  await readFile(new URL("../.lintstagedrc", import.meta.url), "utf8"),
+) as Record<string, string>;
 const ciWorkflow = parse(
   await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"),
 ) as Workflow;
@@ -109,6 +127,44 @@ describe("package manifest compatibility", () => {
     expect(pnpmWorkspace).not.toMatch(
       /peerDependencyRules|allowedVersions|ignoreMissing|strictPeerDependencies:\s*false/,
     );
+  });
+
+  it("uses pinned Biome as the sole formatter and linter during the hook transition", async () => {
+    expect(pkg.devDependencies?.["@biomejs/biome"]).toBe("2.3.11");
+    expect(pkg.devDependencies).not.toHaveProperty("prettier");
+    expect(pkg.devDependencies).not.toHaveProperty("eslint");
+    expect(pkg.devDependencies?.husky).toBe("^9.1.7");
+    expect(pkg.devDependencies?.["lint-staged"]).toBe("^16.2.7");
+
+    expect(pkg.scripts?.format).toBe("biome format --write .");
+    expect(pkg.scripts?.["format:check"]).toBe("biome format .");
+    expect(pkg.scripts?.lint).toBe("biome lint .");
+    expect(pkg.scripts?.check).toBe("biome check .");
+    expect(pkg.scripts).not.toHaveProperty("verify:v4-formatting");
+
+    expect(biomeConfig.$schema).toBe("https://biomejs.dev/schemas/2.3.11/schema.json");
+    expect(biomeConfig.linter?.rules?.recommended).toBe(true);
+    expect(biomeConfig.linter?.domains?.solid).toBe("recommended");
+    expect(
+      biomeConfig.overrides?.some(
+        (override) =>
+          override.includes?.includes("tests/**/*.test.ts") &&
+          override.linter?.domains?.test === "recommended",
+      ),
+    ).toBe(true);
+
+    expect(lintStaged).toEqual({
+      "*.{js,cjs,mjs,jsx,ts,tsx,json,jsonc,css}": "biome check --write --no-errors-on-unmatched",
+    });
+    expect(JSON.stringify(lintStaged)).not.toContain("prettier");
+
+    for (const path of [
+      "../.prettierignore",
+      "../.prettierrc.json",
+      "../scripts/verify-v4-formatting.mjs",
+    ]) {
+      await expect(access(new URL(path, import.meta.url))).rejects.toThrow();
+    }
   });
 
   it("ships the OpenTelemetry API while keeping the metrics SDK host-owned", () => {

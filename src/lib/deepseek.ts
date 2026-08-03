@@ -5,14 +5,14 @@
  * Auth: Bearer token in Authorization header.
  */
 
-import type { QuotaError } from "./types.js";
+import {
+  type DeepSeekKeySource,
+  hasDeepSeekApiKey,
+  resolveDeepSeekApiKey,
+} from "./deepseek-auth.js";
 import { sanitizeDisplaySnippet, sanitizeDisplayText } from "./display-sanitize.js";
 import { fetchWithTimeout } from "./http.js";
-import {
-  resolveDeepSeekApiKey,
-  hasDeepSeekApiKey,
-  type DeepSeekKeySource,
-} from "./deepseek-auth.js";
+import type { QuotaError } from "./types.js";
 
 export type DeepSeekCurrency = "CNY" | "USD";
 
@@ -146,9 +146,7 @@ export function formatDeepSeekBalanceValue(balance: {
  * @returns A typed result with success/error state, or null if no API key is configured.
  */
 export async function queryDeepSeekBalance(
-  options: {
-    requestTimeoutMs?: number;
-  } = {},
+  options: { requestTimeoutMs?: number } = {},
 ): Promise<DeepSeekResult> {
   const resolved = await resolveDeepSeekApiKey();
   if (!resolved) return null;
@@ -167,7 +165,7 @@ export async function queryDeepSeekBalance(
 }
 
 export {
+  type DeepSeekKeySource,
   getDeepSeekKeyDiagnostics,
   hasDeepSeekApiKey as hasDeepSeekApiKeyConfigured,
-  type DeepSeekKeySource,
 } from "./deepseek-auth.js";

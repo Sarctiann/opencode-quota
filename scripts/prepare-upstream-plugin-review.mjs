@@ -15,8 +15,8 @@ import {
   shouldPrepareUpstreamPluginReview,
   trimDiffPreview,
 } from "./lib/upstream-plugin-review.mjs";
-import { syncUpstreamPluginReferences } from "./lib/upstream-plugin-sync.mjs";
 import { getUpstreamPluginIssueTitle } from "./lib/upstream-plugin-specs.mjs";
+import { syncUpstreamPluginReferences } from "./lib/upstream-plugin-sync.mjs";
 
 const execFileAsync = promisify(execFile);
 const MAX_COMMAND_OUTPUT_CHARS = 8_000;

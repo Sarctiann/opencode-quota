@@ -8,7 +8,6 @@
  */
 
 import type { QuotaToastEntry, QuotaToastError, SessionTokensData } from "./entries.js";
-import type { PercentDisplayMode } from "./types.js";
 import { isValueEntry } from "./entries.js";
 import {
   bar,
@@ -19,15 +18,16 @@ import {
   padRight,
   resolveDisplayedPercent,
 } from "./format-utils.js";
-import { formatGroupedHeader } from "./grouped-header-format.js";
 import { groupQuotaEntries } from "./grouped-entry-normalization.js";
+import { formatGroupedHeader } from "./grouped-header-format.js";
+import { classifyQuotaWindowText, type QuotaWindowKind } from "./quota-entry-display.js";
 import {
-  renderPlainTextReport,
   type ReportDocument,
   type ReportSection,
+  renderPlainTextReport,
 } from "./report-document.js";
 import { SESSION_TOKEN_SECTION_HEADING } from "./session-tokens-format.js";
-import { classifyQuotaWindowText, type QuotaWindowKind } from "./quota-entry-display.js";
+import type { PercentDisplayMode } from "./types.js";
 
 /**
  * Format reset time in compact form (different from toast countdown).

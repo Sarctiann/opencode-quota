@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { verifyReleaseArtifact, writeReleaseArtifactManifest } from "./lib/release-artifact.mjs";
 

@@ -6,10 +6,10 @@
  * without an active Kilo Pass.
  */
 
-import type { QuotaError } from "./types.js";
 import { sanitizeSingleLineDisplayText } from "./display-sanitize.js";
 import { fetchWithTimeout } from "./http.js";
 import { resolveKiloApiKey } from "./kilo-config.js";
+import type { QuotaError } from "./types.js";
 
 const KILO_PASS_STATE_ENDPOINT = "https://app.kilo.ai/api/trpc/kiloPass.getState";
 const KILO_BALANCE_ENDPOINT = "https://api.kilo.ai/api/profile/balance";

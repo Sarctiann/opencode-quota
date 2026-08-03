@@ -1,7 +1,7 @@
 import {
+  type CanonicalQuotaProviderId,
   getQuotaProviderShape,
   normalizeQuotaProviderId,
-  type CanonicalQuotaProviderId,
 } from "./provider-metadata.js";
 
 export interface MaintainerAnnouncement {

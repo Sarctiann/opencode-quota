@@ -1,10 +1,8 @@
 import { createHash } from "crypto";
-import { readFile, readdir, rm, stat } from "fs/promises";
+import { readdir, readFile, rm, stat } from "fs/promises";
 import { join } from "path";
-
-import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult } from "./entries.js";
-
 import { writeJsonAtomic } from "./atomic-json.js";
+import type { QuotaProvider, QuotaProviderContext, QuotaProviderResult } from "./entries.js";
 import { getOpencodeRuntimeDirs } from "./opencode-runtime-paths.js";
 import { getQuotaProviderDisplayLabel, isLiveLocalUsageProviderId } from "./provider-metadata.js";
 import type { QuotaProviderDefinition } from "./quota-providers.js";
@@ -12,8 +10,8 @@ import {
   QUOTA_PROVIDERS_AGGREGATE_ID,
   selectEligibleQuotaProviderDefinitions,
 } from "./quota-providers.js";
-import { getPackageVersion } from "./version.js";
 import { updateQuotaTelemetrySnapshot } from "./quota-telemetry.js";
+import { getPackageVersion } from "./version.js";
 
 const QUOTA_PROVIDER_CACHE_VERSION = 2 as const;
 const QUOTA_PROVIDER_CACHE_PACKAGE_VERSION_FALLBACK = "unknown";

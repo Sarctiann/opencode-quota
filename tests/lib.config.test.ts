@@ -1,11 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type ConfigLoaderWorkspace,
   createConfigLoaderWorkspace,
   createEmptyRuntimeDirCandidates,
   quotaSidecarConfigSource,
-  type ConfigLoaderWorkspace,
 } from "./helpers/config-loader-test-harness.js";
 
 const runtimeDirs = vi.hoisted(() => ({

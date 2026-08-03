@@ -1,22 +1,27 @@
 /** @jsxImportSource @opentui/solid */
-import type { JSX } from "@opentui/solid";
+
 import type {
   TuiPlugin,
   TuiPluginApi,
   TuiPluginModule,
   TuiPromptRef,
 } from "@opencode-ai/plugin/tui";
-import { Show, createEffect, createSignal, onCleanup } from "solid-js";
-
+import type { JSX } from "@opentui/solid";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
+import {
+  buildQuotaDialogCommandOutput,
+  QUOTA_DIALOG_COMMANDS,
+  type QuotaDialogCommandId,
+  type QuotaDialogCommandSpec,
+} from "./lib/quota-dialog-commands.js";
 import type { SessionTokenError } from "./lib/quota-status.js";
-import { createTuiRefreshLifecycle } from "./lib/tui-refresh-lifecycle.js";
-import type { TuiCommandDisplay } from "./lib/types.js";
+import { disposeQuotaTelemetryOwner } from "./lib/quota-telemetry.js";
+import { getSidebarBodyLineColor } from "./lib/tui-line-style.js";
 import type {
   CompactStatusState,
   HomeBottomState,
   SidebarPanelState,
 } from "./lib/tui-panel-state.js";
-
 import {
   getCompactStatusText,
   getHomeBottomAnnouncementText,
@@ -26,7 +31,7 @@ import {
   shouldRenderHomeBottom,
   shouldRenderSidebarPanel,
 } from "./lib/tui-panel-state.js";
-import { getSidebarBodyLineColor } from "./lib/tui-line-style.js";
+import { createTuiRefreshLifecycle } from "./lib/tui-refresh-lifecycle.js";
 import {
   createTuiQuotaClient,
   getTuiRuntimeRootHints,
@@ -37,13 +42,7 @@ import {
   resolveTuiSurfaceRegistration,
   writeTuiQuotaExportIfEnabled,
 } from "./lib/tui-runtime.js";
-import { disposeQuotaTelemetryOwner } from "./lib/quota-telemetry.js";
-import {
-  QUOTA_DIALOG_COMMANDS,
-  buildQuotaDialogCommandOutput,
-  type QuotaDialogCommandId,
-  type QuotaDialogCommandSpec,
-} from "./lib/quota-dialog-commands.js";
+import type { TuiCommandDisplay } from "./lib/types.js";
 
 const id = "@slkiser/opencode-quota";
 // Place Quota near the top so variable-height built-in sections

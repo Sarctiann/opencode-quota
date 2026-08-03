@@ -3,8 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { isCommandHandledError } from "../src/lib/command-handled.js";
 import {
-  createConfigModuleMock,
   createPluginTestClient as createClient,
+  createConfigModuleMock,
   createPluginToolMockModule,
   createPricingModuleMock,
   createProvidersRegistryModuleMock,
@@ -326,7 +326,7 @@ describe("plugin command handled boundary", () => {
         ],
       },
     });
-    expect(getPromptText(client)).toMatch(/\n  Week quota\s+[█░]{10}\s+80% left/u);
+    expect(getPromptText(client)).toMatch(/\n {2}Week quota\s+[█░]{10}\s+80% left/u);
     expect(getPromptText(client)).toMatch(/^Quota \(\/quota\)/u);
     expect(getPromptText(client)).not.toContain("```");
     expect(getPromptText(client)).not.toMatch(/^#{1,6} /mu);

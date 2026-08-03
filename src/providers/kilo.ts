@@ -2,16 +2,16 @@
  * Kilo Gateway provider wrapper.
  */
 
-import type { AccountingMetadata } from "../lib/entries.js";
 import type {
+  AccountingMetadata,
   QuotaProvider,
   QuotaProviderContext,
   QuotaProviderResult,
   QuotaToastEntry,
 } from "../lib/entries.js";
 import { fmtUsdAmount } from "../lib/format-utils.js";
+import { type KiloQuotaResult, queryKiloQuota } from "../lib/kilo.js";
 import { getKiloKeyDiagnostics, hasKiloApiKey } from "../lib/kilo-config.js";
-import { queryKiloQuota, type KiloQuotaResult } from "../lib/kilo.js";
 import { modelProviderMatchesRuntimeId } from "../lib/provider-model-matching.js";
 import {
   attemptedResult,

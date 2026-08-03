@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryChutesQuota } from "../src/lib/chutes.js";
 import { formatDeepSeekBalanceValue, queryDeepSeekBalance } from "../src/lib/deepseek.js";
@@ -171,22 +171,23 @@ describe("simple API-key provider queries", () => {
       );
     });
 
-    it.each(["bad-value", -5, 150] as const)(
-      "derives weekly percent when percentRemaining is invalid (%s)",
-      async (percentRemaining) => {
-        stubJsonFetch(
-          syntheticPayload({
-            weeklyTokenLimit: {
-              maxCredits: "$24.00",
-              remainingCredits: "$2.02",
-              percentRemaining,
-            },
-          }),
-        );
-        const result = await querySyntheticQuota();
-        expect(result && result.success ? result.windows.weekly.percentRemaining : -1).toBe(8);
-      },
-    );
+    it.each([
+      "bad-value",
+      -5,
+      150,
+    ] as const)("derives weekly percent when percentRemaining is invalid (%s)", async (percentRemaining) => {
+      stubJsonFetch(
+        syntheticPayload({
+          weeklyTokenLimit: {
+            maxCredits: "$24.00",
+            remainingCredits: "$2.02",
+            percentRemaining,
+          },
+        }),
+      );
+      const result = await querySyntheticQuota();
+      expect(result && result.success ? result.windows.weekly.percentRemaining : -1).toBe(8);
+    });
 
     it("normalizes valid reset timestamps and drops malformed ones", async () => {
       vi.stubGlobal(

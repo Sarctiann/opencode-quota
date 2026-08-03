@@ -1,18 +1,17 @@
 import { readFileSync } from "node:fs";
 
 import { beforeEach, describe, expect, it } from "vitest";
-
+import {
+  CURSOR_OFFICIAL_MODEL_ALIASES,
+  lookupCursorLocalCost,
+  resolveCursorModel,
+} from "../src/lib/cursor-pricing.js";
 import {
   listModelsForProvider,
   listProviders,
   lookupCost,
   setPricingSnapshotSelection,
 } from "../src/lib/modelsdev-pricing.js";
-import {
-  CURSOR_OFFICIAL_MODEL_ALIASES,
-  lookupCursorLocalCost,
-  resolveCursorModel,
-} from "../src/lib/cursor-pricing.js";
 import { resolvePricingKey } from "../src/lib/quota-stats.js";
 
 const CURSOR_UPSTREAM_MODELS_PATH = new URL(
@@ -330,7 +329,9 @@ describe("resolvePricingKey snapshot coverage", () => {
       }
 
       if (!lookupCost(resolved.key.provider, resolved.key.model)) {
-        failures.push(`${alias} -> missing priced snapshot key ${resolved.key.provider}/${resolved.key.model}`);
+        failures.push(
+          `${alias} -> missing priced snapshot key ${resolved.key.provider}/${resolved.key.model}`,
+        );
       }
     }
 
@@ -393,7 +394,9 @@ describe("resolvePricingKey snapshot coverage", () => {
       }
 
       if (resolvedPricing.method !== "cursor_api_alias") {
-        failures.push(`${modelID} -> unexpected resolvePricingKey() method ${resolvedPricing.method}`);
+        failures.push(
+          `${modelID} -> unexpected resolvePricingKey() method ${resolvedPricing.method}`,
+        );
         continue;
       }
 

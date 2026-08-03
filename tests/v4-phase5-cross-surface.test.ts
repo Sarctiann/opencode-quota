@@ -3,6 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { isCommandHandledError } from "../src/lib/command-handled.js";
 import {
+  assertPhase5CanariesRedacted,
+  assertPhase5FixtureOrder,
+  PHASE5_ACCOUNTING_RESPONSE,
+  PHASE5_OPENROUTER_RESPONSE,
+  PHASE5_QUOTA_PROVIDERS,
+  PHASE5_RUNTIME_PROVIDER_IDS,
+  PHASE5_SECRET_CANARIES,
+  phase5JsonResponse,
+} from "./fixtures/v4-phase5-integration.js";
+import {
   createAlibabaAuthModuleMock,
   createConfigModuleMock,
   createPluginRuntimePathsMockModule,
@@ -17,16 +27,6 @@ import {
   makeQuotaToastTestConfig,
   seedDefaultPluginBootstrapMocks,
 } from "./helpers/plugin-test-harness.js";
-import {
-  PHASE5_ACCOUNTING_RESPONSE,
-  PHASE5_QUOTA_PROVIDERS,
-  PHASE5_OPENROUTER_RESPONSE,
-  PHASE5_RUNTIME_PROVIDER_IDS,
-  PHASE5_SECRET_CANARIES,
-  assertPhase5CanariesRedacted,
-  assertPhase5FixtureOrder,
-  phase5JsonResponse,
-} from "./fixtures/v4-phase5-integration.js";
 
 const TEST_RUNTIME_ROOT = "/tmp/opencode-quota-v4-phase5-cross-surface";
 const MINIMAX_QUOTA_URL = "https://api.minimax.io/v1/api/openplatform/coding_plan/remains";
@@ -379,7 +379,7 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
     expect(serverOutput).toMatch(/^Quota \(\/quota\)/);
     expect(serverOutput).not.toContain("```");
     expect(serverOutput).not.toMatch(/^#{1,6} /mu);
-    expect(serverOutput).toMatch(/→ \[Team Accounting\]\n  Month quota/u);
+    expect(serverOutput).toMatch(/→ \[Team Accounting\]\n {2}Month quota/u);
     const serverBars = serverOutput.match(/[█░]+/gu) ?? [];
     expect(serverBars.length).toBeGreaterThan(0);
     expect(serverBars.every((bar) => Array.from(bar).length === 10)).toBe(true);
@@ -443,8 +443,9 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
       providers: [quotaProvidersProvider],
       configureTelemetry: false,
     });
-    const { buildQuotaExport, createExportProviderContext } =
-      await import("../src/lib/quota-export.js");
+    const { buildQuotaExport, createExportProviderContext } = await import(
+      "../src/lib/quota-export.js"
+    );
     const exportContext = createExportProviderContext(runtime);
     const fetchCallsBeforeExport = vi.mocked(globalThis.fetch).mock.calls.length;
     const exportData = await buildQuotaExport({
@@ -585,8 +586,9 @@ describe("v4 Phase 5 cross-surface release evidence", () => {
       expect(allOutput).not.toContain(source.url);
     }
 
-    const { __flushQuotaTelemetryInitializationForTests } =
-      await import("../src/lib/quota-telemetry.js");
+    const { __flushQuotaTelemetryInitializationForTests } = await import(
+      "../src/lib/quota-telemetry.js"
+    );
     await __flushQuotaTelemetryInitializationForTests();
     const fetchCallsBeforeMetrics = vi.mocked(globalThis.fetch).mock.calls.length;
     const providerDiscoveryCallsBeforeMetrics = client.config.providers.mock.calls.length;

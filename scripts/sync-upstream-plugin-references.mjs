@@ -6,7 +6,9 @@ async function main() {
   for (const plugin of syncedPlugins) {
     console.log(`Synced ${plugin.pluginId}@${plugin.version} -> ${plugin.referenceDir}`);
   }
-  console.log(`Updated references/upstream-plugins/lock.json for ${syncedPlugins.length} tracked plugins.`);
+  console.log(
+    `Updated references/upstream-plugins/lock.json for ${syncedPlugins.length} tracked plugins.`,
+  );
 }
 
 main().catch((error) => {

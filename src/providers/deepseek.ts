@@ -5,18 +5,18 @@
  * account balance as a value entry.
  */
 
-import type {
-  QuotaProvider,
-  QuotaProviderContext,
-  QuotaProviderResult,
-  QuotaToastEntry,
-} from "../lib/entries.js";
 import {
   formatDeepSeekBalanceValue,
   getDeepSeekKeyDiagnostics,
   hasDeepSeekApiKeyConfigured,
   queryDeepSeekBalance,
 } from "../lib/deepseek.js";
+import type {
+  QuotaProvider,
+  QuotaProviderContext,
+  QuotaProviderResult,
+  QuotaToastEntry,
+} from "../lib/entries.js";
 import { isCanonicalProviderAvailable } from "../lib/provider-availability.js";
 import { modelProviderIncludesAny } from "../lib/provider-model-matching.js";
 import {

@@ -1,10 +1,10 @@
-import type { AggregateResult, SessionTreeNode, TokenBuckets } from "./quota-stats.js";
 import { abbreviateDisplayedModelName } from "./format-utils.js";
 import type { WidthMode } from "./markdown-table.js";
+import type { AggregateResult, SessionTreeNode, TokenBuckets } from "./quota-stats.js";
 import {
-  renderMarkdownReport,
   type ReportDocument,
   type ReportSection,
+  renderMarkdownReport,
 } from "./report-document.js";
 import { emptyTokenBuckets, totalTokenBuckets } from "./token-buckets.js";
 

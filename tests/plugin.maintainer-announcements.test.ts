@@ -3,9 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createAlibabaAuthModuleMock,
+  createPluginTestClient as createClient,
   createConfigModuleMock,
   createPluginRuntimePathsMockModule,
-  createPluginTestClient as createClient,
   createPluginToolMockModule,
   createPluginTuiConfigInspection,
   createPricingModuleMock,

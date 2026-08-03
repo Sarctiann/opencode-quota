@@ -1250,7 +1250,7 @@ describe("buildQuotaStatusReport", () => {
           remaining_quota_note:
             "the usage report exposes included-pool consumption and billed usage, but no included-pool denominator; percentages require a real budget",
           token_compatibility_error:
-            "GitHub\'s enterprise billing reports do not support fine-grained PATs or GitHub App access tokens.",
+            "GitHub's enterprise billing reports do not support fine-grained PATs or GitHub App access tokens.",
         }),
       ],
     });
@@ -1269,7 +1269,7 @@ describe("buildQuotaStatusReport", () => {
       "- remaining_quota_note: the usage report exposes included-pool consumption and billed usage, but no included-pool denominator; percentages require a real budget",
     );
     expect(report).toContain(
-      "- token_compatibility_error: GitHub\'s enterprise billing reports do not support fine-grained PATs or GitHub App access tokens.",
+      "- token_compatibility_error: GitHub's enterprise billing reports do not support fine-grained PATs or GitHub App access tokens.",
     );
   });
 

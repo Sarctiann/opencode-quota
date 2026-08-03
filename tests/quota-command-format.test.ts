@@ -156,12 +156,12 @@ describe("formatQuotaCommand", () => {
       errors: [],
     });
 
-    expect(out).toMatch(/\n  Quota\s/u);
-    expect(out.match(/\n  Quota\s/gu)).toHaveLength(2);
-    expect(out).toMatch(/\n  Usage\s/u);
-    expect(out).toMatch(/\n  Budget\s/u);
-    expect(out).toMatch(/\n  Spend\s/u);
-    expect(out).not.toMatch(/\n  (?:Credits|Requests|Tokens|Charges)\s/u);
+    expect(out).toMatch(/\n {2}Quota\s/u);
+    expect(out.match(/\n {2}Quota\s/gu)).toHaveLength(2);
+    expect(out).toMatch(/\n {2}Usage\s/u);
+    expect(out).toMatch(/\n {2}Budget\s/u);
+    expect(out).toMatch(/\n {2}Spend\s/u);
+    expect(out).not.toMatch(/\n {2}(?:Credits|Requests|Tokens|Charges)\s/u);
   });
 
   it("renders grouped /quota windows shortest to longest within a provider group", () => {

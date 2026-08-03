@@ -6,57 +6,57 @@
  * Supports GitHub Copilot and Google (via opencode-antigravity-auth).
  */
 
-import type { Plugin } from "@opencode-ai/plugin";
 import { isMainThread } from "node:worker_threads";
-import type { QuotaToastConfig } from "./lib/types.js";
-import { DEFAULT_CONFIG } from "./lib/types.js";
-import { createLoadConfigMeta, type LoadConfigMeta } from "./lib/config.js";
-import { getOrFetchWithCacheControl } from "./lib/cache.js";
-import { formatQuotaRows } from "./lib/format.js";
-import { getProviders } from "./providers/registry.js";
+import type { Plugin } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
-import type { SessionTokenError } from "./lib/quota-status.js";
-import { inspectTuiConfig } from "./lib/tui-config-diagnostics.js";
-import {
-  maybeRefreshPricingSnapshot,
-  setPricingSnapshotAutoRefresh,
-  setPricingSnapshotSelection,
-} from "./lib/modelsdev-pricing.js";
 import {
   DEFAULT_ALIBABA_AUTH_CACHE_MAX_AGE_MS,
   isAlibabaModelId,
   resolveAlibabaCodingPlanAuthCached,
 } from "./lib/alibaba-auth.js";
-import { isQwenCodeModelId, resolveQwenLocalPlanCached } from "./lib/qwen-auth.js";
+import { getOrFetchWithCacheControl } from "./lib/cache.js";
+import { handled } from "./lib/command-handled.js";
+import { shouldRegisterServerSlashCommands } from "./lib/command-surfaces.js";
+import { createLoadConfigMeta, type LoadConfigMeta } from "./lib/config.js";
+import { findGitWorktreeRoot, getEffectiveConfigRoot } from "./lib/config-file-utils.js";
 import { isCursorModelId, isCursorProviderId } from "./lib/cursor-pricing.js";
 import { sanitizeDisplayText } from "./lib/display-sanitize.js";
-import { resolveQuotaFormatStyle } from "./lib/quota-format-style.js";
-import { collectQuotaRenderData, type SessionModelMeta } from "./lib/quota-render-data.js";
-import {
-  createQuotaRuntimeRequestContext,
-  resolveQuotaRuntimeContext,
-  type QuotaRuntimeContext,
-} from "./lib/quota-runtime-context.js";
-import { findGitWorktreeRoot, getEffectiveConfigRoot } from "./lib/config-file-utils.js";
-import { reconcileDetectedProvidersInGlobalConfig } from "./lib/opencode-config-providers.js";
+import { formatQuotaRows } from "./lib/format.js";
 import {
   BUNDLED_MAINTAINER_ANNOUNCEMENTS,
   formatMaintainerAnnouncementHomeCountLine,
   getMaintainerAnnouncementsSummary,
 } from "./lib/maintainer-announcements.js";
-import { handled } from "./lib/command-handled.js";
-import { shouldRegisterServerSlashCommands } from "./lib/command-surfaces.js";
 import {
-  QUOTA_PROVIDERS_AGGREGATE_ID,
-  customQuotaProviderDefinitions,
-} from "./lib/quota-providers.js";
+  maybeRefreshPricingSnapshot,
+  setPricingSnapshotAutoRefresh,
+  setPricingSnapshotSelection,
+} from "./lib/modelsdev-pricing.js";
+import { reconcileDetectedProvidersInGlobalConfig } from "./lib/opencode-config-providers.js";
 import {
-  QUOTA_DIALOG_COMMANDS,
   buildQuotaDialogCommandOutput,
   isQuotaDialogCommand,
+  QUOTA_DIALOG_COMMANDS,
   type QuotaDialogCommandId,
 } from "./lib/quota-dialog-commands.js";
+import { resolveQuotaFormatStyle } from "./lib/quota-format-style.js";
+import {
+  customQuotaProviderDefinitions,
+  QUOTA_PROVIDERS_AGGREGATE_ID,
+} from "./lib/quota-providers.js";
+import { collectQuotaRenderData, type SessionModelMeta } from "./lib/quota-render-data.js";
+import {
+  createQuotaRuntimeRequestContext,
+  type QuotaRuntimeContext,
+  resolveQuotaRuntimeContext,
+} from "./lib/quota-runtime-context.js";
+import type { SessionTokenError } from "./lib/quota-status.js";
 import { disposeQuotaTelemetryOwner } from "./lib/quota-telemetry.js";
+import { isQwenCodeModelId, resolveQwenLocalPlanCached } from "./lib/qwen-auth.js";
+import { inspectTuiConfig } from "./lib/tui-config-diagnostics.js";
+import type { QuotaToastConfig } from "./lib/types.js";
+import { DEFAULT_CONFIG } from "./lib/types.js";
+import { getProviders } from "./providers/registry.js";
 
 // =============================================================================
 // Types

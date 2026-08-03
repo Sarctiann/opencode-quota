@@ -7,30 +7,28 @@
  * - SDK config is used only as a fallback when no file-backed config exists.
  */
 
-import type {
-  CursorQuotaPlan,
-  QuotaToastConfig,
-  GoogleModelId,
-  PercentDisplayMode,
-  PricingSnapshotSource,
-  SessionTokenScope,
-  TuiCommandDisplay,
-} from "./types.js";
-import { DEFAULT_CONFIG } from "./types.js";
-import { cloneQuotaProviders, validateQuotaProviders } from "./quota-providers.js";
-import { isQuotaFormatStyle, resolveQuotaFormatStyle } from "./quota-format-style.js";
-import { isResetTimeDecimals } from "./format-utils.js";
-import { getQuotaProviderShape, normalizeQuotaProviderId } from "./provider-metadata.js";
-
 import { existsSync } from "fs";
 import { join } from "path";
-
 import { getEffectiveConfigRoot } from "./config-file-utils.js";
-import { getOpencodeRuntimeDirCandidates } from "./opencode-runtime-paths.js";
+import { isResetTimeDecimals } from "./format-utils.js";
 import {
   buildOpenCodeConfigCandidates,
   readOpenCodeConfigCandidate,
 } from "./opencode-config-read.js";
+import { getOpencodeRuntimeDirCandidates } from "./opencode-runtime-paths.js";
+import { getQuotaProviderShape, normalizeQuotaProviderId } from "./provider-metadata.js";
+import { isQuotaFormatStyle, resolveQuotaFormatStyle } from "./quota-format-style.js";
+import { cloneQuotaProviders, validateQuotaProviders } from "./quota-providers.js";
+import type {
+  CursorQuotaPlan,
+  GoogleModelId,
+  PercentDisplayMode,
+  PricingSnapshotSource,
+  QuotaToastConfig,
+  SessionTokenScope,
+  TuiCommandDisplay,
+} from "./types.js";
+import { DEFAULT_CONFIG } from "./types.js";
 
 export const QUOTA_TOAST_CONFIG_RELATIVE_PATHS = [
   "opencode-quota/quota-toast.jsonc",
@@ -206,7 +204,7 @@ export function resolveQuotaToastConfigPath(configRootDir: string): string {
 }
 
 function hasOwnKey<T extends object>(value: T, key: PropertyKey): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
+  return Object.hasOwn(value, key);
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

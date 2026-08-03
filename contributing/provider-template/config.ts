@@ -8,12 +8,12 @@
  * name, ids, env vars, and config keys.
  */
 
-import { readAuthFile } from "./opencode-auth.js";
 import {
   getApiKeyDiagnostics,
   getGlobalOpencodeConfigCandidatePaths,
   resolveProviderApiKey,
 } from "./api-key-resolver.js";
+import { readAuthFile } from "./opencode-auth.js";
 
 const ENV_KEYS = ["EXAMPLE_PROVIDER_API_KEY"] as const;
 const PROVIDER_KEYS = ["example-provider", "exampleProvider"] as const;

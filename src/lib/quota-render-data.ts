@@ -1,5 +1,7 @@
+import { getAnthropicNoDataMessage } from "../providers/anthropic.js";
+import { getProviders } from "../providers/registry.js";
 import type { LoadConfigMeta } from "./config.js";
-import type { QuotaToastConfig } from "./types.js";
+import { isCursorProviderId } from "./cursor-pricing.js";
 import type {
   QuotaProvider,
   QuotaProviderContext,
@@ -9,25 +11,23 @@ import type {
   QuotaToastError,
   SessionTokensData,
 } from "./entries.js";
-import type { SessionTokenError } from "./quota-status.js";
-import type { QuotaFormatStyle } from "./quota-format-style.js";
 
 import { isPercentEntry } from "./entries.js";
-import { fetchSessionTokensForDisplay } from "./session-tokens.js";
+import { formatGroupedHeader } from "./grouped-header-format.js";
 import { getQuotaProviderDisplayLabel, normalizeQuotaProviderId } from "./provider-metadata.js";
-import { isCursorProviderId } from "./cursor-pricing.js";
-import { fetchQuotaProviderResult } from "./quota-state.js";
-import { retainQuotaTelemetryProviders } from "./quota-telemetry.js";
+import { classifyQuotaWindowText, type QuotaWindowKind } from "./quota-entry-display.js";
+import type { QuotaFormatStyle } from "./quota-format-style.js";
+import { getQuotaFormatStyleDefinition } from "./quota-format-style.js";
 import { createQuotaProviderRuntimeContext } from "./quota-runtime-context.js";
+import { fetchQuotaProviderResult } from "./quota-state.js";
+import type { SessionTokenError } from "./quota-status.js";
+import { retainQuotaTelemetryProviders } from "./quota-telemetry.js";
 import {
   createRuntimeProviderIdResolver,
   type RuntimeProviderIdResolver,
 } from "./runtime-provider-ids.js";
-import { getQuotaFormatStyleDefinition } from "./quota-format-style.js";
-import { formatGroupedHeader } from "./grouped-header-format.js";
-import { getProviders } from "../providers/registry.js";
-import { getAnthropicNoDataMessage } from "../providers/anthropic.js";
-import { classifyQuotaWindowText, type QuotaWindowKind } from "./quota-entry-display.js";
+import { fetchSessionTokensForDisplay } from "./session-tokens.js";
+import type { QuotaToastConfig } from "./types.js";
 
 export type SessionModelMeta = {
   modelID?: string;

@@ -2,9 +2,9 @@
  * Type definitions for opencode-quota plugin
  */
 
-import type { QuotaProviderDefinition } from "./quota-providers.js";
 import type { QuotaFormatStyle } from "./quota-format-style.js";
 import { DEFAULT_QUOTA_FORMAT_STYLE } from "./quota-format-style.js";
+import type { QuotaProviderDefinition } from "./quota-providers.js";
 
 // =============================================================================
 // Configuration Types

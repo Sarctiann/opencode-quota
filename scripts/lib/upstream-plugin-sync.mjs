@@ -18,10 +18,18 @@ async function extractTarball(tarballPath, destinationPath) {
   await mkdir(destinationPath, { recursive: true });
 
   try {
-    await execFileAsync("tar", ["-xzf", tarballPath, "--strip-components=1", "-C", destinationPath]);
+    await execFileAsync("tar", [
+      "-xzf",
+      tarballPath,
+      "--strip-components=1",
+      "-C",
+      destinationPath,
+    ]);
   } catch (error) {
     const detail =
-      error && typeof error === "object" && "message" in error ? String(error.message) : "tar extraction failed";
+      error && typeof error === "object" && "message" in error
+        ? String(error.message)
+        : "tar extraction failed";
     throw new Error(`Failed to extract ${tarballPath}: ${detail}`);
   }
 }
@@ -93,7 +101,9 @@ async function stageOnePlugin(latest, stageRoot, previousLock) {
 function buildLock(latestVersions) {
   const plugins = {};
 
-  for (const latest of [...latestVersions].sort((left, right) => left.pluginId.localeCompare(right.pluginId))) {
+  for (const latest of [...latestVersions].sort((left, right) =>
+    left.pluginId.localeCompare(right.pluginId),
+  )) {
     plugins[latest.pluginId] = {
       npmUrl: latest.npmUrl,
       packageName: latest.packageName,
