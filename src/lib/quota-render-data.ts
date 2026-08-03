@@ -339,6 +339,9 @@ export async function collectQuotaStatusLiveProbes(params: {
       ...(results[index]!.statusDetails
         ? { statusDetails: results[index]!.statusDetails!.map((detail) => ({ ...detail })) }
         : {}),
+      ...(results[index]!.rawDetails
+        ? { rawDetails: results[index]!.rawDetails!.map((detail) => ({ ...detail })) }
+        : {}),
       ...(results[index]!.presentation
         ? { presentation: { ...results[index]!.presentation } }
         : {}),

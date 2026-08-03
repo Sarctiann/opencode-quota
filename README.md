@@ -146,7 +146,7 @@ Most providers work automatically. `Automatic` means OpenCode Quota reuses the c
 | GitHub Copilot     | Automatic                                                      | Remote API         | Usage and budget   |
 | Google AGY         | [Needs setup](docs/readme/providers.md#google-agy-quick-setup) | Remote API         | Quota              |
 | Google Antigravity | [Needs setup](docs/readme/providers.md#google-antigravity)     | Remote API         | Quota              |
-| Kilo Gateway       | Automatic                                                      | Remote API         | Balance            |
+| Kilo Gateway       | Automatic                                                      | Remote API         | Quota and balance  |
 | NanoGPT            | Automatic                                                      | Remote API         | Quota and balance  |
 | Ollama Cloud       | Automatic                                                      | Remote API         | Quota and usage    |
 | OpenAI             | Automatic                                                      | Remote API         | Quota              |

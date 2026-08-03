@@ -55,6 +55,9 @@ export function cloneQuotaProviderResult(result: QuotaProviderResult): QuotaProv
     ...(result.statusDetails
       ? { statusDetails: result.statusDetails.map((detail) => ({ ...detail })) }
       : {}),
+    ...(result.rawDetails
+      ? { rawDetails: result.rawDetails.map((detail) => ({ ...detail })) }
+      : {}),
     ...(result.presentation ? { presentation: { ...result.presentation } } : {}),
   };
 }
@@ -328,6 +331,7 @@ function isQuotaProviderResult(value: unknown): value is QuotaProviderResult {
       "errors",
       "diagnostics",
       "statusDetails",
+      "rawDetails",
       "presentation",
     ]) &&
     typeof result.attempted === "boolean" &&
@@ -340,6 +344,8 @@ function isQuotaProviderResult(value: unknown): value is QuotaProviderResult {
     (result.statusDetails === undefined ||
       (Array.isArray(result.statusDetails) &&
         result.statusDetails.every(isQuotaProviderStatusDetail))) &&
+    (result.rawDetails === undefined ||
+      (Array.isArray(result.rawDetails) && result.rawDetails.every(isQuotaProviderStatusDetail))) &&
     (result.presentation === undefined || isQuotaProviderPresentation(result.presentation))
   );
 }

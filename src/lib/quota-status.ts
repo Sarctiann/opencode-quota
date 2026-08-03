@@ -923,6 +923,18 @@ export async function buildQuotaStatusReport(params: {
     );
   }
 
+  if (findProviderLiveProbe("kilo", params.providerLiveProbes)) {
+    sections.push(
+      createProviderStatusSection({
+        id: "kilo",
+        title: "kilo:",
+        providerId: "kilo",
+        probes: params.providerLiveProbes,
+        availability: params.providerAvailability,
+      }),
+    );
+  }
+
   // === google antigravity + db path ===
   const dbCandidates = getOpenCodeDbPathCandidates();
   const dbSelected = getOpenCodeDbPath();

@@ -243,6 +243,61 @@ describe("buildQuotaExport", () => {
     });
   });
 
+  it("exports Kilo Pass raw accounting details without adding them to human entries", async () => {
+    const rawDetails = [
+      { key: "base_credits_usd", value: "$10.00" },
+      { key: "usage_usd", value: "$12.00" },
+      { key: "bonus_credits_usd", value: "$0.00" },
+      { key: "remaining_usd", value: "$0.00" },
+      { key: "overage_usd", value: "$2.00" },
+      { key: "reset_at", value: "2026-07-01T00:00:00.000Z" },
+    ];
+    mockReadCachedProviderResult.mockResolvedValue({
+      hit: true,
+      result: {
+        attempted: true,
+        entries: [
+          {
+            accounting: { ...QUOTA_ACCOUNTING, authority: "locally_derived" },
+            name: "Kilo Gateway Credits",
+            percentRemaining: 0,
+            resetTimeIso: "2026-07-01T00:00:00.000Z",
+          },
+          {
+            accounting: { ...QUOTA_ACCOUNTING, authority: "locally_derived" },
+            kind: "value",
+            name: "Kilo Gateway Remaining Credits",
+            value: "$0.00",
+          },
+        ],
+        errors: [],
+        rawDetails,
+      },
+      timestamp: Date.now(),
+    });
+
+    const actual = await buildQuotaExport({
+      providers: [createMockProvider("kilo")],
+      ctx: createMockContext(),
+      ttlMs: 60_000,
+      fromCache: true,
+    });
+
+    const provider = actual.providers.kilo;
+    expect(provider).toMatchObject({
+      status: "ok",
+      rawDetails,
+      entries: [
+        { name: "Kilo Gateway Credits", percentRemaining: 0 },
+        { name: "Kilo Gateway Remaining Credits", value: "$0.00" },
+      ],
+    });
+    if (provider?.status === "ok") {
+      expect(JSON.stringify(provider.entries)).not.toContain("$2.00");
+      expect(JSON.stringify(provider.entries)).not.toContain("overage");
+    }
+  });
+
   it("matches the v2 all-result-types JSON golden", async () => {
     vi.setSystemTime(new Date("2026-07-11T00:00:00.000Z"));
     mockReadCachedProviderResult.mockResolvedValue({

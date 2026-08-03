@@ -54,6 +54,11 @@ export type QuotaExportError = {
   message: string;
 };
 
+export type QuotaExportRawDetail = {
+  key: string;
+  value: string;
+};
+
 export type QuotaExportSource = {
   id: string;
   providerId: string;
@@ -80,6 +85,8 @@ export type QuotaExportProvider = (
 ) & {
   /** Present for aggregate providers; preserves configured source order. */
   sources?: QuotaExportSource[];
+  /** Optional safe provider-owned facts that are intentionally hidden from human quota rows. */
+  rawDetails?: QuotaExportRawDetail[];
 };
 
 /** Top-level v2 export document assembled from all configured providers. */
