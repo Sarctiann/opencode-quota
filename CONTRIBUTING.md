@@ -46,13 +46,13 @@ Pre-push hooks currently run:
 
 - `pnpm install --frozen-lockfile`
 
-Run checks manually before opening a PR:
+Run the canonical repository gate before opening a PR:
 
 ```sh
-pnpm run typecheck
-pnpm test
-pnpm run build
+pnpm verify
 ```
+
+It checks Biome linting and formatting, the pinned TypeScript toolchain, repository history/privacy, typecheck, build, the full test suite, focused four-surface parity, and package contents—in that order.
 
 Use `pnpm run test:watch` for local iteration. Use `pnpm run build:check` when you need the build plus package dry-run check.
 
@@ -61,11 +61,11 @@ Use `pnpm run test:watch` for local iteration. Use `pnpm run build:check` when y
 PR and `main` pushes trigger `.github/workflows/ci.yml` (`CI` workflow):
 
 - Job: `pnpm-quality` on Node `24.x`
-- Steps: frozen install, v4 formatting/history/TypeScript gates, typecheck, full tests, focused four-surface parity, build, then strict npm package audit
+- Steps: frozen install, `pnpm verify`, then one exact npm artifact pack and upload
 - Job: `runtime-smoke` on Node `22.x` and `24.x`
-- Runtime smoke installs the exact packed artifact as a consumer and verifies the default/server imports, TUI export payload, CLI help, and `engines.node >=22.0.0`
+- Runtime smoke installs that exact packed artifact as a consumer and verifies the default/server imports, TUI export payload, CLI help, and `engines.node >=22.0.0`
 
-Release workflow `.github/workflows/publish-npm.yml` runs the same release gates on Node 24 before publishing. It keeps `npm publish --access public` only for the npm registry publish step. Run `pnpm run release:check` on Node 24 to reproduce the complete local gate.
+Release workflow `.github/workflows/publish-npm.yml` first checks the release tag, SHA, and package version, then runs `pnpm verify` on Node 24. After that, it packs one exact artifact, smoke-tests that artifact on Node 22 and 24, verifies it again before provenance publishing, and backfills the release version. Run `pnpm run release:check` on Node 24 when the release environment is available; it adds the release-version assertion after the canonical gate.
 
 ## Branch Protection (Maintainers)
 
@@ -115,9 +115,7 @@ When adding a provider, keep the README setup wording tied to real behavior.
 ## Pull Request Checklist
 
 - Linked issue (`Fixes #...` or `Refs #...`) when available, or included a short no-issue rationale in the PR.
-- `pnpm run typecheck` passes.
-- `pnpm test` passes.
-- `pnpm run build` passes.
+- `pnpm verify` passes.
 - Verified behavior against the current production released OpenCode version, and included the tested version in the PR notes.
 - Updated docs when user-facing commands/config/workflow changed (usually `README.md`; update this file when contributor workflow changes).
 - For new API-key/token providers, started from `contributing/provider-template/` or explained why the template does not apply.

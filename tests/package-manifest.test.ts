@@ -86,6 +86,19 @@ const packedRealOtelFixture = await readFile(
   "utf8",
 );
 
+const VERIFY_COMMAND =
+  "pnpm run check && pnpm run verify:typescript-version && pnpm run verify:v4-history && pnpm run typecheck && pnpm run build && pnpm test && pnpm run test:four-surfaces && pnpm run verify:package-contents";
+const VERIFY_COMPONENT_COMMANDS = [
+  "pnpm run check",
+  "pnpm run verify:typescript-version",
+  "pnpm run verify:v4-history",
+  "pnpm run typecheck",
+  "pnpm run build",
+  "pnpm test",
+  "pnpm run test:four-surfaces",
+  "pnpm run verify:package-contents",
+];
+
 function namedStep(job: WorkflowJob, name: string): WorkflowStep {
   const step = job.steps?.find((candidate) => candidate.name === name);
   expect(step, `Missing workflow step: ${name}`).toBeDefined();
@@ -94,6 +107,22 @@ function namedStep(job: WorkflowJob, name: string): WorkflowStep {
 
 function stepIndex(job: WorkflowJob, name: string): number {
   return job.steps?.findIndex((candidate) => candidate.name === name) ?? -1;
+}
+
+function expectCanonicalVerificationOnly(job: WorkflowJob): void {
+  const runLines =
+    job.steps?.flatMap((step) =>
+      step.run
+        ? step.run
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)
+        : [],
+    ) ?? [];
+  expect(runLines.filter((line) => line === "pnpm verify")).toEqual(["pnpm verify"]);
+  for (const component of VERIFY_COMPONENT_COMMANDS) {
+    expect(runLines).not.toContain(component);
+  }
 }
 
 describe("package manifest compatibility", () => {
@@ -198,14 +227,12 @@ describe("package manifest compatibility", () => {
     expect(pnpmWorkspace).toContain("msgpackr-extract: true");
   });
 
-  it("builds clean dist output before artifact-dependent tests", () => {
+  it("defines one ordered canonical repository gate and a release-only compatibility alias", () => {
     expect(pkg.scripts?.build).toContain("node scripts/clean-dist.mjs && tsc");
-
-    const releaseCheck = pkg.scripts?.["release:check"] ?? "";
-    expect(releaseCheck.indexOf("pnpm run build")).toBeGreaterThanOrEqual(0);
-    expect(releaseCheck.indexOf("pnpm test")).toBeGreaterThan(
-      releaseCheck.indexOf("pnpm run build"),
-    );
+    expect(pkg.scripts?.verify).toBe(VERIFY_COMMAND);
+    expect(pkg.scripts?.verify).not.toContain("verify:release-version");
+    expect(pkg.scripts?.verify).not.toContain("verify:release-package");
+    expect(pkg.scripts?.["release:check"]).toBe("pnpm verify && pnpm run verify:release-version");
   });
 
   it("ships explicit server, tui, and init bin entrypoints for OpenCode", () => {
@@ -264,22 +291,22 @@ describe("package manifest compatibility", () => {
 
     for (const [name, run] of [
       ["Install dependencies", "pnpm install --frozen-lockfile"],
-      ["Check formatting", "pnpm run format:check"],
-      ["Verify TypeScript version", "pnpm run verify:typescript-version"],
-      ["Verify v4 history privacy", "pnpm run verify:v4-history"],
-      ["Typecheck", "pnpm run typecheck"],
-      ["Build", "pnpm run build"],
-      ["Test", "pnpm test"],
-      ["Verify four-surface parity", "pnpm run test:four-surfaces"],
+      ["Run canonical verification", "pnpm verify"],
       ["Pack and audit exact npm artifact once", "pnpm run pack:release-package package-artifacts"],
     ]) {
       expect(namedStep(quality, name).run).toBe(run);
     }
 
-    expect(stepIndex(quality, "Test")).toBeGreaterThan(stepIndex(quality, "Build"));
-    expect(stepIndex(quality, "Pack and audit exact npm artifact once")).toBeGreaterThan(
-      stepIndex(quality, "Test"),
+    expectCanonicalVerificationOnly(quality);
+    expect(stepIndex(quality, "Run canonical verification")).toBeGreaterThan(
+      stepIndex(quality, "Install dependencies"),
     );
+    expect(stepIndex(quality, "Pack and audit exact npm artifact once")).toBeGreaterThan(
+      stepIndex(quality, "Run canonical verification"),
+    );
+    expect(
+      quality.steps?.filter((step) => step.run?.includes("pnpm run pack:release-package")),
+    ).toHaveLength(1);
 
     expect(namedStep(quality, "Upload exact npm artifact")).toEqual(
       expect.objectContaining({
@@ -407,9 +434,7 @@ describe("package manifest compatibility", () => {
       "Sync package version from release tag",
       "Verify package version matches release tag",
       "Install dependencies",
-      "Build",
-      "Test",
-      "Verify four-surface parity",
+      "Run canonical verification",
       "Pack and audit the release artifact once",
       "Upload exact release artifact",
     ];
@@ -431,9 +456,14 @@ describe("package manifest compatibility", () => {
     expect(namedStep(releasePackage, "Verify package version matches release tag").run).toBe(
       "pnpm run verify:release-version",
     );
+    expect(namedStep(releasePackage, "Run canonical verification").run).toBe("pnpm verify");
+    expectCanonicalVerificationOnly(releasePackage);
     expect(namedStep(releasePackage, "Pack and audit the release artifact once").run).toBe(
       "pnpm run pack:release-package package-artifacts",
     );
+    expect(
+      releasePackage.steps?.filter((step) => step.run?.includes("pnpm run pack:release-package")),
+    ).toHaveLength(1);
     expect(namedStep(releasePackage, "Upload exact release artifact").with).toEqual({
       name: "release-package",
       path: "package-artifacts/*",
