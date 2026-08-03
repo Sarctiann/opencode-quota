@@ -38,9 +38,20 @@ const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url
   files?: string[];
   packageManager?: string;
   scripts?: Record<string, string>;
+  pnpm?: {
+    peerDependencyRules?: unknown;
+    strictPeerDependencies?: boolean;
+  };
 };
 
 const pnpmWorkspace = await readFile(new URL("../pnpm-workspace.yaml", import.meta.url), "utf8");
+const tsconfig = JSON.parse(await readFile(new URL("../tsconfig.json", import.meta.url), "utf8")) as {
+  compilerOptions?: { types?: string[] };
+};
+const typescriptValidator = await readFile(
+  new URL("../scripts/verify-typescript-version.mjs", import.meta.url),
+  "utf8",
+);
 const ciWorkflow = parse(
   await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"),
 ) as Workflow;
@@ -74,16 +85,30 @@ describe("package manifest compatibility", () => {
     expect(packageManagerMatch).not.toBeNull();
     expect(Number(packageManagerMatch?.[1])).toBeGreaterThanOrEqual(11);
     expect(pkg.engines?.node).toBe(">=22.0.0");
-    expect(pkg.devDependencies?.typescript).toBe("^5.9.3");
+    expect(pkg.devDependencies?.typescript).toBe("7.0.2");
     expect(pkg.devDependencies?.yaml).toBe("^2.8.3");
   });
 
   it("keeps the public plugin peer broad and the development type target exact", () => {
     expect(pkg.peerDependencies?.["@opencode-ai/plugin"]).toBe("^1.4.3");
-    expect(pkg.devDependencies?.["@opencode-ai/plugin"]).toBe("1.18.1");
+    expect(pkg.devDependencies?.["@opencode-ai/plugin"]).toBe("1.18.11");
     expect(readme).toContain("Node.js `>= 22` is required.");
     expect(readme).not.toContain("OpenCode `>= 1.4.3`");
     expect(pkg.engines).not.toHaveProperty("opencode");
+  });
+
+  it("keeps the TypeScript 7 toolchain explicit without suppressing the known peer mismatch", () => {
+    expect(tsconfig.compilerOptions?.types).toEqual(["node"]);
+    expect(typescriptValidator).toContain('const EXPECTED_TYPESCRIPT_VERSION = "7.0.2";');
+    expect(typescriptValidator).toContain('const EXPECTED_PLUGIN_VERSION = "1.18.11";');
+    expect(typescriptValidator).toContain('const BUN_FFI_TYPESCRIPT_PEER = "^5";');
+    expect(typescriptValidator).toContain("Known unmet peer:");
+    expect(typescriptValidator).not.toMatch(/TypeScript v4 freeze|\^5\.9/);
+    expect(pkg.pnpm?.peerDependencyRules).toBeUndefined();
+    expect(pkg.pnpm?.strictPeerDependencies).not.toBe(false);
+    expect(pnpmWorkspace).not.toMatch(
+      /peerDependencyRules|allowedVersions|ignoreMissing|strictPeerDependencies:\s*false/,
+    );
   });
 
   it("ships the OpenTelemetry API while keeping the metrics SDK host-owned", () => {
