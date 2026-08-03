@@ -76,6 +76,8 @@ Quota, so enabling them does not add provider requests.
 The first observation establishes a baseline. A success toast appears only after OpenCode Quota
 observes the advertised reset boundary, a newer reset timestamp, and an increase in remaining
 quota. A local acknowledgment prevents the same reset from being announced again after restart.
+The acknowledgment stores only a hashed account/window identity and reset metadata; account source
+identifiers and display labels are not written to the state file.
 Supported window names are `fiveHour`, `hourly`, `daily`, `weekly`, `monthly`, and `yearly`.
 
 ### Include subagent session tokens
