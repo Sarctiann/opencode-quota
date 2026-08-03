@@ -30,10 +30,14 @@ let rawManifest;
 if (manifestPath) {
   rawManifest = await readFile(path.resolve(repoRoot, manifestPath), "utf8");
 } else {
-  const result = spawnSync("pnpm", ["pack", "--json", "--dry-run"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
+  const result = spawnSync(
+    "pnpm",
+    ["--config.ignore-scripts=true", "pack", "--json", "--dry-run"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    },
+  );
 
   if (result.error) throw result.error;
   if (result.status !== 0) {

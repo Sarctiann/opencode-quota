@@ -48,7 +48,6 @@ function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: repoRoot,
     encoding: "utf8",
-    env: { ...process.env, npm_config_ignore_scripts: "true" },
     ...options,
   });
 
@@ -62,7 +61,13 @@ function run(command, args, options = {}) {
   return result.stdout;
 }
 
-const packJson = run("pnpm", ["pack", "--json", "--pack-destination", artifactDir]);
+const packJson = run("pnpm", [
+  "--config.ignore-scripts=true",
+  "pack",
+  "--json",
+  "--pack-destination",
+  artifactDir,
+]);
 const packManifestPath = path.join(artifactDir, "pack-manifest.json");
 
 try {
