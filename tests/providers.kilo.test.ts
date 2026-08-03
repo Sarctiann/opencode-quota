@@ -275,6 +275,7 @@ describe("Kilo Gateway provider", () => {
       bonusCreditsUsd: 0,
       remainingUsd: 0,
       overageUsd: 0,
+      resetTimeIso: "2099-02-01T00:00:00.000Z",
     });
 
     const out = await kiloProvider.fetch({} as any);
@@ -288,6 +289,7 @@ describe("Kilo Gateway provider", () => {
         label: "Left:",
         metricLabel: "Left",
         value: "$0.00",
+        resetTimeIso: "2099-02-01T00:00:00.000Z",
       },
     ]);
   });

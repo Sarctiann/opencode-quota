@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { formatQuotaCommand } from "../src/lib/quota-command-format.js";
 import type { QuotaRenderData } from "../src/lib/quota-render-data.js";
@@ -19,6 +19,10 @@ const balanceAccounting = {
   authority: "provider_reported" as const,
 };
 const resetTimeIso = "2099-02-01T00:00:00.000Z";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 function renderFourSurfaces(data: QuotaRenderData): string[] {
   return [
@@ -84,6 +88,9 @@ describe("Kilo Gateway four-surface formatting", () => {
   });
 
   it("shows only the Left value when total Kilo Pass credits are zero", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2099-01-01T00:00:00.000Z"));
+
     const data: QuotaRenderData = {
       entries: [
         {
@@ -94,15 +101,20 @@ describe("Kilo Gateway four-surface formatting", () => {
           label: "Left:",
           metricLabel: "Left",
           value: "$0.00",
+          resetTimeIso,
         },
       ],
       errors: [],
     };
 
-    for (const output of renderFourSurfaces(data)) {
+    const outputs = renderFourSurfaces(data);
+    for (const output of outputs) {
       expect(output).toContain("Kilo Gateway");
       expect(output).toContain("$0.00");
       expect(output).not.toContain("%");
+    }
+    for (const output of outputs.slice(0, 3)) {
+      expect(output).toMatch(/\b\d+d\b/u);
     }
   });
 

@@ -48,6 +48,43 @@ function sanitizeMessage(text: string, secret?: string, maxLength = 200): string
   return (sanitizeSingleLineDisplayText(redacted) || "unknown").slice(0, maxLength);
 }
 
+async function readResponseText(
+  response: Response,
+  endpoint: "state" | "balance",
+): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      byteLength += value.byteLength;
+      if (byteLength > MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error(
+          `Kilo Gateway ${endpoint} API response exceeded ${MAX_RESPONSE_BYTES} bytes`,
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(byteLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 function nonnegativeNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 }
@@ -204,10 +241,7 @@ async function requestKiloPassState(
       },
       timeoutMs: options.requestTimeoutMs,
       consume: async (response) => {
-        const text = await response.text();
-        if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
-          throw new Error(`Kilo Gateway state API response exceeded ${MAX_RESPONSE_BYTES} bytes`);
-        }
+        const text = await readResponseText(response, "state");
         if (!response.ok) {
           return {
             success: false,
@@ -243,10 +277,7 @@ async function requestKiloBalance(
       },
       timeoutMs: options.requestTimeoutMs,
       consume: async (response) => {
-        const text = await response.text();
-        if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
-          throw new Error(`Kilo Gateway balance API response exceeded ${MAX_RESPONSE_BYTES} bytes`);
-        }
+        const text = await readResponseText(response, "balance");
         if (!response.ok) {
           return {
             success: false,

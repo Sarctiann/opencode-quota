@@ -36,7 +36,6 @@ After installation:
 2. Run a slash command in OpenCode, or use `opencode-quota show` from your terminal.
 3. If you enabled the sidebar, open the session sidebar and look for `Quota`.
 4. If you enabled the compact status line, look at the bottom of Home or below the message input.
-5. If something looks wrong, run `/quota_status` in OpenCode or see [Troubleshooting](docs/readme/troubleshooting.md). For Antigravity, the report shows the effective `googleModels` value and whether it came from the built-in default or a configuration file.
 
 ## Updating
 
@@ -131,8 +130,6 @@ Use the CLI for scripts, CI, or a quick terminal check outside OpenCode.
 
 ## Providers
 
-Most providers work automatically. `Automatic` means OpenCode Quota reuses the credential saved through OpenCode's `/connect`. If a provider has a “Needs setup” link, open that setup note only if you use that provider. Providers can appear in both audience sections when the vendor supports both.
-
 ### Pre-configured American providers
 
 <details open>
@@ -176,8 +173,6 @@ Most providers work automatically. `Automatic` means OpenCode Quota reuses the c
 | OpenRouter              | Automatic                                                      | Remote API         | Budget and spend   |
 | Synthetic               | Automatic                                                      | Remote API         | Quota              |
 | xAI SuperGrok           | Automatic                                                      | Remote API         | Quota              |
-
-Business placement describes vendor plan availability. Except for configured Copilot organization/enterprise billing, current integrations generally report one signed-in account, seat, API key, or workspace.
 
 Gemini CLI quota support is deprecated for new installs. Existing v4 configurations still work, with removal planned for v5.0.0. See the [provider guide](docs/readme/providers.md#gemini-cli) before choosing a replacement.
 

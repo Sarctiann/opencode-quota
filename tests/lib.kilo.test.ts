@@ -30,11 +30,11 @@ vi.mock("../src/lib/kilo-config.js", () => ({
 import { queryKiloPassState, queryKiloQuota } from "../src/lib/kilo.js";
 
 function mockResponse(params: { ok: boolean; status: number; json?: unknown; text?: string }) {
-  mocks.fetchResponse.mockResolvedValueOnce({
-    ok: params.ok,
+  const response = new Response(params.text ?? JSON.stringify(params.json), {
     status: params.status,
-    text: async () => params.text ?? JSON.stringify(params.json),
   });
+  expect(response.ok).toBe(params.ok);
+  mocks.fetchResponse.mockResolvedValueOnce(response);
 }
 
 function statePayload(overrides: Record<string, unknown> = {}) {
@@ -311,13 +311,26 @@ describe("Kilo Gateway API client", () => {
     });
   });
 
-  it("rejects oversized responses before parsing", async () => {
-    mockResponse({ ok: true, status: 200, text: "x".repeat(64 * 1024 + 1) });
+  it("stops reading oversized responses before parsing", async () => {
+    let cancelled = false;
+    const chunk = new Uint8Array(32 * 1024);
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        cancelled = true;
+        throw new Error("cancel failed");
+      },
+    });
+    mocks.fetchResponse.mockResolvedValueOnce({ ok: true, status: 200, body });
 
     const out = await queryKiloPassState();
     expect(out && !out.success ? out.error : "").toBe(
       "Kilo Gateway state API response exceeded 65536 bytes",
     );
+    expect(cancelled).toBe(true);
+    expect(body.locked).toBe(false);
   });
 
   it("sanitizes parse and transport errors without leaking the key", async () => {

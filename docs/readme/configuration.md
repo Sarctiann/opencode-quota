@@ -373,6 +373,6 @@ Xiaomi MiMo has no `quota-toast.json` credential or endpoint setting. Use `MIMO_
 | ------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `telemetry.enabled` | `false` | Publish quota consumption and cache-age gauges through the host's global OpenTelemetry `MeterProvider`; adds no provider calls. |
 
-See [External integration](external-integration.md#option-3-publish-opentelemetry-metrics) for metric names, attributes, setup, and privacy behavior.
+See [External integration](external-integration.md#3-send-opentelemetry-metrics) for metric names, attributes, setup, and privacy behavior.
 
 </details>

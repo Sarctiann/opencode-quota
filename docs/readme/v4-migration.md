@@ -16,7 +16,7 @@ v4 adds clearer quota results, guided custom-provider setup, and JSON export v2.
    - `opencode.json` or `opencode.jsonc`
    - `tui.json` or `tui.jsonc`
    - `opencode-quota/quota-toast.json` or `quota-toast.jsonc`
-3. If another app reads `opencode-quota show --json` or `quota-export.json`, review [JSON export v2](external-integration.md#json-export-v2).
+3. If another app reads `opencode-quota show --json` or `quota-export.json`, review [JSON export v2](external-integration.md#json-basics).
 4. Keep provider credentials in OpenCode authentication, global config, or environment variables—not project quota settings.
 
 ## Update

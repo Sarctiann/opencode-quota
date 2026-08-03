@@ -69,6 +69,7 @@ function buildKiloPassEntries(state: KiloPassSuccess): QuotaToastEntry[] {
     label: "Left:",
     metricLabel: "Left",
     value: fmtUsdAmount(state.remainingUsd),
+    ...(totalCreditsUsd === 0 && state.resetTimeIso ? { resetTimeIso: state.resetTimeIso } : {}),
   });
 
   return entries;
