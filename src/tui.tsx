@@ -597,20 +597,21 @@ function registerSidebarSlots(api: TuiPluginApi): void {
   });
 }
 
-const tui: TuiPlugin = async (api) => {
-  api.lifecycle.onDispose(() => {
-    disposeQuotaTelemetryOwner(createTuiQuotaClient(api));
-  });
-
+async function initializeTuiRegistration(
+  api: TuiPluginApi,
+  isDisposed: () => boolean,
+): Promise<void> {
   let surfaceRegistration;
   try {
     surfaceRegistration = await resolveTuiSurfaceRegistration(api);
   } catch {
+    if (isDisposed()) return;
     registerQuotaDialogCommands(api, "inline");
     registerSidebarSlots(api);
     return;
   }
 
+  if (isDisposed()) return;
   registerQuotaDialogCommands(api, surfaceRegistration.commandDisplay);
 
   if (surfaceRegistration.sidebar.enabled) {
@@ -656,6 +657,16 @@ const tui: TuiPlugin = async (api) => {
       slots: compactSlots,
     });
   }
+}
+
+const tui: TuiPlugin = async (api) => {
+  let disposed = false;
+  api.lifecycle.onDispose(() => {
+    disposed = true;
+    disposeQuotaTelemetryOwner(createTuiQuotaClient(api));
+  });
+
+  void initializeTuiRegistration(api, () => disposed).catch(() => {});
 };
 
 const pluginModule: TuiPluginModule & { id: string } = {

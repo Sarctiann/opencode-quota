@@ -244,6 +244,14 @@ async function flushPromises(): Promise<void> {
   await Promise.resolve();
 }
 
+async function startTui(
+  plugin: Awaited<ReturnType<typeof loadTuiModule>>,
+  api: ReturnType<typeof createApi>["api"],
+): Promise<void> {
+  await plugin.tui(api as any, undefined, {} as any);
+  await flushPromises();
+}
+
 describe("tui plugin smoke", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -284,6 +292,104 @@ describe("tui plugin smoke", () => {
     vi.useRealTimers();
   });
 
+  it("returns before surface resolution and registers after late success", async () => {
+    const plugin = await loadTuiModule();
+    const { api, keymapLayers, registered } = createApi();
+    const registration = deferred<any>();
+    resolveTuiSurfaceRegistration.mockReturnValueOnce(registration.promise);
+
+    await plugin.tui(api as any, undefined, {} as any);
+
+    expect(resolveTuiSurfaceRegistration).toHaveBeenCalledOnce();
+    expect(api.keymap.registerLayer).not.toHaveBeenCalled();
+    expect(registered).toEqual([]);
+
+    registration.resolve({
+      commandDisplay: "inline",
+      sidebar: { enabled: true },
+      compact: {
+        enabled: true,
+        homeBottom: true,
+        sessionPrompt: true,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
+      announcements: { homeBottom: false },
+      homeBottom: true,
+    });
+    await flushPromises();
+
+    expect(keymapLayers).toHaveLength(1);
+    expect(registered.map((entry) => entry.order)).toEqual([150, 90]);
+    expect(Object.keys(registered[1]!.slots)).toEqual(["session_prompt", "home_bottom"]);
+  });
+
+  it("registers the existing fallback after a late resolution failure", async () => {
+    const plugin = await loadTuiModule();
+    const { api, keymapLayers, registered } = createApi();
+    const registration = deferred<any>();
+    resolveTuiSurfaceRegistration.mockReturnValueOnce(registration.promise);
+
+    await plugin.tui(api as any, undefined, {} as any);
+    expect(keymapLayers).toEqual([]);
+    expect(registered).toEqual([]);
+
+    registration.reject(new Error("config unavailable"));
+    await flushPromises();
+
+    expect(keymapLayers).toHaveLength(1);
+    expect(registered).toHaveLength(1);
+    expect(registered[0]!.order).toBe(150);
+    expect(Object.keys(registered[0]!.slots)).toEqual(["sidebar_content"]);
+  });
+
+  it("consumes late registration errors without retrying fallback", async () => {
+    const plugin = await loadTuiModule();
+    const { api, registered } = createApi();
+    api.keymap.registerLayer.mockImplementationOnce(() => {
+      throw new Error("registration unavailable");
+    });
+    resolveTuiSurfaceRegistration.mockResolvedValueOnce({
+      commandDisplay: "inline",
+      sidebar: { enabled: true },
+      compact: {
+        enabled: false,
+        homeBottom: false,
+        sessionPrompt: false,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
+      announcements: { homeBottom: false },
+      homeBottom: false,
+    });
+
+    await plugin.tui(api as any, undefined, {} as any);
+    await flushPromises();
+
+    expect(api.keymap.registerLayer).toHaveBeenCalledOnce();
+    expect(registered).toEqual([]);
+  });
+
+  it("suppresses late registration after disposal", async () => {
+    const plugin = await loadTuiModule();
+    const { api, keymapLayers, registered } = createApi();
+    const registration = deferred<any>();
+    resolveTuiSurfaceRegistration.mockReturnValueOnce(registration.promise);
+
+    await plugin.tui(api as any, undefined, {} as any);
+    expect(api.lifecycle.onDispose).toHaveBeenCalledOnce();
+
+    const dispose = api.lifecycle.onDispose.mock.calls[0]?.[0];
+    dispose?.();
+    registration.reject(new Error("config unavailable"));
+    await flushPromises();
+
+    expect(keymapLayers).toEqual([]);
+    expect(registered).toEqual([]);
+    expect(createTuiQuotaClient).toHaveBeenCalledOnce();
+    expect(disposeQuotaTelemetryOwner).toHaveBeenCalledOnce();
+  });
+
   it("registers every deterministic command through the palette keymap", async () => {
     const plugin = await loadTuiModule();
     const { api, keymapLayers, dialog } = createApi();
@@ -302,7 +408,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
 
     expect(api.keymap.registerLayer).toHaveBeenCalledOnce();
     expect(api.lifecycle.onDispose).toHaveBeenCalledTimes(2);
@@ -343,7 +449,7 @@ describe("tui plugin smoke", () => {
         homeBottom: false,
       });
 
-      await plugin.tui(api as any, undefined, {} as any);
+      await startTui(plugin, api);
       for (const command of commands) {
         vi.clearAllMocks();
         const output = `${command} output`;
@@ -415,7 +521,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
     const quota = keymapLayers[0]!.commands.find((command) => command.slashName === "quota")!;
     (quota.run as (input?: unknown) => void)({ arguments: "" });
     await Promise.resolve();
@@ -453,7 +559,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
     const refresh = keymapLayers[0]!.commands.find(
       (command) => command.slashName === "pricing_refresh",
     )!;
@@ -492,7 +598,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
     const quota = keymapLayers[0]!.commands.find((command) => command.slashName === "quota")!;
     (quota.run as (input?: unknown) => void)();
     await Promise.resolve();
@@ -528,7 +634,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
     const status = keymapLayers[0]!.commands.find(
       (command) => command.slashName === "quota_status",
     )!;
@@ -612,7 +718,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
     const between = keymapLayers[0]!.commands.find(
       (command) => command.slashName === "tokens_between",
     )!;
@@ -654,7 +760,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(sidebarOnly.api as any, undefined, {} as any);
+    await startTui(plugin, sidebarOnly.api);
 
     expect(sidebarOnly.registered).toHaveLength(1);
     expect(sidebarOnly.registered[0].order).toBe(150);
@@ -675,7 +781,7 @@ describe("tui plugin smoke", () => {
       homeBottom: true,
     });
 
-    await plugin.tui(compactOnly.api as any, undefined, {} as any);
+    await startTui(plugin, compactOnly.api);
 
     expect(compactOnly.registered).toHaveLength(1);
     expect(compactOnly.registered[0].order).toBe(90);
@@ -696,7 +802,7 @@ describe("tui plugin smoke", () => {
       homeBottom: true,
     });
 
-    await plugin.tui(enabled.api as any, undefined, {} as any);
+    await startTui(plugin, enabled.api);
 
     expect(enabled.registered).toHaveLength(2);
     expect(enabled.registered[0].order).toBe(150);
@@ -732,7 +838,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
 
     const sidebarRegistration = registered.find((registration) => registration.order === 150);
     expect(sidebarRegistration).toBeDefined();
@@ -788,7 +894,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
 
     const sidebarRegistration = registered.find((registration) => registration.order === 150);
     expect(sidebarRegistration).toBeDefined();
@@ -811,7 +917,7 @@ describe("tui plugin smoke", () => {
 
     resolveTuiSurfaceRegistration.mockRejectedValueOnce(new Error("config unavailable"));
 
-    await plugin.tui(fallback.api as any, undefined, {} as any);
+    await startTui(plugin, fallback.api);
 
     expect(fallback.registered).toHaveLength(1);
     expect(fallback.registered[0].order).toBe(150);
@@ -836,7 +942,7 @@ describe("tui plugin smoke", () => {
       homeBottom: true,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
 
     const slotNames = registered.flatMap((registration) => Object.keys(registration.slots));
     expect(slotNames).toContain("session_prompt");
@@ -862,7 +968,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
     registered[0]!.slots.sidebar_content({}, { session_id: "session-1" });
     await flushPromises();
     expect(loadTuiSessionQuotaSurfaces).toHaveBeenCalledTimes(1);
@@ -919,7 +1025,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
     const sidebar = registered[0]!.slots.sidebar_content;
     sidebar({}, { session_id: "session-1" });
     await vi.advanceTimersByTimeAsync(4_000);
@@ -958,7 +1064,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
     const sidebar = registered[0]!.slots.sidebar_content;
     sidebar({}, { session_id: "session-1" });
     sidebar({}, { session_id: "session-1" });
@@ -996,7 +1102,7 @@ describe("tui plugin smoke", () => {
       homeBottom: true,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
     registered[0]!.slots.home_bottom({}, {});
     await vi.advanceTimersByTimeAsync(4_000);
     expect(loadTuiHomeBottomStatus).toHaveBeenCalledOnce();
@@ -1038,7 +1144,7 @@ describe("tui plugin smoke", () => {
       announcements: { homeBottom: true },
       homeBottom: true,
     });
-    await plugin.tui(rejected.api as any, undefined, {} as any);
+    await startTui(plugin, rejected.api);
     rejected.registered[0]!.slots.home_bottom({}, {});
     await flushPromises();
     expect(writeTuiQuotaExportIfEnabled).not.toHaveBeenCalled();
@@ -1059,7 +1165,7 @@ describe("tui plugin smoke", () => {
       announcements: { homeBottom: true },
       homeBottom: true,
     });
-    await plugin.tui(disposed.api as any, undefined, {} as any);
+    await startTui(plugin, disposed.api);
     disposed.registered[0]!.slots.home_bottom({}, {});
     cleanupFns.pop()!();
     pending.resolve({ status: "ready", compact: { status: "disabled" } });
@@ -1085,7 +1191,7 @@ describe("tui plugin smoke", () => {
       homeBottom: true,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
 
     const compactRegistration = registered.find((registration) => registration.order === 90);
     expect(compactRegistration).toBeDefined();
@@ -1170,7 +1276,7 @@ describe("tui plugin smoke", () => {
       homeBottom: true,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
 
     const homeBottom = registered[0].slots.home_bottom;
     const empty = homeBottom({}, {}) as any;
@@ -1227,7 +1333,7 @@ describe("tui plugin smoke", () => {
       homeBottom: true,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
 
     const rendered = registered[0].slots.home_bottom({}, {}) as any;
     expect(rendered).toEqual({
@@ -1259,7 +1365,7 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
-    await plugin.tui(api as any, undefined, {} as any);
+    await startTui(plugin, api);
 
     const compactRegistration = registered.find((registration) => registration.order === 90);
     expect(compactRegistration).toBeDefined();
