@@ -343,6 +343,106 @@ describe("tui plugin smoke", () => {
     expect(loadTuiHomeBottomStatus).toHaveBeenCalledOnce();
   });
 
+  it("uses independent one-shot session and home registration tickets", async () => {
+    const plugin = await loadTuiModule();
+    const { api, registered, eventHandlers } = createApi();
+    const initialRuntimeSeed = { marker: "registration" };
+    resolveTuiSurfaceRegistration.mockImplementationOnce(
+      (
+        _api: unknown,
+        options?: { captureInitialRuntime?: (seed: typeof initialRuntimeSeed) => void },
+      ) => {
+        options?.captureInitialRuntime?.(initialRuntimeSeed);
+        return Promise.resolve({
+          commandDisplay: "inline",
+          sidebar: { enabled: true },
+          compact: {
+            enabled: true,
+            homeBottom: true,
+            sessionPrompt: true,
+            hasNativeProviderQuota: false,
+            suppressedByNativeProviderQuota: false,
+          },
+          announcements: { homeBottom: false },
+          homeBottom: true,
+        });
+      },
+    );
+
+    await startTui(plugin, api);
+    registered[0]!.slots.sidebar_content({}, { session_id: "session-1" });
+    registered[1]!.slots.session_prompt({}, { session_id: "session-1" });
+    registered[1]!.slots.home_bottom({}, {});
+    await flushPromises();
+
+    expect(loadTuiSessionQuotaSurfaces).toHaveBeenCalledTimes(1);
+    expect(loadTuiSessionQuotaSurfaces).toHaveBeenNthCalledWith(1, {
+      api,
+      sessionID: "session-1",
+      initialRuntimeSeed,
+    });
+    expect(loadTuiHomeBottomStatus).toHaveBeenNthCalledWith(1, {
+      api,
+      initialRuntimeSeed,
+    });
+
+    for (const handler of eventHandlers.get("message.updated") ?? []) {
+      handler({ properties: { info: { sessionID: "session-1" } } });
+    }
+    await vi.advanceTimersByTimeAsync(150);
+    expect(loadTuiHomeBottomStatus).toHaveBeenNthCalledWith(2, { api });
+    expect(loadTuiSessionQuotaSurfaces).toHaveBeenNthCalledWith(2, {
+      api,
+      sessionID: "session-1",
+    });
+  });
+
+  it("consumes a session ticket when the initial load starts and does not pass it to a successor", async () => {
+    const plugin = await loadTuiModule();
+    const { api, registered } = createApi();
+    const initialRuntimeSeed = { marker: "registration" };
+    loadTuiSessionQuotaSurfaces.mockRejectedValueOnce(new Error("initial unavailable"));
+    resolveTuiSurfaceRegistration.mockImplementationOnce(
+      (
+        _api: unknown,
+        options?: { captureInitialRuntime?: (seed: typeof initialRuntimeSeed) => void },
+      ) => {
+        options?.captureInitialRuntime?.(initialRuntimeSeed);
+        return Promise.resolve({
+          commandDisplay: "inline",
+          sidebar: { enabled: true },
+          compact: {
+            enabled: false,
+            homeBottom: false,
+            sessionPrompt: false,
+            hasNativeProviderQuota: false,
+            suppressedByNativeProviderQuota: false,
+          },
+          announcements: { homeBottom: false },
+          homeBottom: false,
+        });
+      },
+    );
+
+    await startTui(plugin, api);
+    const sidebar = registered[0]!.slots.sidebar_content;
+    sidebar({}, { session_id: "session-1" });
+    await flushPromises();
+    expect(loadTuiSessionQuotaSurfaces).toHaveBeenNthCalledWith(1, {
+      api,
+      sessionID: "session-1",
+      initialRuntimeSeed,
+    });
+
+    cleanupFns.pop()!();
+    sidebar({}, { session_id: "session-1" });
+    await flushPromises();
+    expect(loadTuiSessionQuotaSurfaces).toHaveBeenNthCalledWith(2, {
+      api,
+      sessionID: "session-1",
+    });
+  });
+
   it("does not queue repeated commands while surface registration is pending", async () => {
     const plugin = await loadTuiModule();
     const { api, keymapLayers } = createApi();
@@ -1075,6 +1175,10 @@ describe("tui plugin smoke", () => {
     ).not.toBeNull();
     expect(fallback.registered[1].slots.session_prompt({}, { session_id: "session-1" })).toBeNull();
     expect(fallback.registered[1].slots.home_bottom({}, {})).toBeNull();
+    expect(loadTuiSessionQuotaSurfaces).toHaveBeenCalledWith({
+      api: fallback.api,
+      sessionID: "session-1",
+    });
   });
 
   it("does not register right-side compact slots", async () => {

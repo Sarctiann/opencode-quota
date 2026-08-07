@@ -65,6 +65,7 @@ import {
   normalizeTuiSessionID,
   resolveTuiSurfaceRegistration,
   resolveWorkspaceDir,
+  type TuiInitialRuntimeSeed,
   writeTuiQuotaExportIfEnabled,
 } from "../src/lib/tui-runtime.js";
 
@@ -1016,6 +1017,216 @@ describe("tui runtime helpers", () => {
     expect(registration.homeBottom).toBe(true);
     expect(registration.compact.homeBottom).toBe(false);
     expect(registration.announcements.homeBottom).toBe(false);
+  });
+
+  it("keeps the shared registration snapshot unchanged across concurrent initial consumers", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            onlyCurrentModel: true,
+            percentDisplayMode: "used",
+            requestTimeoutMs: 12_345,
+            maintainerAnnouncements: { enabled: false, home: false },
+            tuiSidebarPanel: { enabled: true },
+            tuiCompactStatus: {
+              enabled: true,
+              sessionPrompt: true,
+              homeBottom: true,
+              maxWidth: 41,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+    const sessionGet = vi.fn().mockResolvedValue({
+      data: { model: { providerID: "copilot", id: "gpt-4.1" } },
+    });
+    const api = {
+      state: {
+        provider: [],
+        path: { worktree: worktreeDir, directory: nestedDir },
+        session: { messages: () => [] },
+      },
+      client: { session: { get: sessionGet } },
+    } as any;
+    let initialRuntimeSeed: TuiInitialRuntimeSeed | undefined;
+
+    await resolveTuiSurfaceRegistration(api, {
+      captureInitialRuntime(seed) {
+        initialRuntimeSeed = seed;
+      },
+    });
+    expect(initialRuntimeSeed).toBeDefined();
+    if (!initialRuntimeSeed)
+      throw new Error("registration did not capture an initial runtime seed");
+
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            onlyCurrentModel: false,
+            percentDisplayMode: "remaining",
+            tuiSidebarPanel: { enabled: true },
+            tuiCompactStatus: {
+              enabled: true,
+              sessionPrompt: true,
+              homeBottom: true,
+              maxWidth: 42,
+            },
+          },
+        },
+      }),
+      "utf8",
+    );
+    const data = { entries: [], errors: [], sessionTokens: undefined };
+    collectQuotaRenderData.mockResolvedValue({ active: [], data });
+    buildSidebarQuotaPanelLines.mockReturnValue(["Sidebar quota"]);
+    buildCompactQuotaStatusLine.mockReturnValue("Compact quota");
+
+    const configBefore = initialRuntimeSeed.config;
+    const configMetaBefore = initialRuntimeSeed.configMeta;
+    const providersBefore = initialRuntimeSeed.providers;
+    const serializedSeedBefore = JSON.stringify(initialRuntimeSeed);
+
+    await Promise.all([
+      loadTuiSessionQuotaSurfaces({
+        api,
+        sessionID: "seeded-session",
+        initialRuntimeSeed,
+      }),
+      loadTuiHomeBottomStatus({ api, initialRuntimeSeed }),
+    ]);
+
+    expect(initialRuntimeSeed.config).toBe(configBefore);
+    expect(initialRuntimeSeed.configMeta).toBe(configMetaBefore);
+    expect(initialRuntimeSeed.providers).toBe(providersBefore);
+    expect(JSON.stringify(initialRuntimeSeed)).toBe(serializedSeedBefore);
+    expect(sessionGet).toHaveBeenCalledWith({ sessionID: "seeded-session" });
+
+    const runtimeCalls = collectQuotaRenderData.mock.calls.map(([params]) => params);
+    const sessionRuntimeCall = runtimeCalls.find(
+      (params) => params.request?.sessionID === "seeded-session",
+    );
+    const homeRuntimeCall = runtimeCalls.find((params) => params.request?.sessionID === undefined);
+    expect(sessionRuntimeCall).toEqual(
+      expect.objectContaining({
+        config: configBefore,
+        configMeta: configMetaBefore,
+        providers: providersBefore,
+        request: {
+          sessionID: "seeded-session",
+          sessionMeta: { providerID: "copilot", modelID: "gpt-4.1" },
+        },
+      }),
+    );
+    expect(sessionRuntimeCall?.config).toBe(configBefore);
+    expect(sessionRuntimeCall?.configMeta).toBe(configMetaBefore);
+    expect(sessionRuntimeCall?.providers).toBe(providersBefore);
+    expect(sessionRuntimeCall?.config).toMatchObject({
+      onlyCurrentModel: true,
+      percentDisplayMode: "used",
+      requestTimeoutMs: 12_345,
+    });
+    expect(homeRuntimeCall?.configMeta).toBe(configMetaBefore);
+    expect(homeRuntimeCall?.providers).toBe(providersBefore);
+    expect(homeRuntimeCall).toEqual(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          onlyCurrentModel: false,
+          showSessionTokens: false,
+          percentDisplayMode: "used",
+        }),
+        configMeta: configMetaBefore,
+        providers: providersBefore,
+        request: { sessionID: undefined, sessionMeta: undefined },
+      }),
+    );
+    expect(buildCompactQuotaStatusLine).toHaveBeenCalledTimes(2);
+    for (const [params] of buildCompactQuotaStatusLine.mock.calls) {
+      expect(params).toEqual(expect.objectContaining({ maxWidth: 41 }));
+    }
+  });
+
+  it("discards a registration snapshot when current runtime roots differ", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            onlyCurrentModel: true,
+            tuiSidebarPanel: { enabled: true },
+            tuiCompactStatus: { enabled: true, sessionPrompt: true, maxWidth: 41 },
+          },
+        },
+      }),
+      "utf8",
+    );
+    const sessionGet = vi.fn().mockResolvedValue({ data: {} });
+    const api = {
+      state: {
+        provider: [],
+        path: { worktree: worktreeDir, directory: nestedDir },
+        session: { messages: () => [] },
+      },
+      client: { session: { get: sessionGet } },
+    } as any;
+    let initialRuntimeSeed: TuiInitialRuntimeSeed | undefined;
+    await resolveTuiSurfaceRegistration(api, {
+      captureInitialRuntime(seed) {
+        initialRuntimeSeed = seed;
+      },
+    });
+    if (!initialRuntimeSeed)
+      throw new Error("registration did not capture an initial runtime seed");
+
+    const nextWorktreeDir = join(tempDir, "next-worktree");
+    mkdirSync(nextWorktreeDir, { recursive: true });
+    writeFileSync(
+      join(nextWorktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            onlyCurrentModel: false,
+            percentDisplayMode: "remaining",
+            tuiSidebarPanel: { enabled: true },
+            tuiCompactStatus: { enabled: true, sessionPrompt: true, maxWidth: 77 },
+          },
+        },
+      }),
+      "utf8",
+    );
+    api.state.path = { worktree: nextWorktreeDir, directory: nextWorktreeDir };
+    const data = { entries: [], errors: [], sessionTokens: undefined };
+    collectQuotaRenderData.mockResolvedValue({ active: [], data });
+    buildSidebarQuotaPanelLines.mockReturnValue(["Sidebar quota"]);
+    buildCompactQuotaStatusLine.mockReturnValue("Compact quota");
+
+    await loadTuiSessionQuotaSurfaces({
+      api,
+      sessionID: "root-mismatch",
+      initialRuntimeSeed,
+    });
+
+    expect(sessionGet).not.toHaveBeenCalled();
+    expect(collectQuotaRenderData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({
+          onlyCurrentModel: false,
+          percentDisplayMode: "remaining",
+        }),
+      }),
+    );
+    expect(buildCompactQuotaStatusLine).toHaveBeenCalledWith(
+      expect.objectContaining({ maxWidth: 77 }),
+    );
   });
 
   it("loads compact session surface while returning disabled sidebar when sidebar config is off", async () => {

@@ -205,6 +205,27 @@ export type TuiSessionQuotaSurfaces = {
   compact: CompactStatusState;
 };
 
+export type TuiInitialRuntimeSeed = Readonly<
+  Pick<QuotaRuntimeContext, "roots" | "config" | "configMeta" | "providers">
+>;
+
+export type TuiSurfaceRegistrationOptions = {
+  captureInitialRuntime?: (seed: TuiInitialRuntimeSeed) => void;
+};
+
+function getMatchingInitialRuntimeSeed(
+  api: TuiPluginApi,
+  seed: TuiInitialRuntimeSeed | undefined,
+): TuiInitialRuntimeSeed | undefined {
+  if (!seed) return undefined;
+
+  const roots = resolveRuntimeContextRoots(getTuiRuntimeRootHints(api));
+  return roots.workspaceRoot === seed.roots.workspaceRoot &&
+    roots.configRoot === seed.roots.configRoot
+    ? seed
+    : undefined;
+}
+
 function isSessionSidebarEnabled(runtime: QuotaRuntimeContext): boolean {
   return runtime.config.enabled && runtime.config.tuiSidebarPanel.enabled;
 }
@@ -355,6 +376,7 @@ async function collectTuiQuotaRenderData(params: {
 
 export async function resolveTuiSurfaceRegistration(
   api: TuiPluginApi,
+  options?: TuiSurfaceRegistrationOptions,
 ): Promise<TuiSurfaceRegistration> {
   const quotaClient = createTuiQuotaClient(api);
   const runtime = await resolveQuotaRuntimeContext({
@@ -374,7 +396,7 @@ export async function resolveTuiSurfaceRegistration(
   const exportHomeBottom = runtime.config.enabled && runtime.config.export.enabled;
   const compactHomeBottom = compactEnabled && compact.homeBottom;
 
-  return {
+  const registration = {
     commandDisplay: runtime.config.tuiCommandDisplay,
     sidebar: {
       enabled: runtime.config.enabled && runtime.config.tuiSidebarPanel.enabled,
@@ -391,19 +413,32 @@ export async function resolveTuiSurfaceRegistration(
     },
     homeBottom: compactHomeBottom || announcementHomeBottom || exportHomeBottom,
   };
+
+  options?.captureInitialRuntime?.({
+    roots: runtime.roots,
+    config: runtime.config,
+    configMeta: runtime.configMeta,
+    providers: runtime.providers,
+  });
+  return registration;
 }
 
 export async function loadTuiSessionQuotaSurfaces(params: {
   api: TuiPluginApi;
   sessionID: string;
+  initialRuntimeSeed?: TuiInitialRuntimeSeed;
 }): Promise<TuiSessionQuotaSurfaces> {
   const quotaClient = createTuiQuotaClient(params.api);
+  const initialRuntimeSeed = getMatchingInitialRuntimeSeed(params.api, params.initialRuntimeSeed);
   const runtime = await resolveQuotaRuntimeContext({
     client: quotaClient,
     roots: getTuiRuntimeRootHints(params.api),
     sessionID: params.sessionID,
     resolveSessionMeta: (sessionID) => getTuiSessionModelMeta(params.api, sessionID),
     includeSessionMeta: (config) => config.onlyCurrentModel,
+    config: initialRuntimeSeed?.config,
+    configMeta: initialRuntimeSeed?.configMeta,
+    providers: initialRuntimeSeed?.providers,
   });
 
   const sidebarEnabled = isSessionSidebarEnabled(runtime);
@@ -435,11 +470,16 @@ export async function loadTuiHomeBottomStatus(params: {
   api: TuiPluginApi;
   nowMs?: number;
   announcements?: readonly MaintainerAnnouncement[];
+  initialRuntimeSeed?: TuiInitialRuntimeSeed;
 }): Promise<HomeBottomState> {
   const quotaClient = createTuiQuotaClient(params.api);
+  const initialRuntimeSeed = getMatchingInitialRuntimeSeed(params.api, params.initialRuntimeSeed);
   const runtime = await resolveQuotaRuntimeContext({
     client: quotaClient,
     roots: getTuiRuntimeRootHints(params.api),
+    config: initialRuntimeSeed?.config,
+    configMeta: initialRuntimeSeed?.configMeta,
+    providers: initialRuntimeSeed?.providers,
   });
 
   const announcementEnabled =

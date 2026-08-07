@@ -40,6 +40,7 @@ import {
   loadTuiSessionQuotaSurfaces,
   normalizeTuiSessionID,
   resolveTuiSurfaceRegistration,
+  type TuiInitialRuntimeSeed,
   type TuiSurfaceRegistration,
   writeTuiQuotaExportIfEnabled,
 } from "./lib/tui-runtime.js";
@@ -74,14 +75,26 @@ type HomeBottomResource = {
   release: () => void;
 };
 
+type TuiInitialLoadCoordinator = {
+  takeInitialSession: () => TuiInitialRuntimeSeed | undefined;
+  takeInitialHome: () => TuiInitialRuntimeSeed | undefined;
+};
+
 type TuiRegistrationState =
   | { status: "pending" }
-  | { status: "active"; registration: TuiSurfaceRegistration }
+  | {
+      status: "active";
+      registration: TuiSurfaceRegistration;
+      initialLoads?: TuiInitialLoadCoordinator;
+    }
   | { status: "disposed" };
 
 type TuiRegistrationGate = {
   current: () => TuiRegistrationState;
-  activate: (registration: TuiSurfaceRegistration) => void;
+  activate: (
+    registration: TuiSurfaceRegistration,
+    initialLoads?: TuiInitialLoadCoordinator,
+  ) => void;
   dispose: () => void;
 };
 
@@ -99,14 +112,32 @@ const FALLBACK_SURFACE_REGISTRATION: TuiSurfaceRegistration = {
   homeBottom: false,
 };
 
+function createTuiInitialLoadCoordinator(seed: TuiInitialRuntimeSeed): TuiInitialLoadCoordinator {
+  let sessionAvailable = true;
+  let homeAvailable = true;
+
+  return {
+    takeInitialSession() {
+      if (!sessionAvailable) return undefined;
+      sessionAvailable = false;
+      return seed;
+    },
+    takeInitialHome() {
+      if (!homeAvailable) return undefined;
+      homeAvailable = false;
+      return seed;
+    },
+  };
+}
+
 function createTuiRegistrationGate(): TuiRegistrationGate {
   const [current, setCurrent] = createSignal<TuiRegistrationState>({ status: "pending" });
 
   return {
     current,
-    activate(registration) {
+    activate(registration, initialLoads) {
       if (current().status !== "pending") return;
-      setCurrent({ status: "active", registration });
+      setCurrent({ status: "active", registration, initialLoads });
     },
     dispose() {
       if (current().status === "disposed") return;
@@ -127,15 +158,28 @@ function getSessionResourceMap(api: TuiPluginApi): Map<string, SessionQuotaResou
   return next;
 }
 
-function createSessionQuotaResource(api: TuiPluginApi, sessionID: string): SessionQuotaResource {
+function createSessionQuotaResource(
+  api: TuiPluginApi,
+  sessionID: string,
+  initialLoads?: TuiInitialLoadCoordinator,
+): SessionQuotaResource {
   const [sidebar, setSidebar] = createSignal<SidebarPanelState>({
     status: "loading",
     lines: [],
   });
   const [compact, setCompact] = createSignal<CompactStatusState>({ status: "loading" });
 
+  let loadOrdinal = 0;
   const lifecycle = createTuiRefreshLifecycle({
-    load: () => loadTuiSessionQuotaSurfaces({ api, sessionID }),
+    load: () => {
+      const initialRuntimeSeed = loadOrdinal === 0 ? initialLoads?.takeInitialSession() : undefined;
+      loadOrdinal += 1;
+      return loadTuiSessionQuotaSurfaces({
+        api,
+        sessionID,
+        ...(initialRuntimeSeed ? { initialRuntimeSeed } : {}),
+      });
+    },
     apply: (next) => {
       setSidebar(next.sidebar);
       setCompact(next.compact);
@@ -186,12 +230,16 @@ function createSessionQuotaResource(api: TuiPluginApi, sessionID: string): Sessi
   return resource;
 }
 
-function acquireSessionQuotaResource(api: TuiPluginApi, sessionID: string): SessionQuotaResource {
+function acquireSessionQuotaResource(
+  api: TuiPluginApi,
+  sessionID: string,
+  initialLoads?: TuiInitialLoadCoordinator,
+): SessionQuotaResource {
   const resources = getSessionResourceMap(api);
   const existing = resources.get(sessionID);
   if (existing) return existing.retain();
 
-  const next = createSessionQuotaResource(api, sessionID).retain();
+  const next = createSessionQuotaResource(api, sessionID, initialLoads).retain();
   resources.set(sessionID, next);
   return next;
 }
@@ -199,14 +247,23 @@ function acquireSessionQuotaResource(api: TuiPluginApi, sessionID: string): Sess
 function createHomeBottomResource(
   api: TuiPluginApi,
   compactHomeBottomEnabled: boolean,
+  initialLoads?: TuiInitialLoadCoordinator,
 ): HomeBottomResource {
   const [bottom, setBottom] = createSignal<HomeBottomState>({
     status: "loading",
     compact: compactHomeBottomEnabled ? { status: "loading" } : { status: "disabled" },
   });
 
+  let loadOrdinal = 0;
   const lifecycle = createTuiRefreshLifecycle({
-    load: () => loadTuiHomeBottomStatus({ api }),
+    load: () => {
+      const initialRuntimeSeed = loadOrdinal === 0 ? initialLoads?.takeInitialHome() : undefined;
+      loadOrdinal += 1;
+      return loadTuiHomeBottomStatus({
+        api,
+        ...(initialRuntimeSeed ? { initialRuntimeSeed } : {}),
+      });
+    },
     apply: setBottom,
     afterApply: () => {
       // Fire-and-forget: write export file if enabled. A failed write must
@@ -243,11 +300,12 @@ function createHomeBottomResource(
 function acquireHomeBottomResource(
   api: TuiPluginApi,
   compactHomeBottomEnabled: boolean,
+  initialLoads?: TuiInitialLoadCoordinator,
 ): HomeBottomResource {
   const existing = homeResources.get(api);
   if (existing) return existing.retain();
 
-  const next = createHomeBottomResource(api, compactHomeBottomEnabled).retain();
+  const next = createHomeBottomResource(api, compactHomeBottomEnabled, initialLoads).retain();
   homeResources.set(api, next);
   return next;
 }
@@ -255,8 +313,9 @@ function acquireHomeBottomResource(
 function useSessionQuotaResource(
   api: TuiPluginApi,
   sessionID: () => string,
+  initialLoads?: TuiInitialLoadCoordinator,
 ): () => SessionQuotaResource {
-  let current = acquireSessionQuotaResource(api, sessionID());
+  let current = acquireSessionQuotaResource(api, sessionID(), initialLoads);
   const [resource, setResource] = createSignal(current);
 
   createEffect(() => {
@@ -264,7 +323,7 @@ function useSessionQuotaResource(
     if (current.sessionID === nextSessionID) return;
 
     const previous = current;
-    current = acquireSessionQuotaResource(api, nextSessionID);
+    current = acquireSessionQuotaResource(api, nextSessionID, initialLoads);
     setResource(current);
     previous.release();
   });
@@ -276,8 +335,12 @@ function useSessionQuotaResource(
   return resource;
 }
 
-function SidebarContentView(props: { api: TuiPluginApi; sessionID: string }) {
-  const resource = useSessionQuotaResource(props.api, () => props.sessionID);
+function SidebarContentView(props: {
+  api: TuiPluginApi;
+  sessionID: string;
+  initialLoads?: TuiInitialLoadCoordinator;
+}) {
+  const resource = useSessionQuotaResource(props.api, () => props.sessionID, props.initialLoads);
   const panel = () => resource().sidebar();
 
   const lines = () => getSidebarPanelLines(panel());
@@ -361,12 +424,13 @@ function CompactStatusLine(props: {
 function SessionPromptWithCompactStatus(props: {
   api: TuiPluginApi;
   sessionID: string;
+  initialLoads?: TuiInitialLoadCoordinator;
   visible?: boolean;
   disabled?: boolean;
   onSubmit?: () => void;
   promptRef?: TuiPromptRefCallback;
 }) {
-  const resource = useSessionQuotaResource(props.api, () => props.sessionID);
+  const resource = useSessionQuotaResource(props.api, () => props.sessionID, props.initialLoads);
   const panel = () => resource().compact();
 
   return (
@@ -383,8 +447,16 @@ function SessionPromptWithCompactStatus(props: {
   );
 }
 
-function HomeBottomView(props: { api: TuiPluginApi; compactHomeBottomEnabled: boolean }) {
-  const resource = acquireHomeBottomResource(props.api, props.compactHomeBottomEnabled);
+function HomeBottomView(props: {
+  api: TuiPluginApi;
+  compactHomeBottomEnabled: boolean;
+  initialLoads?: TuiInitialLoadCoordinator;
+}) {
+  const resource = acquireHomeBottomResource(
+    props.api,
+    props.compactHomeBottomEnabled,
+    props.initialLoads,
+  );
   onCleanup(() => resource.release());
 
   const announcement = () => getHomeBottomAnnouncementText(resource.bottom());
@@ -643,7 +715,13 @@ function registerStableTuiSlots(api: TuiPluginApi, current: () => TuiRegistratio
       sidebar_content(_ctx, props: { session_id: string }) {
         const state = current();
         if (state.status !== "active" || !state.registration.sidebar.enabled) return null;
-        return <SidebarContentView api={api} sessionID={props.session_id} />;
+        return (
+          <SidebarContentView
+            api={api}
+            sessionID={props.session_id}
+            initialLoads={state.initialLoads}
+          />
+        );
       },
     },
   });
@@ -667,6 +745,7 @@ function registerStableTuiSlots(api: TuiPluginApi, current: () => TuiRegistratio
           <SessionPromptWithCompactStatus
             api={api}
             sessionID={props.session_id}
+            initialLoads={state.initialLoads}
             visible={props.visible}
             disabled={props.disabled}
             onSubmit={props.on_submit}
@@ -681,6 +760,7 @@ function registerStableTuiSlots(api: TuiPluginApi, current: () => TuiRegistratio
           <HomeBottomView
             api={api}
             compactHomeBottomEnabled={state.registration.compact.homeBottom}
+            initialLoads={state.initialLoads}
           />
         );
       },
@@ -692,17 +772,30 @@ async function initializeTuiRegistration(
   api: TuiPluginApi,
   gate: TuiRegistrationGate,
 ): Promise<void> {
-  let surfaceRegistration: Promise<TuiSurfaceRegistration>;
+  let initialRuntimeSeed: TuiInitialRuntimeSeed | undefined;
+  let surfaceRegistration: Promise<{
+    registration: TuiSurfaceRegistration;
+    initialRuntimeSeed?: TuiInitialRuntimeSeed;
+  }>;
   try {
-    surfaceRegistration = resolveTuiSurfaceRegistration(api).catch(
-      () => FALLBACK_SURFACE_REGISTRATION,
-    );
+    surfaceRegistration = resolveTuiSurfaceRegistration(api, {
+      captureInitialRuntime(seed) {
+        initialRuntimeSeed = seed;
+      },
+    })
+      .then((registration) => ({ registration, initialRuntimeSeed }))
+      .catch(() => ({ registration: FALLBACK_SURFACE_REGISTRATION }));
   } catch {
-    surfaceRegistration = Promise.resolve(FALLBACK_SURFACE_REGISTRATION);
+    surfaceRegistration = Promise.resolve({ registration: FALLBACK_SURFACE_REGISTRATION });
   }
 
   registerQuotaDialogCommands(api, gate);
-  void surfaceRegistration.then((registration) => gate.activate(registration));
+  void surfaceRegistration.then(({ registration, initialRuntimeSeed }) =>
+    gate.activate(
+      registration,
+      initialRuntimeSeed ? createTuiInitialLoadCoordinator(initialRuntimeSeed) : undefined,
+    ),
+  );
   registerStableTuiSlots(api, gate.current);
 }
 
