@@ -40,6 +40,7 @@ import {
   loadTuiSessionQuotaSurfaces,
   normalizeTuiSessionID,
   resolveTuiSurfaceRegistration,
+  type TuiSurfaceRegistration,
   writeTuiQuotaExportIfEnabled,
 } from "./lib/tui-runtime.js";
 import type { TuiCommandDisplay } from "./lib/types.js";
@@ -72,6 +73,47 @@ type HomeBottomResource = {
   retain: () => HomeBottomResource;
   release: () => void;
 };
+
+type TuiRegistrationState =
+  | { status: "pending" }
+  | { status: "active"; registration: TuiSurfaceRegistration }
+  | { status: "disposed" };
+
+type TuiRegistrationGate = {
+  current: () => TuiRegistrationState;
+  activate: (registration: TuiSurfaceRegistration) => void;
+  dispose: () => void;
+};
+
+const FALLBACK_SURFACE_REGISTRATION: TuiSurfaceRegistration = {
+  commandDisplay: "inline",
+  sidebar: { enabled: true },
+  compact: {
+    enabled: false,
+    homeBottom: false,
+    sessionPrompt: false,
+    hasNativeProviderQuota: false,
+    suppressedByNativeProviderQuota: false,
+  },
+  announcements: { homeBottom: false },
+  homeBottom: false,
+};
+
+function createTuiRegistrationGate(): TuiRegistrationGate {
+  const [current, setCurrent] = createSignal<TuiRegistrationState>({ status: "pending" });
+
+  return {
+    current,
+    activate(registration) {
+      if (current().status !== "pending") return;
+      setCurrent({ status: "active", registration });
+    },
+    dispose() {
+      if (current().status === "disposed") return;
+      setCurrent({ status: "disposed" });
+    },
+  };
+}
 
 const sessionResources = new WeakMap<TuiPluginApi, Map<string, SessionQuotaResource>>();
 const homeResources = new WeakMap<TuiPluginApi, HomeBottomResource>();
@@ -566,7 +608,7 @@ async function runQuotaDialogCommandAsync(
   }
 }
 
-function registerQuotaDialogCommands(api: TuiPluginApi, commandDisplay: TuiCommandDisplay): void {
+function registerQuotaDialogCommands(api: TuiPluginApi, gate: TuiRegistrationGate): void {
   const commandState: QuotaDialogCommandState = {};
   const dispose = api.keymap.registerLayer({
     commands: QUOTA_DIALOG_COMMANDS.map((spec) => ({
@@ -577,7 +619,15 @@ function registerQuotaDialogCommands(api: TuiPluginApi, commandDisplay: TuiComma
       category: "OpenCode Quota",
       slashName: spec.slashName,
       run(input?: unknown) {
-        void runQuotaDialogCommandAsync(api, spec.id, commandDisplay, input, commandState);
+        const state = gate.current();
+        if (state.status !== "active") return;
+        void runQuotaDialogCommandAsync(
+          api,
+          spec.id,
+          state.registration.commandDisplay,
+          input,
+          commandState,
+        );
       },
     })),
     bindings: [],
@@ -586,12 +636,53 @@ function registerQuotaDialogCommands(api: TuiPluginApi, commandDisplay: TuiComma
   api.lifecycle.onDispose(dispose);
 }
 
-function registerSidebarSlots(api: TuiPluginApi): void {
+function registerStableTuiSlots(api: TuiPluginApi, current: () => TuiRegistrationState): void {
   api.slots.register({
     order: SIDEBAR_ORDER,
     slots: {
       sidebar_content(_ctx, props: { session_id: string }) {
+        const state = current();
+        if (state.status !== "active" || !state.registration.sidebar.enabled) return null;
         return <SidebarContentView api={api} sessionID={props.session_id} />;
+      },
+    },
+  });
+
+  api.slots.register({
+    order: COMPACT_ORDER,
+    slots: {
+      session_prompt(
+        _ctx,
+        props: {
+          session_id: string;
+          visible?: boolean;
+          disabled?: boolean;
+          on_submit?: () => void;
+          ref?: TuiPromptRefCallback;
+        },
+      ) {
+        const state = current();
+        if (state.status !== "active" || !state.registration.compact.sessionPrompt) return null;
+        return (
+          <SessionPromptWithCompactStatus
+            api={api}
+            sessionID={props.session_id}
+            visible={props.visible}
+            disabled={props.disabled}
+            onSubmit={props.on_submit}
+            promptRef={props.ref}
+          />
+        );
+      },
+      home_bottom() {
+        const state = current();
+        if (state.status !== "active" || !state.registration.homeBottom) return null;
+        return (
+          <HomeBottomView
+            api={api}
+            compactHomeBottomEnabled={state.registration.compact.homeBottom}
+          />
+        );
       },
     },
   });
@@ -599,74 +690,30 @@ function registerSidebarSlots(api: TuiPluginApi): void {
 
 async function initializeTuiRegistration(
   api: TuiPluginApi,
-  isDisposed: () => boolean,
+  gate: TuiRegistrationGate,
 ): Promise<void> {
-  let surfaceRegistration;
+  let surfaceRegistration: Promise<TuiSurfaceRegistration>;
   try {
-    surfaceRegistration = await resolveTuiSurfaceRegistration(api);
+    surfaceRegistration = resolveTuiSurfaceRegistration(api).catch(
+      () => FALLBACK_SURFACE_REGISTRATION,
+    );
   } catch {
-    if (isDisposed()) return;
-    registerQuotaDialogCommands(api, "inline");
-    registerSidebarSlots(api);
-    return;
+    surfaceRegistration = Promise.resolve(FALLBACK_SURFACE_REGISTRATION);
   }
 
-  if (isDisposed()) return;
-  registerQuotaDialogCommands(api, surfaceRegistration.commandDisplay);
-
-  if (surfaceRegistration.sidebar.enabled) {
-    registerSidebarSlots(api);
-  }
-
-  const compactRegistration = surfaceRegistration.compact;
-  if (!compactRegistration.enabled && !surfaceRegistration.homeBottom) return;
-
-  const compactSlots: Record<string, (ctx: any, props: any) => JSX.Element | null> = {};
-
-  if (compactRegistration.sessionPrompt) {
-    compactSlots.session_prompt = (
-      _ctx,
-      props: {
-        session_id: string;
-        visible?: boolean;
-        disabled?: boolean;
-        on_submit?: () => void;
-        ref?: TuiPromptRefCallback;
-      },
-    ) => (
-      <SessionPromptWithCompactStatus
-        api={api}
-        sessionID={props.session_id}
-        visible={props.visible}
-        disabled={props.disabled}
-        onSubmit={props.on_submit}
-        promptRef={props.ref}
-      />
-    );
-  }
-
-  if (surfaceRegistration.homeBottom) {
-    compactSlots.home_bottom = () => (
-      <HomeBottomView api={api} compactHomeBottomEnabled={surfaceRegistration.compact.homeBottom} />
-    );
-  }
-
-  if (Object.keys(compactSlots).length > 0) {
-    api.slots.register({
-      order: COMPACT_ORDER,
-      slots: compactSlots,
-    });
-  }
+  registerQuotaDialogCommands(api, gate);
+  void surfaceRegistration.then((registration) => gate.activate(registration));
+  registerStableTuiSlots(api, gate.current);
 }
 
 const tui: TuiPlugin = async (api) => {
-  let disposed = false;
+  const registrationGate = createTuiRegistrationGate();
   api.lifecycle.onDispose(() => {
-    disposed = true;
+    registrationGate.dispose();
     disposeQuotaTelemetryOwner(createTuiQuotaClient(api));
   });
 
-  void initializeTuiRegistration(api, () => disposed).catch(() => {});
+  void initializeTuiRegistration(api, registrationGate).catch(() => {});
 };
 
 const pluginModule: TuiPluginModule & { id: string } = {

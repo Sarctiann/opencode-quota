@@ -800,6 +800,84 @@ describe("tui runtime helpers", () => {
     });
   });
 
+  it("keeps surface registration pending until deferred SDK config resolves", async () => {
+    let resolveSdkConfig!: (value: { data: Record<string, unknown> }) => void;
+    const sdkConfig = new Promise<{ data: Record<string, unknown> }>((resolve) => {
+      resolveSdkConfig = resolve;
+    });
+    const getConfig = vi.fn(() => sdkConfig);
+
+    let settled = false;
+    const registrationPromise = resolveTuiSurfaceRegistration({
+      state: {
+        provider: [],
+        path: {
+          worktree: worktreeDir,
+          directory: nestedDir,
+        },
+        session: {
+          messages: () => [],
+        },
+      },
+      client: {
+        config: {
+          get: getConfig,
+        },
+      },
+    } as any);
+    void registrationPromise.then(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getConfig).toHaveBeenCalledOnce();
+    expect(settled).toBe(false);
+
+    resolveSdkConfig({
+      data: {
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiCommandDisplay: "dialog",
+            tuiSidebarPanel: {
+              enabled: true,
+            },
+            tuiCompactStatus: {
+              enabled: true,
+              homeBottom: true,
+              sessionPrompt: true,
+              suppressWhenNativeProviderQuota: true,
+            },
+            maintainerAnnouncements: {
+              home: false,
+            },
+          },
+        },
+      },
+    });
+
+    await expect(registrationPromise).resolves.toEqual({
+      commandDisplay: "dialog",
+      sidebar: {
+        enabled: true,
+      },
+      compact: {
+        enabled: true,
+        homeBottom: true,
+        sessionPrompt: true,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
+      announcements: {
+        homeBottom: false,
+      },
+      homeBottom: true,
+    });
+    expect(settled).toBe(true);
+  });
+
   it("resolves compact registration and suppresses native provider quota clients", async () => {
     writeFileSync(
       join(worktreeDir, "opencode.json"),

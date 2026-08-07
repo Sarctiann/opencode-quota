@@ -292,7 +292,7 @@ describe("tui plugin smoke", () => {
     vi.useRealTimers();
   });
 
-  it("returns before surface resolution and registers after late success", async () => {
+  it("registers stable neutral hosts before late surface resolution and activates once", async () => {
     const plugin = await loadTuiModule();
     const { api, keymapLayers, registered } = createApi();
     const registration = deferred<any>();
@@ -301,8 +301,17 @@ describe("tui plugin smoke", () => {
     await plugin.tui(api as any, undefined, {} as any);
 
     expect(resolveTuiSurfaceRegistration).toHaveBeenCalledOnce();
-    expect(api.keymap.registerLayer).not.toHaveBeenCalled();
-    expect(registered).toEqual([]);
+    expect(keymapLayers).toHaveLength(1);
+    expect(registered.map((entry) => entry.order)).toEqual([150, 90]);
+    expect(Object.keys(registered[0]!.slots)).toEqual(["sidebar_content"]);
+    expect(Object.keys(registered[1]!.slots)).toEqual(["session_prompt", "home_bottom"]);
+    expect(registered[0]!.slots.sidebar_content({}, { session_id: "session-1" })).toBeNull();
+    expect(registered[1]!.slots.session_prompt({}, { session_id: "session-1" })).toBeNull();
+    expect(registered[1]!.slots.home_bottom({}, {})).toBeNull();
+    expect(loadTuiSessionQuotaSurfaces).not.toHaveBeenCalled();
+    expect(loadTuiHomeBottomStatus).not.toHaveBeenCalled();
+    keymapLayers[0]!.commands[0]!.run?.();
+    expect(buildQuotaDialogCommandOutput).not.toHaveBeenCalled();
 
     registration.resolve({
       commandDisplay: "inline",
@@ -319,28 +328,101 @@ describe("tui plugin smoke", () => {
     });
     await flushPromises();
 
-    expect(keymapLayers).toHaveLength(1);
-    expect(registered.map((entry) => entry.order)).toEqual([150, 90]);
-    expect(Object.keys(registered[1]!.slots)).toEqual(["session_prompt", "home_bottom"]);
+    expect(api.keymap.registerLayer).toHaveBeenCalledOnce();
+    expect(api.slots.register).toHaveBeenCalledTimes(2);
+    expect(buildQuotaDialogCommandOutput).not.toHaveBeenCalled();
+
+    keymapLayers[0]!.commands[0]!.run?.();
+    await flushPromises();
+
+    expect(buildQuotaDialogCommandOutput).toHaveBeenCalledOnce();
+    expect(api.client.session.prompt).toHaveBeenCalledOnce();
+    expect(registered[1]!.slots.session_prompt({}, { session_id: "session-1" })).not.toBeNull();
+    expect(registered[1]!.slots.home_bottom({}, {})).not.toBeNull();
+    expect(loadTuiSessionQuotaSurfaces).toHaveBeenCalledOnce();
+    expect(loadTuiHomeBottomStatus).toHaveBeenCalledOnce();
   });
 
-  it("registers the existing fallback after a late resolution failure", async () => {
+  it("does not queue repeated commands while surface registration is pending", async () => {
+    const plugin = await loadTuiModule();
+    const { api, keymapLayers } = createApi();
+    const registration = deferred<any>();
+    resolveTuiSurfaceRegistration.mockReturnValueOnce(registration.promise);
+
+    await plugin.tui(api as any, undefined, {} as any);
+    for (let index = 0; index < 25; index += 1) keymapLayers[0]!.commands[0]!.run?.();
+
+    registration.resolve({
+      commandDisplay: "inline",
+      sidebar: { enabled: false },
+      compact: {
+        enabled: false,
+        homeBottom: false,
+        sessionPrompt: false,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
+      announcements: { homeBottom: false },
+      homeBottom: false,
+    });
+    await flushPromises();
+
+    expect(buildQuotaDialogCommandOutput).not.toHaveBeenCalled();
+    keymapLayers[0]!.commands[0]!.run?.();
+    await flushPromises();
+    expect(buildQuotaDialogCommandOutput).toHaveBeenCalledOnce();
+  });
+
+  it("does not react to a pending command when resolution is followed by disposal", async () => {
+    const plugin = await loadTuiModule();
+    const { api, keymapLayers } = createApi();
+    const registration = deferred<any>();
+    resolveTuiSurfaceRegistration.mockReturnValueOnce(registration.promise);
+
+    await plugin.tui(api as any, undefined, {} as any);
+    keymapLayers[0]!.commands[0]!.run?.();
+    registration.resolve({
+      commandDisplay: "inline",
+      sidebar: { enabled: false },
+      compact: {
+        enabled: false,
+        homeBottom: false,
+        sessionPrompt: false,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
+      announcements: { homeBottom: false },
+      homeBottom: false,
+    });
+    const dispose = api.lifecycle.onDispose.mock.calls[0]?.[0];
+    dispose?.();
+    await flushPromises();
+
+    keymapLayers[0]!.commands[0]!.run?.();
+    await flushPromises();
+    expect(buildQuotaDialogCommandOutput).not.toHaveBeenCalled();
+  });
+
+  it("activates the existing inline-command and sidebar fallback after late failure", async () => {
     const plugin = await loadTuiModule();
     const { api, keymapLayers, registered } = createApi();
     const registration = deferred<any>();
     resolveTuiSurfaceRegistration.mockReturnValueOnce(registration.promise);
 
     await plugin.tui(api as any, undefined, {} as any);
-    expect(keymapLayers).toEqual([]);
-    expect(registered).toEqual([]);
+    expect(keymapLayers).toHaveLength(1);
+    expect(registered).toHaveLength(2);
+    expect(registered[0]!.slots.sidebar_content({}, { session_id: "session-1" })).toBeNull();
 
     registration.reject(new Error("config unavailable"));
     await flushPromises();
 
-    expect(keymapLayers).toHaveLength(1);
-    expect(registered).toHaveLength(1);
-    expect(registered[0]!.order).toBe(150);
-    expect(Object.keys(registered[0]!.slots)).toEqual(["sidebar_content"]);
+    expect(api.keymap.registerLayer).toHaveBeenCalledOnce();
+    expect(api.slots.register).toHaveBeenCalledTimes(2);
+    registered[0]!.slots.sidebar_content({}, { session_id: "session-1" });
+    expect(loadTuiSessionQuotaSurfaces).toHaveBeenCalledOnce();
+    expect(registered[1]!.slots.session_prompt({}, { session_id: "session-1" })).toBeNull();
+    expect(registered[1]!.slots.home_bottom({}, {})).toBeNull();
   });
 
   it("consumes late registration errors without retrying fallback", async () => {
@@ -370,22 +452,73 @@ describe("tui plugin smoke", () => {
     expect(registered).toEqual([]);
   });
 
-  it("suppresses late registration after disposal", async () => {
+  it.each([
+    ["first", 1],
+    ["second", 2],
+  ] as const)("keeps the installed command layer active when the %s slot registration throws", async (_label, failedAttempt) => {
+    const plugin = await loadTuiModule();
+    const { api, keymapLayers, registered } = createApi();
+    const registration = deferred<any>();
+    resolveTuiSurfaceRegistration.mockReturnValueOnce(registration.promise);
+    let attempts = 0;
+    api.slots.register.mockImplementation((entry: any) => {
+      attempts += 1;
+      if (attempts === failedAttempt) throw new Error("slot registration unavailable");
+      registered.push(entry);
+      return `slot-${registered.length}`;
+    });
+
+    await plugin.tui(api as any, undefined, {} as any);
+    expect(api.keymap.registerLayer).toHaveBeenCalledOnce();
+    expect(api.slots.register).toHaveBeenCalledTimes(failedAttempt);
+    expect(registered).toHaveLength(failedAttempt - 1);
+
+    registration.resolve({
+      commandDisplay: "inline",
+      sidebar: { enabled: true },
+      compact: {
+        enabled: true,
+        homeBottom: true,
+        sessionPrompt: true,
+        hasNativeProviderQuota: false,
+        suppressedByNativeProviderQuota: false,
+      },
+      announcements: { homeBottom: false },
+      homeBottom: true,
+    });
+    await flushPromises();
+
+    keymapLayers[0]!.commands[0]!.run?.();
+    await flushPromises();
+    expect(buildQuotaDialogCommandOutput).toHaveBeenCalledOnce();
+    expect(api.client.session.prompt).toHaveBeenCalledOnce();
+  });
+
+  it("keeps eager hosts neutral and pending commands inert after disposal", async () => {
     const plugin = await loadTuiModule();
     const { api, keymapLayers, registered } = createApi();
     const registration = deferred<any>();
     resolveTuiSurfaceRegistration.mockReturnValueOnce(registration.promise);
 
     await plugin.tui(api as any, undefined, {} as any);
-    expect(api.lifecycle.onDispose).toHaveBeenCalledOnce();
+    expect(api.lifecycle.onDispose).toHaveBeenCalledTimes(2);
+    expect(keymapLayers).toHaveLength(1);
+    expect(registered).toHaveLength(2);
 
+    keymapLayers[0]!.commands[0]!.run?.();
     const dispose = api.lifecycle.onDispose.mock.calls[0]?.[0];
     dispose?.();
     registration.reject(new Error("config unavailable"));
     await flushPromises();
 
-    expect(keymapLayers).toEqual([]);
-    expect(registered).toEqual([]);
+    expect(api.keymap.registerLayer).toHaveBeenCalledOnce();
+    expect(api.slots.register).toHaveBeenCalledTimes(2);
+    expect(registered[0]!.slots.sidebar_content({}, { session_id: "session-1" })).toBeNull();
+    expect(registered[1]!.slots.session_prompt({}, { session_id: "session-1" })).toBeNull();
+    expect(registered[1]!.slots.home_bottom({}, {})).toBeNull();
+    expect(buildQuotaDialogCommandOutput).not.toHaveBeenCalled();
+    expect(loadTuiSessionQuotaSurfaces).not.toHaveBeenCalled();
+    expect(loadTuiHomeBottomStatus).not.toHaveBeenCalled();
     expect(createTuiQuotaClient).toHaveBeenCalledOnce();
     expect(disposeQuotaTelemetryOwner).toHaveBeenCalledOnce();
   });
@@ -742,7 +875,7 @@ describe("tui plugin smoke", () => {
     expect(api.client.session.command).not.toHaveBeenCalled();
   });
 
-  it("registers sidebar_content and compact slots independently", async () => {
+  it("keeps stable hosts registered while activating sidebar and compact surfaces independently", async () => {
     const plugin = await loadTuiModule();
     const sidebarOnly = createApi();
 
@@ -762,9 +895,17 @@ describe("tui plugin smoke", () => {
 
     await startTui(plugin, sidebarOnly.api);
 
-    expect(sidebarOnly.registered).toHaveLength(1);
-    expect(sidebarOnly.registered[0].order).toBe(150);
-    expect(Object.keys(sidebarOnly.registered[0].slots)).toEqual(["sidebar_content"]);
+    expect(sidebarOnly.registered).toHaveLength(2);
+    expect(sidebarOnly.registered.map((entry) => entry.order)).toEqual([150, 90]);
+    sidebarOnly.registered[0].slots.sidebar_content({}, { session_id: "session-1" });
+    await flushPromises();
+    expect(
+      sidebarOnly.registered[0].slots.sidebar_content({}, { session_id: "session-1" }),
+    ).not.toBeNull();
+    expect(
+      sidebarOnly.registered[1].slots.session_prompt({}, { session_id: "session-1" }),
+    ).toBeNull();
+    expect(sidebarOnly.registered[1].slots.home_bottom({}, {})).toBeNull();
 
     const compactOnly = createApi();
     resolveTuiSurfaceRegistration.mockResolvedValueOnce({
@@ -783,9 +924,15 @@ describe("tui plugin smoke", () => {
 
     await startTui(plugin, compactOnly.api);
 
-    expect(compactOnly.registered).toHaveLength(1);
-    expect(compactOnly.registered[0].order).toBe(90);
-    expect(Object.keys(compactOnly.registered[0].slots)).toEqual(["session_prompt", "home_bottom"]);
+    expect(compactOnly.registered).toHaveLength(2);
+    expect(compactOnly.registered.map((entry) => entry.order)).toEqual([150, 90]);
+    expect(
+      compactOnly.registered[0].slots.sidebar_content({}, { session_id: "session-1" }),
+    ).toBeNull();
+    expect(
+      compactOnly.registered[1].slots.session_prompt({}, { session_id: "session-1" }),
+    ).not.toBeNull();
+    expect(compactOnly.registered[1].slots.home_bottom({}, {})).not.toBeNull();
 
     const enabled = createApi();
     resolveTuiSurfaceRegistration.mockResolvedValueOnce({
@@ -911,7 +1058,7 @@ describe("tui plugin smoke", () => {
     expect(rendered.props.children[1].props.children[0].props.children).toBe("Unavailable");
   });
 
-  it("falls back to sidebar-only registration when surface resolution fails", async () => {
+  it("activates only the sidebar host when surface resolution fails", async () => {
     const plugin = await loadTuiModule();
     const fallback = createApi();
 
@@ -919,9 +1066,15 @@ describe("tui plugin smoke", () => {
 
     await startTui(plugin, fallback.api);
 
-    expect(fallback.registered).toHaveLength(1);
-    expect(fallback.registered[0].order).toBe(150);
-    expect(Object.keys(fallback.registered[0].slots)).toEqual(["sidebar_content"]);
+    expect(fallback.registered).toHaveLength(2);
+    expect(fallback.registered.map((entry) => entry.order)).toEqual([150, 90]);
+    fallback.registered[0].slots.sidebar_content({}, { session_id: "session-1" });
+    await flushPromises();
+    expect(
+      fallback.registered[0].slots.sidebar_content({}, { session_id: "session-1" }),
+    ).not.toBeNull();
+    expect(fallback.registered[1].slots.session_prompt({}, { session_id: "session-1" })).toBeNull();
+    expect(fallback.registered[1].slots.home_bottom({}, {})).toBeNull();
   });
 
   it("does not register right-side compact slots", async () => {
@@ -1103,7 +1256,7 @@ describe("tui plugin smoke", () => {
     });
 
     await startTui(plugin, api);
-    registered[0]!.slots.home_bottom({}, {});
+    registered.find((registration) => registration.order === 90)!.slots.home_bottom({}, {});
     await vi.advanceTimersByTimeAsync(4_000);
     expect(loadTuiHomeBottomStatus).toHaveBeenCalledOnce();
 
@@ -1145,7 +1298,9 @@ describe("tui plugin smoke", () => {
       homeBottom: true,
     });
     await startTui(plugin, rejected.api);
-    rejected.registered[0]!.slots.home_bottom({}, {});
+    rejected.registered
+      .find((registration) => registration.order === 90)!
+      .slots.home_bottom({}, {});
     await flushPromises();
     expect(writeTuiQuotaExportIfEnabled).not.toHaveBeenCalled();
 
@@ -1166,7 +1321,9 @@ describe("tui plugin smoke", () => {
       homeBottom: true,
     });
     await startTui(plugin, disposed.api);
-    disposed.registered[0]!.slots.home_bottom({}, {});
+    disposed.registered
+      .find((registration) => registration.order === 90)!
+      .slots.home_bottom({}, {});
     cleanupFns.pop()!();
     pending.resolve({ status: "ready", compact: { status: "disabled" } });
     await flushPromises();
@@ -1278,7 +1435,8 @@ describe("tui plugin smoke", () => {
 
     await startTui(plugin, api);
 
-    const homeBottom = registered[0].slots.home_bottom;
+    const homeBottom = registered.find((registration) => registration.order === 90)!.slots
+      .home_bottom;
     const empty = homeBottom({}, {}) as any;
     expect(empty).toEqual({
       type: "box",
@@ -1335,7 +1493,9 @@ describe("tui plugin smoke", () => {
 
     await startTui(plugin, api);
 
-    const rendered = registered[0].slots.home_bottom({}, {}) as any;
+    const rendered = registered
+      .find((registration) => registration.order === 90)!
+      .slots.home_bottom({}, {}) as any;
     expect(rendered).toEqual({
       type: "box",
       props: { gap: 0, children: [null, null, null] },
