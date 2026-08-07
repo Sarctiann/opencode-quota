@@ -1149,7 +1149,7 @@ describe("tui plugin smoke", () => {
     expect(loadTuiSessionQuotaSurfaces).toHaveBeenCalledTimes(7);
   });
 
-  it("coalesces in-flight session refreshes and ignores the stale completion", async () => {
+  it("coalesces in-flight session refreshes and accepts the active completion before its follow-up", async () => {
     const plugin = await loadTuiModule();
     const { api, registered } = createApi();
     const first = deferred<{
@@ -1185,19 +1185,21 @@ describe("tui plugin smoke", () => {
     expect(loadTuiSessionQuotaSurfaces).toHaveBeenCalledOnce();
 
     first.resolve({
-      sidebar: { status: "ready", lines: ["stale"] },
-      compact: { status: "ready", text: "stale" },
+      sidebar: { status: "ready", lines: ["initial"] },
+      compact: { status: "ready", text: "initial" },
     });
     await flushPromises();
     expect(loadTuiSessionQuotaSurfaces).toHaveBeenCalledTimes(2);
+    let rendered = sidebar({}, { session_id: "session-1" }) as any;
+    expect(rendered.props.children[1].props.children[0].props.children).toBe("initial");
 
     second.resolve({
-      sidebar: { status: "ready", lines: ["accepted"] },
-      compact: { status: "ready", text: "accepted" },
+      sidebar: { status: "ready", lines: ["refreshed"] },
+      compact: { status: "ready", text: "refreshed" },
     });
     await flushPromises();
-    const rendered = sidebar({}, { session_id: "session-1" }) as any;
-    expect(rendered.props.children[1].props.children[0].props.children).toBe("accepted");
+    rendered = sidebar({}, { session_id: "session-1" });
+    expect(rendered.props.children[1].props.children[0].props.children).toBe("refreshed");
   });
 
   it("keeps shared session resources alive until the final release and then disposes them", async () => {
@@ -1266,18 +1268,18 @@ describe("tui plugin smoke", () => {
 
     first.resolve({
       status: "ready",
-      compact: { status: "ready", text: "stale" },
+      compact: { status: "ready", text: "initial" },
     });
     await flushPromises();
     expect(loadTuiHomeBottomStatus).toHaveBeenCalledTimes(2);
-    expect(writeTuiQuotaExportIfEnabled).not.toHaveBeenCalled();
+    expect(writeTuiQuotaExportIfEnabled).toHaveBeenCalledOnce();
 
     second.resolve({
       status: "ready",
-      compact: { status: "ready", text: "accepted" },
+      compact: { status: "ready", text: "refreshed" },
     });
     await flushPromises();
-    expect(writeTuiQuotaExportIfEnabled).toHaveBeenCalledOnce();
+    expect(writeTuiQuotaExportIfEnabled).toHaveBeenCalledTimes(2);
   });
 
   it("ignores rejected and disposed home completions without exporting", async () => {
