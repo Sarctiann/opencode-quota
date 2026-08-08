@@ -90,11 +90,25 @@ describe("resolveExportPath", () => {
     expect(resolveExportPath("relative/path/quota.json")).toBe("relative/path/quota.json");
   });
 
-  it("expands Windows-style home-relative paths", () => {
+  it("expands Windows-style home-relative paths across platforms", () => {
     expect(resolveExportPath("~\\exports\\quota.json")).toBe(
       join(homedir(), "exports", "quota.json"),
     );
-    expect(resolveExportPath("~")).toBe(homedir());
+    expect(resolveExportPath("~\\exports\\\\nested\\quota.json")).toBe(
+      join(homedir(), "exports", "nested", "quota.json"),
+    );
+    expect(resolveExportPath("~\\")).toBe(homedir());
+  });
+
+  it("leaves unsupported tilde and ordinary backslash paths unchanged", () => {
+    expect(resolveExportPath("~")).toBe("~");
+    expect(resolveExportPath("~user/exports")).toBe("~user/exports");
+    expect(resolveExportPath("relative\\path.json")).toBe("relative\\path.json");
+    expect(resolveExportPath("C:\\exports\\quota.json")).toBe("C:\\exports\\quota.json");
+    expect(resolveExportPath("\\\\server\\share\\quota.json")).toBe(
+      "\\\\server\\share\\quota.json",
+    );
+    expect(resolveExportPath("~/literal\\name.json")).toBe(join(homedir(), "literal\\name.json"));
   });
 });
 
