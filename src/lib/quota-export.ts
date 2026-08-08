@@ -63,7 +63,10 @@ export function resolveExportPath(configured: string): string {
   if (configured === "") {
     return join(getOpencodeRuntimeDirs().cacheDir, "quota-export.json");
   }
-  if (configured.startsWith("~/")) {
+  if (configured === "~") {
+    return homedir();
+  }
+  if (/^~[/\\]/.test(configured)) {
     return join(homedir(), configured.slice(2));
   }
   return configured;
