@@ -76,9 +76,14 @@ Quota, so enabling them does not add provider requests.
 The first observation establishes a baseline. A success toast appears only after OpenCode Quota
 observes the advertised reset boundary, a newer reset timestamp, and an increase in remaining
 quota. A local acknowledgment prevents the same reset from being announced again after restart.
-The acknowledgment stores only a hashed account/window identity and reset metadata; account source
-identifiers and display labels are not written to the state file.
-Supported window names are `fiveHour`, `hourly`, `daily`, `weekly`, `monthly`, and `yearly`.
+The state file stores pseudonymous SHA-256 identity keys plus remaining percentages and reset,
+observation, and acknowledgment timestamps. Literal account source identifiers, display labels, and
+credentials are not written to it.
+
+Reset notifications use the server popup-toast surface. They do not appear in slash-command or CLI
+output, Sidebar, Compact status, status collection, telemetry, or JSON exports, and require a host
+that supports `tui.showToast`. Supported window names are `fiveHour`, `hourly`, `daily`, `weekly`,
+`monthly`, and `yearly`.
 
 ### Include subagent session tokens
 

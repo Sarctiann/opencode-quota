@@ -1,4 +1,6 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -20,19 +22,24 @@ async function statePath(): Promise<string> {
 function provider(params: {
   percentRemaining: number;
   resetAtMs: number;
+  providerId?: string;
   sourceId?: string;
+  name?: string;
+  group?: string;
   label?: string;
   resultType?: "quota" | "usage";
 }): QuotaResetProviderResult {
+  const providerId = params.providerId ?? "openai";
+  const name = params.name ?? (providerId === "openai" ? "OpenAI" : "Anthropic");
   return {
-    providerId: "openai",
+    providerId,
     result: {
       attempted: true,
       errors: [],
       entries: [
         {
-          name: "OpenAI",
-          group: params.sourceId ? `OpenAI (${params.sourceId})` : "OpenAI",
+          name,
+          group: params.group ?? (params.sourceId ? `${name} (${params.sourceId})` : name),
           label: params.label ?? "7d",
           percentRemaining: params.percentRemaining,
           resetTimeIso: new Date(params.resetAtMs).toISOString(),
@@ -54,7 +61,7 @@ afterEach(async () => {
 });
 
 describe("quota reset notifications", () => {
-  it("uses the first observation as a baseline and notifies once after a crossed weekly reset", async () => {
+  it("uses the first observation as a baseline and persists one acknowledgement", async () => {
     const path = await statePath();
     const start = Date.UTC(2026, 0, 1, 12);
     const firstReset = start + 60 * 60 * 1000;
@@ -95,6 +102,198 @@ describe("quota reset notifications", () => {
         statePath: path,
       }),
     ).toEqual([]);
+  });
+
+  it("reclaims a lock left by an exited process", async () => {
+    const path = await statePath();
+    const lockPath = `${path}.lock`;
+    await mkdir(lockPath, { mode: 0o700 });
+    const exitedOwner = spawn(process.execPath, ["-e", ""]);
+    const exitedPid = exitedOwner.pid;
+    if (!exitedPid) throw new Error("Failed to start lock-owner test process");
+    await once(exitedOwner, "exit");
+    await writeFile(
+      join(lockPath, "owner.json"),
+      JSON.stringify({ token: "exited-owner", pid: exitedPid, createdAtMs: Date.now() }),
+    );
+
+    const start = Date.UTC(2026, 0, 1, 12);
+    await observeQuotaResetNotifications({
+      providers: [provider({ percentRemaining: 10, resetAtMs: start + 60 * 60 * 1000 })],
+      windows: ["weekly"],
+      nowMs: start,
+      statePath: path,
+    });
+
+    expect(Object.keys(JSON.parse(await readFile(path, "utf8")).observations)).toHaveLength(1);
+    await expect(stat(lockPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("serializes concurrent observers so the same reset is notified once", async () => {
+    const path = await statePath();
+    const start = Date.UTC(2026, 0, 1, 12);
+    const firstReset = start + 60 * 60 * 1000;
+    const nextReset = firstReset + 7 * 24 * 60 * 60 * 1000;
+    await observeQuotaResetNotifications({
+      providers: [provider({ percentRemaining: 10, resetAtMs: firstReset })],
+      windows: ["weekly"],
+      nowMs: start,
+      statePath: path,
+    });
+
+    const results = await Promise.all(
+      [1, 2].map(() =>
+        observeQuotaResetNotifications({
+          providers: [provider({ percentRemaining: 100, resetAtMs: nextReset })],
+          windows: ["weekly"],
+          nowMs: firstReset + 60_000,
+          statePath: path,
+        }),
+      ),
+    );
+
+    expect(results.flat()).toHaveLength(1);
+  });
+
+  it("preserves disjoint observations written concurrently", async () => {
+    const path = await statePath();
+    const start = Date.UTC(2026, 0, 1, 12);
+    const reset = start + 60 * 60 * 1000;
+
+    await Promise.all(
+      ["work@example.com", "personal@example.com"].map((sourceId) =>
+        observeQuotaResetNotifications({
+          providers: [provider({ percentRemaining: 5, resetAtMs: reset, sourceId })],
+          windows: ["weekly"],
+          nowMs: start,
+          statePath: path,
+        }),
+      ),
+    );
+
+    const state = JSON.parse(await readFile(path, "utf8"));
+    expect(Object.keys(state.observations)).toHaveLength(2);
+  });
+
+  it("preserves a pre-boundary baseline while a provider still reports the expired reset", async () => {
+    const path = await statePath();
+    const start = Date.UTC(2026, 0, 1, 12);
+    const firstReset = start + 60 * 60 * 1000;
+    const nextReset = firstReset + 7 * 24 * 60 * 60 * 1000;
+    await observeQuotaResetNotifications({
+      providers: [provider({ percentRemaining: 10, resetAtMs: firstReset })],
+      windows: ["weekly"],
+      nowMs: start,
+      statePath: path,
+    });
+
+    await observeQuotaResetNotifications({
+      providers: [provider({ percentRemaining: 10, resetAtMs: firstReset })],
+      windows: ["weekly"],
+      nowMs: firstReset + 60_000,
+      statePath: path,
+    });
+
+    expect(
+      await observeQuotaResetNotifications({
+        providers: [provider({ percentRemaining: 100, resetAtMs: nextReset })],
+        windows: ["weekly"],
+        nowMs: firstReset + 120_000,
+        statePath: path,
+      }),
+    ).toHaveLength(1);
+  });
+
+  it("keeps identity stable when presentation labels change", async () => {
+    const path = await statePath();
+    const start = Date.UTC(2026, 0, 1, 12);
+    const firstReset = start + 60 * 60 * 1000;
+    const nextReset = firstReset + 7 * 24 * 60 * 60 * 1000;
+    await observeQuotaResetNotifications({
+      providers: [
+        provider({
+          percentRemaining: 10,
+          resetAtMs: firstReset,
+          sourceId: "account-1",
+          name: "Old provider name",
+          group: "Old account label",
+          label: "7d",
+        }),
+      ],
+      windows: ["weekly"],
+      nowMs: start,
+      statePath: path,
+    });
+
+    const notices = await observeQuotaResetNotifications({
+      providers: [
+        provider({
+          percentRemaining: 100,
+          resetAtMs: nextReset,
+          sourceId: "account-1",
+          name: "New provider name",
+          group: "New account label",
+          label: "weekly",
+        }),
+      ],
+      windows: ["weekly"],
+      nowMs: firstReset + 60_000,
+      statePath: path,
+    });
+
+    expect(notices).toEqual([
+      expect.objectContaining({ providerId: "openai", label: "New account label" }),
+    ]);
+  });
+
+  it("skips ambiguous rows instead of attributing one series to another", async () => {
+    const path = await statePath();
+    const start = Date.UTC(2026, 0, 1, 12);
+    const reset = start + 60 * 60 * 1000;
+
+    await observeQuotaResetNotifications({
+      providers: [
+        provider({ percentRemaining: 5, resetAtMs: reset, name: "First" }),
+        provider({ percentRemaining: 15, resetAtMs: reset, name: "Second" }),
+      ],
+      windows: ["weekly"],
+      nowMs: start,
+      statePath: path,
+    });
+
+    expect(JSON.parse(await readFile(path, "utf8")).observations).toEqual({});
+  });
+
+  it("aggregates providers that reset together", async () => {
+    const path = await statePath();
+    const start = Date.UTC(2026, 0, 1, 12);
+    const firstReset = start + 60 * 60 * 1000;
+    const nextReset = firstReset + 7 * 24 * 60 * 60 * 1000;
+    const initial = [
+      provider({ percentRemaining: 5, resetAtMs: firstReset, providerId: "openai" }),
+      provider({ percentRemaining: 15, resetAtMs: firstReset, providerId: "anthropic" }),
+    ];
+    await observeQuotaResetNotifications({
+      providers: initial,
+      windows: ["weekly"],
+      nowMs: start,
+      statePath: path,
+    });
+
+    const notices = await observeQuotaResetNotifications({
+      providers: [
+        provider({ percentRemaining: 100, resetAtMs: nextReset, providerId: "openai" }),
+        provider({ percentRemaining: 100, resetAtMs: nextReset, providerId: "anthropic" }),
+      ],
+      windows: ["weekly"],
+      nowMs: firstReset + 60_000,
+      statePath: path,
+    });
+
+    expect(notices).toHaveLength(2);
+    expect(formatQuotaResetNotification(notices)).toBe(
+      "Quota reset: OpenAI, Anthropic are available again.",
+    );
   });
 
   it("does not notify before the previous reset is crossed or when quota did not improve", async () => {

@@ -400,6 +400,7 @@ describe("/quota command behavior", () => {
     } as any);
 
     expect(client.tui.showToast).toHaveBeenCalledTimes(1);
+    expect(mocks.observeQuotaResetNotifications).not.toHaveBeenCalled();
     const message = getToastMessage(client);
     expect(message).toContain("19% used");
     expect(message).not.toContain("81% left");
@@ -452,6 +453,7 @@ describe("/quota command behavior", () => {
       providers: [expect.objectContaining({ providerId: "openai" })],
       windows: ["weekly"],
     });
+    expect(provider.fetch).toHaveBeenCalledTimes(1);
     expect(client.tui.showToast).toHaveBeenCalledTimes(2);
     expect(client.tui.showToast).toHaveBeenLastCalledWith({
       body: {
