@@ -82,6 +82,23 @@ function normalizedProviderIds(providerIds: readonly string[]): CanonicalQuotaPr
   return out;
 }
 
+export function getMaintainerAnnouncementTargetProviderIds(params?: {
+  announcements?: readonly MaintainerAnnouncement[];
+}): CanonicalQuotaProviderId[] {
+  const out: CanonicalQuotaProviderId[] = [];
+  const seen = new Set<CanonicalQuotaProviderId>();
+
+  for (const announcement of params?.announcements ?? BUNDLED_MAINTAINER_ANNOUNCEMENTS) {
+    for (const providerId of normalizedProviderIds(announcement.providerIds ?? [])) {
+      if (seen.has(providerId)) continue;
+      seen.add(providerId);
+      out.push(providerId);
+    }
+  }
+
+  return out;
+}
+
 function isHttpsUrl(value: string | undefined): value is string {
   if (typeof value !== "string") {
     return false;

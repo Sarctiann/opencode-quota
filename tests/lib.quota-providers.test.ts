@@ -9,6 +9,7 @@ import {
   normalizeJsonV1Timestamp,
   QUOTA_PROVIDER_MODES,
   QUOTA_PROVIDER_REMOTE_FORMATS,
+  selectEligibleQuotaProviderDefinitions,
   validateQuotaProviders,
 } from "../src/lib/quota-providers.js";
 import {
@@ -19,6 +20,26 @@ import {
 } from "./fixtures/quota-providers.js";
 
 describe("quotaProviders schema", () => {
+  it("keeps provider-wide definitions context-sensitive when no current model is selected", () => {
+    const definitions = [quotaProvider({ id: "provider-wide", providerId: "provider-one" })];
+    const availableProviderIds = new Set(["provider-one"]);
+
+    expect(
+      selectEligibleQuotaProviderDefinitions({
+        definitions,
+        availableProviderIds,
+        onlyCurrentModel: true,
+      }),
+    ).toEqual([]);
+    expect(
+      selectEligibleQuotaProviderDefinitions({
+        definitions,
+        availableProviderIds,
+        onlyCurrentModel: false,
+      }).map((definition) => definition.id),
+    ).toEqual(["provider-wide"]);
+  });
+
   it("accepts and normalizes the exact ordered remote schema", () => {
     expect(QUOTA_PROVIDER_MODES).toEqual(["remote-api", "local-estimate"]);
     expect(QUOTA_PROVIDER_REMOTE_FORMATS).toEqual(["quota-v1", "openrouter-key-v1", "json-v1"]);

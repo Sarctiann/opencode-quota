@@ -1,10 +1,13 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
 import { type RuntimeContextRootHints, resolveRuntimeContextRoots } from "./config-file-utils.js";
 import {
+  BUNDLED_MAINTAINER_ANNOUNCEMENTS,
   formatMaintainerAnnouncementHomeCountLine,
   getMaintainerAnnouncementsSummary,
+  getMaintainerAnnouncementTargetProviderIds,
   type MaintainerAnnouncement,
 } from "./maintainer-announcements.js";
+import { getQuotaProviderShape, normalizeQuotaProviderId } from "./provider-metadata.js";
 import {
   buildQuotaExport,
   createExportProviderContext,
@@ -501,15 +504,23 @@ export async function loadTuiHomeBottomStatus(params: {
 
   let announcementText: string | undefined;
   if (announcementEnabled) {
+    const announcements = params.announcements ?? BUNDLED_MAINTAINER_ANNOUNCEMENTS;
+    const targetProviderIds = new Set(
+      getMaintainerAnnouncementTargetProviderIds({ announcements }),
+    );
+    const announcementProviders = runtime.providers.filter((provider) => {
+      const shape = getQuotaProviderShape(normalizeQuotaProviderId(provider.id));
+      return shape ? targetProviderIds.has(shape.id) : false;
+    });
     const providerIds = await collectConcreteEnabledProviderIds({
-      providers: runtime.providers,
+      providers: announcementProviders,
       ctx: createQuotaProviderRuntimeContext(runtime),
       enabledProviders: runtime.config.enabledProviders,
     });
     const summary = getMaintainerAnnouncementsSummary({
       nowMs: params.nowMs,
       enabledProviders: providerIds,
-      announcements: params.announcements,
+      announcements,
     });
     announcementText = formatMaintainerAnnouncementHomeCountLine(summary.activeCount) || undefined;
   }
