@@ -190,6 +190,7 @@ const SOURCE_PROVIDER_ALIASES: Record<string, string> = {
   "copilot-chat": "openai",
   chatgpt: "openai",
   codex: "openai",
+  "kimi-for-coding": "moonshotai",
   "zai-coding-plan": "zai",
   glm: "zai",
 };
@@ -263,6 +264,9 @@ function moonshotaiPricingCandidates(model: string): string[] {
     if (freeCandidate.includes(".")) {
       candidates.push(freeCandidate.replace(/\./g, "-"));
     }
+  }
+  if (model === "k3" || model === "k3-256k") {
+    candidates.push("kimi-k3");
   }
   return candidates.filter((value, index, list) => list.indexOf(value) === index);
 }
