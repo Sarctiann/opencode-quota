@@ -35,7 +35,7 @@ export type PromptBarState =
   | { status: "loading" | "disabled" }
   | {
       status: "ready";
-      entry: PromptBarEntry;
+      entry?: PromptBarEntry;
       percentDisplayMode?: PercentDisplayMode;
       resetTimeDecimals?: number;
     };

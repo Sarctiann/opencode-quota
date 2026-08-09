@@ -376,14 +376,17 @@ function pickPromptBarEntry(data: QuotaRenderData | null): PromptBarEntry | unde
 
   let fallback: PromptBarEntry | undefined;
   for (const entry of data.entries) {
-    if (!isPercentEntry(entry)) {
+    if (!isPercentEntry(entry) || !Number.isFinite(entry.percentRemaining)) {
       continue;
     }
     const kind = classifyQuotaWindowText(entry.label ?? "") ?? classifyQuotaWindowText(entry.name);
     if (kind === "five_hour") {
       return entry;
     }
-    if (!fallback || (entry.percentRemaining ?? 0) < (fallback.percentRemaining ?? 0)) {
+    if (
+      !fallback ||
+      entry.percentRemaining < (fallback.percentRemaining ?? Number.POSITIVE_INFINITY)
+    ) {
       fallback = entry;
     }
   }
@@ -403,14 +406,10 @@ function buildPromptBarFromData(params: {
     return { status: "loading" };
   }
 
-  const entry = pickPromptBarEntry(params.result.data);
-  if (!entry) {
-    return { status: "loading" };
-  }
-
+  const entry = pickPromptBarEntry(params.result.allWindowsData ?? params.result.data);
   return {
     status: "ready",
-    entry,
+    ...(entry ? { entry } : {}),
     percentDisplayMode: params.runtime.config.percentDisplayMode,
     resetTimeDecimals: params.runtime.config.resetTimeDecimals,
   };

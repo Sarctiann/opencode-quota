@@ -851,6 +851,7 @@ describe("tui runtime helpers", () => {
               sessionPrompt: true,
               suppressWhenNativeProviderQuota: true,
             },
+            tuiPromptBar: { enabled: true },
             maintainerAnnouncements: {
               home: false,
             },
@@ -948,6 +949,7 @@ describe("tui runtime helpers", () => {
               sessionPrompt: true,
               suppressWhenNativeProviderQuota: true,
             },
+            tuiPromptBar: { enabled: true },
           },
         },
       }),
@@ -1251,6 +1253,7 @@ describe("tui runtime helpers", () => {
               sessionPrompt: true,
               maxWidth: 42,
             },
+            tuiPromptBar: { enabled: true },
           },
         },
       }),
@@ -1357,6 +1360,119 @@ describe("tui runtime helpers", () => {
     expect(buildCompactQuotaStatusLine).not.toHaveBeenCalled();
   });
 
+  it("builds an opt-in prompt bar from the five-hour all-windows entry", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            percentDisplayMode: "used",
+            resetTimeDecimals: 2,
+            tuiSidebarPanel: { enabled: false },
+            tuiCompactStatus: { enabled: false },
+            tuiPromptBar: { enabled: true },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    collectQuotaRenderData.mockResolvedValue({
+      active: [],
+      data: {
+        entries: [{ name: "Copilot weekly", percentRemaining: 4 }],
+        errors: [],
+        sessionTokens: undefined,
+      },
+      allWindowsData: {
+        entries: [
+          { name: "Copilot weekly", percentRemaining: 4 },
+          { name: "Copilot 5h", percentRemaining: 72, resetTimeIso: "2026-08-09T12:00:00Z" },
+        ],
+        errors: [],
+        sessionTokens: undefined,
+      },
+    });
+
+    const surfaces = await loadTuiSessionQuotaSurfaces({
+      api: {
+        state: {
+          provider: [],
+          path: { worktree: worktreeDir, directory: nestedDir },
+          session: { messages: () => [] },
+        },
+        client: {},
+      } as any,
+      sessionID: "prompt-bar-five-hour",
+    });
+
+    expect(surfaces).toEqual({
+      sidebar: { status: "disabled", lines: [] },
+      compact: { status: "disabled" },
+      promptBar: {
+        status: "ready",
+        entry: {
+          name: "Copilot 5h",
+          percentRemaining: 72,
+          resetTimeIso: "2026-08-09T12:00:00Z",
+        },
+        percentDisplayMode: "used",
+        resetTimeDecimals: 2,
+      },
+    });
+    expect(collectQuotaRenderData).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to the lowest finite prompt-bar percentage", async () => {
+    writeFileSync(
+      join(worktreeDir, "opencode.json"),
+      JSON.stringify({
+        experimental: {
+          quotaToast: {
+            enabled: true,
+            tuiSidebarPanel: { enabled: false },
+            tuiCompactStatus: { enabled: false },
+            tuiPromptBar: { enabled: true },
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    collectQuotaRenderData.mockResolvedValue({
+      active: [],
+      data: {
+        entries: [
+          { name: "Balance", value: "$10" },
+          { name: "Copilot weekly", percentRemaining: 44 },
+          { name: "Copilot monthly", percentRemaining: 18 },
+        ],
+        errors: [],
+        sessionTokens: undefined,
+      },
+    });
+
+    const surfaces = await loadTuiSessionQuotaSurfaces({
+      api: {
+        state: {
+          provider: [],
+          path: { worktree: worktreeDir, directory: nestedDir },
+          session: { messages: () => [] },
+        },
+        client: {},
+      } as any,
+      sessionID: "prompt-bar-lowest",
+    });
+
+    expect(surfaces.promptBar).toEqual({
+      status: "ready",
+      entry: { name: "Copilot monthly", percentRemaining: 18 },
+      percentDisplayMode: "remaining",
+      resetTimeDecimals: undefined,
+    });
+  });
+
   it("loads sidebar and compact session surfaces from one collection", async () => {
     writeFileSync(
       join(worktreeDir, "opencode.json"),
@@ -1371,6 +1487,7 @@ describe("tui runtime helpers", () => {
               sessionPrompt: true,
               maxWidth: 42,
             },
+            tuiPromptBar: { enabled: true },
           },
         },
       }),
@@ -1467,6 +1584,7 @@ describe("tui runtime helpers", () => {
               enabled: true,
               sessionPrompt: true,
             },
+            tuiPromptBar: { enabled: true },
           },
         },
       }),
@@ -1495,7 +1613,11 @@ describe("tui runtime helpers", () => {
     expect(surfaces).toEqual({
       sidebar: { status: "ready", lines: [] },
       compact: { status: "ready", text: "Quota unavailable" },
-      promptBar: { status: "loading" },
+      promptBar: {
+        status: "ready",
+        percentDisplayMode: "remaining",
+        resetTimeDecimals: undefined,
+      },
     });
     expect(buildCompactQuotaStatusLine).not.toHaveBeenCalled();
   });
@@ -1512,6 +1634,7 @@ describe("tui runtime helpers", () => {
               enabled: true,
               sessionPrompt: true,
             },
+            tuiPromptBar: { enabled: true },
           },
         },
       }),

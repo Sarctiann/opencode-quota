@@ -1691,23 +1691,45 @@ describe("tui plugin smoke", () => {
       homeBottom: false,
     });
 
+    loadTuiSessionQuotaSurfaces.mockResolvedValueOnce({
+      sidebar: { status: "disabled", lines: [] },
+      compact: { status: "disabled" },
+      promptBar: {
+        status: "ready",
+        entry: { name: "Copilot 5h", percentRemaining: 50 },
+        percentDisplayMode: "remaining",
+      },
+    });
+
     await startTui(plugin, api);
 
     const compactRegistration = registered.find((registration) => registration.order === 90);
     expect(compactRegistration).toBeDefined();
 
-    compactRegistration!.slots.session_prompt(
-      {},
-      {
-        session_id: "session-1",
-        visible: false,
-        disabled: true,
-        on_submit: onSubmit,
-        ref,
-      },
-    );
+    const promptProps = {
+      session_id: "session-1",
+      visible: false,
+      disabled: true,
+      on_submit: onSubmit,
+      ref,
+    };
+    compactRegistration!.slots.session_prompt({}, promptProps);
+    await flushPromises();
+    const rendered = compactRegistration!.slots.session_prompt({}, promptProps) as any;
 
-    expect(api.ui.Prompt).toHaveBeenCalledTimes(1);
+    const hint = rendered.props.children[1];
+    expect(hint.type).toBe("box");
+    expect(hint.props).toMatchObject({
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      gap: 1,
+    });
+    expect(hint.props).not.toHaveProperty("position");
+    expect(hint.props).not.toHaveProperty("left");
+    expect(hint.props).not.toHaveProperty("bottom");
+    expect(hint.props.children[1].props.children).toHaveLength(12);
+
+    expect(api.ui.Prompt).toHaveBeenCalledTimes(2);
     expect(api.ui.Prompt).toHaveBeenCalledWith({
       sessionID: "session-1",
       visible: false,

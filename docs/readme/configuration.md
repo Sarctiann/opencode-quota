@@ -367,7 +367,7 @@ Existing `experimental.quotaToast` settings remain supported. Quota settings do 
 | `tuiCompactStatus.suppressWhenNativeProviderQuota` | `true`               | Hide the Compact status line when OpenCode exposes native provider-quota support.                                                                                                                             |
 | `tuiCompactStatus.maxWidth`                        | `96`                 | Maximum Compact status line text width.                                                                                                                                                                       |
 | `tuiCompactStatus.formatStyle`                     | (root `formatStyle`) | Override `formatStyle` for the Compact status line only. Useful when you want `singleWindow` on the compact line while the sidebar shows `allWindows`.                                                        |
-| `tuiPromptBar.enabled`                             | `true`               | Show a compact quota progress bar under the TUI prompt. Prefers the 5h window entry and shows remaining percent plus reset countdown. When disabled, the prompt falls back to the compact status line.      |
+| `tuiPromptBar.enabled`                             | `false`              | Show an opt-in quota progress bar below the TUI prompt. It prefers the 5h window and replaces the Compact line below the session input. Sidebar, Home, toasts, and slash-command output are unchanged. |
 
 ### Maintainer announcement settings
 

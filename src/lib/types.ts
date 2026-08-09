@@ -262,7 +262,7 @@ export const DEFAULT_CONFIG: QuotaToastConfig = {
     maxWidth: 96,
   },
   tuiPromptBar: {
-    enabled: true,
+    enabled: false,
   },
   maintainerAnnouncements: {
     enabled: true,

@@ -477,7 +477,7 @@ function useSessionRunning(api: TuiPluginApi, sessionID: () => string): () => bo
           status?: (sessionID: string) => { type?: string } | undefined;
         };
         const status = sessionState.status?.(id);
-        setRunning(!!status && status.type !== "idle");
+        setRunning(status?.type === "busy" || status?.type === "retry");
       } catch {
         setRunning(false);
       }
@@ -514,6 +514,7 @@ function buildPromptBarParts(params: {
   const bar = params.bar();
   if (!shouldRenderPromptBar(bar)) return undefined;
   const entry = bar.entry;
+  if (!entry) return undefined;
   const windowLabel =
     extractSingleWindowWindowLabel(entry.label ?? "") ??
     extractSingleWindowWindowLabel(entry.name ?? "") ??
@@ -560,11 +561,10 @@ function PromptQuotaHint(props: {
   const label = () => parts()?.label ?? "";
   const bar = () => parts()?.barText ?? "";
   const meta = () => parts()?.meta ?? "";
-  const barLeft = () => 26;
 
   return (
     <Show when={parts()}>
-      <box position="absolute" left={barLeft()} bottom={0} zIndex={100} flexDirection="row" gap={1}>
+      <box flexDirection="row" justifyContent="flex-end" gap={1}>
         <text fg={props.api.theme.current.textMuted} wrapMode="none">
           {label()}
         </text>
@@ -593,7 +593,7 @@ function SessionQuotaPromptBar(props: {
   const running = useSessionRunning(props.api, () => props.sessionID);
   const [phase, setPhase] = createSignal(0);
   createEffect(() => {
-    if (!running()) {
+    if (!running() || !shouldRenderPromptBar(promptBar())) {
       setPhase(0);
       return;
     }
