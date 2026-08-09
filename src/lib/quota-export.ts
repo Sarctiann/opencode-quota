@@ -56,6 +56,7 @@ export function createExportProviderContext(runtime: QuotaRuntimeContext): Quota
  *
  * - Empty string → XDG cache default: `$XDG_CACHE_HOME/opencode/quota-export.json`
  * - Starts with `~/` → expands `~` to `homedir()`
+ * - Starts with `~\` → expands `~` and treats backslashes as path separators
  * - Otherwise → returns as-is (caller is responsible for absolute paths)
  */
 export function resolveExportPath(configured: string): string {
@@ -64,6 +65,9 @@ export function resolveExportPath(configured: string): string {
   }
   if (configured.startsWith("~/")) {
     return join(homedir(), configured.slice(2));
+  }
+  if (configured.startsWith("~\\")) {
+    return join(homedir(), ...configured.slice(2).split(/\\+/u));
   }
   return configured;
 }

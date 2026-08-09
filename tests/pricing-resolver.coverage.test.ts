@@ -155,6 +155,36 @@ describe("resolvePricingKey snapshot coverage", () => {
     expect(lookupCost("openai", "gpt-4o-mini")).not.toBeNull();
   });
 
+  it("maps documented Kimi Code K3 models to authoritative pricing", () => {
+    for (const modelID of ["k3", "k3-256k"]) {
+      expect(
+        resolvePricingKey({
+          providerID: "kimi-for-coding",
+          modelID,
+        }),
+      ).toEqual({
+        ok: true,
+        key: { provider: "moonshotai", model: "kimi-k3" },
+        method: "source_provider",
+      });
+    }
+
+    expect(lookupCost("moonshotai", "kimi-k3")).toEqual({
+      input: 3,
+      output: 15,
+      cache_read: 0.3,
+    });
+
+    for (const modelID of ["k3-free", "k3-256k-free", "k3-preview"]) {
+      expect(
+        resolvePricingKey({
+          providerID: "kimi-for-coding",
+          modelID,
+        }).ok,
+      ).toBe(false);
+    }
+  });
+
   it("maps cursor local and api-pool models into deterministic pricing keys", () => {
     const auto = resolvePricingKey({
       providerID: "cursor",
