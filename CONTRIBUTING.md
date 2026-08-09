@@ -92,14 +92,32 @@ Additional boundary tests to keep healthy when touching plugin/provider logic:
 
 ## Provider Changes
 
-When adding a provider, keep the README setup wording tied to real behavior.
+### Built-in Provider Policy
 
-- For API-key/token providers that support `Existing OpenCode auth, global config, or env`, start from `contributing/provider-template/`.
+A built-in provider addition is eligible for review only when:
+
+- The provider is listed on [models.dev](https://models.dev/).
+- The request shows demand or recommendations from at least two independent users.
+- The PR links that evidence and explains why the custom-provider feature is not enough.
+
+A contributor's own request and repeated comments from the same person do not count as independent demand. Eligibility does not guarantee acceptance: the provider must also expose a stable accounting source and have a reasonable long-term maintenance cost.
+
+### Choose the Right Path
+
+- **OpenCode custom provider:** Use this to connect an OpenAI-compatible model service that OpenCode does not include automatically.
+- **OpenCode Quota custom provider:** Use `provider add` for local request estimates or one supported fixed quota endpoint. Its `providerId` must exactly match a provider ID exposed by OpenCode at runtime. It does not create the OpenCode provider or support discovery, fan-out requests, or arbitrary provider logic.
+- **Built-in provider:** Consider maintained code only after the provider meets the policy above and the custom-provider path cannot support its required behavior.
+
+### Built-in Implementation
+
+Keep README setup wording tied to real behavior.
+
+- For API-key/token providers that reuse existing OpenCode auth, trusted global config, or approved environment variables, start from `contributing/provider-template/`.
 - Copy the template files to the target paths listed in `contributing/provider-template/README.md`.
-- Replace the example names, ids, env vars, and config keys before coding.
-- Add tests for each supported auth source before using the shared README wording; do not leave copied template tests skipped, todo-only, or unresolved.
+- Replace the example names, IDs, environment variables, and config keys before coding.
+- Add tests for every supported auth source; do not leave copied template tests skipped, todo-only, or unresolved.
+- Use the current README setup label—`Automatic`, `Needs setup`, or `Existing setups only`—that matches the real user workflow.
 - In the PR checklist, state whether you started from the provider template; if not, explain why it does not apply.
-- Do not use that wording for OAuth-only providers such as OpenAI.
 
 ## Quality Bar for Fixes
 
@@ -114,5 +132,6 @@ When adding a provider, keep the README setup wording tied to real behavior.
 - `pnpm verify` passes.
 - Verified behavior against the current production released OpenCode version, and included the tested version in the PR notes.
 - Updated docs when user-facing commands/config/workflow changed (usually `README.md`; update this file when contributor workflow changes).
+- For built-in provider additions, linked the models.dev entry, evidence from at least two independent users, and an explanation of why the custom-provider feature is insufficient.
 - For new API-key/token providers, started from `contributing/provider-template/` or explained why the template does not apply.
-- For provider setup/auth wording changes, checked `contributing/provider-template/` and verified README wording against implementation/tests.
+- For provider setup/auth wording changes, checked `contributing/provider-template/` and verified the current README setup label against implementation and tests.
