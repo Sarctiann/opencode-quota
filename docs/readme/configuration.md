@@ -30,6 +30,7 @@ Strict `.json` files also work. Run `/quota_status` if you are unsure which file
 | Turn popup quota notifications on or off   | `enableToast`                 |
 | Notify when weekly quota resets            | `resetNotifications.enabled`  |
 | Turn the compact quota line on or off      | `tuiCompactStatus.enabled`    |
+| Show a quota progress bar under the prompt | `tuiPromptBar.enabled`        |
 | Show or hide session input/output tokens   | `showSessionTokens`           |
 | Include descendant/subagent session tokens | `sessionTokenScope: "tree"`   |
 
@@ -54,6 +55,8 @@ The installer chooses `allWindows` by default. If the setting is absent, the bui
   "enableToast": false,
   "resetNotifications": { "enabled": false, "windows": ["weekly"] },
   "tuiCompactStatus": { "enabled": false },
+  // Show a quota progress bar under the prompt.
+  "tuiPromptBar": { "enabled": true },
 }
 ```
 
@@ -364,6 +367,7 @@ Existing `experimental.quotaToast` settings remain supported. Quota settings do 
 | `tuiCompactStatus.suppressWhenNativeProviderQuota` | `true`               | Hide the Compact status line when OpenCode exposes native provider-quota support.                                                                                                                             |
 | `tuiCompactStatus.maxWidth`                        | `96`                 | Maximum Compact status line text width.                                                                                                                                                                       |
 | `tuiCompactStatus.formatStyle`                     | (root `formatStyle`) | Override `formatStyle` for the Compact status line only. Useful when you want `singleWindow` on the compact line while the sidebar shows `allWindows`.                                                        |
+| `tuiPromptBar.enabled`                             | `true`               | Show a compact quota progress bar under the TUI prompt. Prefers the 5h window entry and shows remaining percent plus reset countdown. When disabled, the prompt falls back to the compact status line.      |
 
 ### Maintainer announcement settings
 
