@@ -54,6 +54,10 @@ export interface TuiCompactStatusConfig {
   formatStyle?: QuotaFormatStyle;
 }
 
+export interface TuiPromptBarConfig {
+  enabled: boolean;
+}
+
 export interface QuotaExportConfig {
   /** Whether to write the export file after each background refresh. Default: false. */
   enabled: boolean;
@@ -183,6 +187,9 @@ export interface QuotaToastConfig {
   /** Opt-in compact quota/status text for TUI prompt/home surfaces. */
   tuiCompactStatus: TuiCompactStatusConfig;
 
+  /** Quota progress bar rendered under the TUI prompt. */
+  tuiPromptBar: TuiPromptBarConfig;
+
   /** Bundled-only maintainer announcement surfaces. */
   maintainerAnnouncements: MaintainerAnnouncementsConfig;
 
@@ -253,6 +260,9 @@ export const DEFAULT_CONFIG: QuotaToastConfig = {
     sessionPrompt: true,
     suppressWhenNativeProviderQuota: true,
     maxWidth: 96,
+  },
+  tuiPromptBar: {
+    enabled: true,
   },
   maintainerAnnouncements: {
     enabled: true,

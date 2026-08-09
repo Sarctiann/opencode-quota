@@ -1,5 +1,6 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui";
 import { type RuntimeContextRootHints, resolveRuntimeContextRoots } from "./config-file-utils.js";
+import { isPercentEntry } from "./entries.js";
 import {
   BUNDLED_MAINTAINER_ANNOUNCEMENTS,
   formatMaintainerAnnouncementHomeCountLine,
@@ -8,6 +9,7 @@ import {
   type MaintainerAnnouncement,
 } from "./maintainer-announcements.js";
 import { getQuotaProviderShape, normalizeQuotaProviderId } from "./provider-metadata.js";
+import { classifyQuotaWindowText } from "./quota-entry-display.js";
 import {
   buildQuotaExport,
   createExportProviderContext,
@@ -15,7 +17,11 @@ import {
   writeQuotaExport,
 } from "./quota-export.js";
 import { resolveQuotaFormatStyle } from "./quota-format-style.js";
-import type { CollectQuotaRenderDataResult, SessionModelMeta } from "./quota-render-data.js";
+import type {
+  CollectQuotaRenderDataResult,
+  QuotaRenderData,
+  SessionModelMeta,
+} from "./quota-render-data.js";
 import { collectConcreteEnabledProviderIds, collectQuotaRenderData } from "./quota-render-data.js";
 import type { QuotaRuntimeContext } from "./quota-runtime-context.js";
 import {
@@ -25,7 +31,13 @@ import {
 } from "./quota-runtime-context.js";
 import { buildCompactQuotaStatusLine } from "./tui-compact-format.js";
 import { hasNativeProviderQuotaClient } from "./tui-native-provider-quota.js";
-import type { CompactStatusState, HomeBottomState, SidebarPanelState } from "./tui-panel-state.js";
+import type {
+  CompactStatusState,
+  HomeBottomState,
+  PromptBarEntry,
+  PromptBarState,
+  SidebarPanelState,
+} from "./tui-panel-state.js";
 import { buildSidebarQuotaPanelLines, TUI_SIDEBAR_MAX_WIDTH } from "./tui-sidebar-format.js";
 import type { TuiCommandDisplay } from "./types.js";
 
@@ -191,6 +203,10 @@ export type TuiCompactStatusRegistration = {
   suppressedByNativeProviderQuota: boolean;
 };
 
+export type TuiPromptBarRegistration = {
+  enabled: boolean;
+};
+
 export type TuiMaintainerAnnouncementsRegistration = {
   homeBottom: boolean;
 };
@@ -199,6 +215,7 @@ export type TuiSurfaceRegistration = {
   commandDisplay: TuiCommandDisplay;
   sidebar: TuiSidebarPanelRegistration;
   compact: TuiCompactStatusRegistration;
+  promptBar: TuiPromptBarRegistration;
   announcements: TuiMaintainerAnnouncementsRegistration;
   homeBottom: boolean;
 };
@@ -206,6 +223,7 @@ export type TuiSurfaceRegistration = {
 export type TuiSessionQuotaSurfaces = {
   sidebar: SidebarPanelState;
   compact: CompactStatusState;
+  promptBar: PromptBarState;
 };
 
 export type TuiInitialRuntimeSeed = Readonly<
@@ -241,10 +259,15 @@ function isSessionCompactEnabled(runtime: QuotaRuntimeContext): boolean {
   );
 }
 
+function isSessionPromptBarEnabled(runtime: QuotaRuntimeContext): boolean {
+  return runtime.config.enabled && runtime.config.tuiPromptBar.enabled;
+}
+
 function buildDisabledSessionQuotaSurfaces(): TuiSessionQuotaSurfaces {
   return {
     sidebar: { status: "disabled", lines: [] },
     compact: { status: "disabled" },
+    promptBar: { status: "disabled" },
   };
 }
 
@@ -346,6 +369,53 @@ function buildSidebarPanelFromData(params: {
   };
 }
 
+function pickPromptBarEntry(data: QuotaRenderData | null): PromptBarEntry | undefined {
+  if (!data || !Array.isArray(data.entries)) {
+    return undefined;
+  }
+
+  let fallback: PromptBarEntry | undefined;
+  for (const entry of data.entries) {
+    if (!isPercentEntry(entry)) {
+      continue;
+    }
+    const kind = classifyQuotaWindowText(entry.label ?? "") ?? classifyQuotaWindowText(entry.name);
+    if (kind === "five_hour") {
+      return entry;
+    }
+    if (!fallback || (entry.percentRemaining ?? 0) < (fallback.percentRemaining ?? 0)) {
+      fallback = entry;
+    }
+  }
+  return fallback;
+}
+
+function buildPromptBarFromData(params: {
+  runtime: QuotaRuntimeContext;
+  result: CollectQuotaRenderDataResult;
+  enabled: boolean;
+}): PromptBarState {
+  if (!params.enabled) {
+    return { status: "disabled" };
+  }
+
+  if (params.result.selection?.waitingForCurrentSelection) {
+    return { status: "loading" };
+  }
+
+  const entry = pickPromptBarEntry(params.result.data);
+  if (!entry) {
+    return { status: "loading" };
+  }
+
+  return {
+    status: "ready",
+    entry,
+    percentDisplayMode: params.runtime.config.percentDisplayMode,
+    resetTimeDecimals: params.runtime.config.resetTimeDecimals,
+  };
+}
+
 async function collectTuiQuotaRenderData(params: {
   runtime: QuotaRuntimeContext;
   request: ReturnType<typeof createQuotaRuntimeRequestContext>;
@@ -411,6 +481,9 @@ export async function resolveTuiSurfaceRegistration(
       hasNativeProviderQuota,
       suppressedByNativeProviderQuota,
     },
+    promptBar: {
+      enabled: runtime.config.enabled && runtime.config.tuiPromptBar.enabled,
+    },
     announcements: {
       homeBottom: announcementHomeBottom,
     },
@@ -446,8 +519,9 @@ export async function loadTuiSessionQuotaSurfaces(params: {
 
   const sidebarEnabled = isSessionSidebarEnabled(runtime);
   const compactEnabled = isSessionCompactEnabled(runtime);
+  const promptBarEnabled = isSessionPromptBarEnabled(runtime);
 
-  if (!sidebarEnabled && !compactEnabled) {
+  if (!sidebarEnabled && !compactEnabled && !promptBarEnabled) {
     return buildDisabledSessionQuotaSurfaces();
   }
 
@@ -465,6 +539,11 @@ export async function loadTuiSessionQuotaSurfaces(params: {
       result,
       enabled: compactEnabled,
       formatStyle: compactFormatStyle,
+    }),
+    promptBar: buildPromptBarFromData({
+      runtime,
+      result,
+      enabled: promptBarEnabled,
     }),
   };
 }

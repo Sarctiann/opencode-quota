@@ -871,6 +871,9 @@ describe("tui runtime helpers", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: {
+        enabled: true,
+      },
       announcements: {
         homeBottom: false,
       },
@@ -980,6 +983,9 @@ describe("tui runtime helpers", () => {
         sessionPrompt: false,
         hasNativeProviderQuota: true,
         suppressedByNativeProviderQuota: true,
+      },
+      promptBar: {
+        enabled: true,
       },
       announcements: {
         homeBottom: true,
@@ -1285,6 +1291,12 @@ describe("tui runtime helpers", () => {
     expect(surfaces).toEqual({
       sidebar: { status: "disabled", lines: [] },
       compact: { status: "ready", text: "Compact quota" },
+      promptBar: {
+        status: "ready",
+        entry: { name: "Copilot 5h", percentRemaining: 18 },
+        percentDisplayMode: "used",
+        resetTimeDecimals: undefined,
+      },
     });
     expect(collectQuotaRenderData).toHaveBeenCalledOnce();
     expect(buildSidebarQuotaPanelLines).not.toHaveBeenCalled();
@@ -1308,6 +1320,9 @@ describe("tui runtime helpers", () => {
             tuiCompactStatus: {
               enabled: true,
               sessionPrompt: false,
+            },
+            tuiPromptBar: {
+              enabled: false,
             },
           },
         },
@@ -1335,6 +1350,7 @@ describe("tui runtime helpers", () => {
     expect(surfaces).toEqual({
       sidebar: { status: "disabled", lines: [] },
       compact: { status: "disabled" },
+      promptBar: { status: "disabled" },
     });
     expect(collectQuotaRenderData).not.toHaveBeenCalled();
     expect(buildSidebarQuotaPanelLines).not.toHaveBeenCalled();
@@ -1403,6 +1419,12 @@ describe("tui runtime helpers", () => {
     expect(surfaces).toEqual({
       sidebar: { status: "ready", lines: ["Sidebar quota"] },
       compact: { status: "ready", text: "Compact quota" },
+      promptBar: {
+        status: "ready",
+        entry: { name: "Copilot 5h", percentRemaining: 18 },
+        percentDisplayMode: "used",
+        resetTimeDecimals: undefined,
+      },
     });
     expect(collectQuotaRenderData).toHaveBeenCalledOnce();
     expect(collectQuotaRenderData).toHaveBeenCalledWith(
@@ -1473,6 +1495,7 @@ describe("tui runtime helpers", () => {
     expect(surfaces).toEqual({
       sidebar: { status: "ready", lines: [] },
       compact: { status: "ready", text: "Quota unavailable" },
+      promptBar: { status: "loading" },
     });
     expect(buildCompactQuotaStatusLine).not.toHaveBeenCalled();
   });
@@ -1527,6 +1550,7 @@ describe("tui runtime helpers", () => {
     expect(surfaces).toEqual({
       sidebar: { status: "loading", lines: [] },
       compact: { status: "loading" },
+      promptBar: { status: "loading" },
     });
     expect(buildSidebarQuotaPanelLines).not.toHaveBeenCalled();
     expect(buildCompactQuotaStatusLine).not.toHaveBeenCalled();

@@ -323,6 +323,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: true,
     });
@@ -363,6 +365,8 @@ describe("tui plugin smoke", () => {
             hasNativeProviderQuota: false,
             suppressedByNativeProviderQuota: false,
           },
+          promptBar: { enabled: true },
+
           announcements: { homeBottom: false },
           homeBottom: true,
         });
@@ -418,6 +422,8 @@ describe("tui plugin smoke", () => {
             hasNativeProviderQuota: false,
             suppressedByNativeProviderQuota: false,
           },
+          promptBar: { enabled: true },
+
           announcements: { homeBottom: false },
           homeBottom: false,
         });
@@ -462,6 +468,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -491,6 +499,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -541,6 +551,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -583,6 +595,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: true,
     });
@@ -637,6 +651,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -678,6 +694,8 @@ describe("tui plugin smoke", () => {
           hasNativeProviderQuota: false,
           suppressedByNativeProviderQuota: false,
         },
+        promptBar: { enabled: true },
+
         announcements: { homeBottom: false },
         homeBottom: false,
       });
@@ -750,6 +768,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -788,6 +808,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -827,6 +849,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -863,6 +887,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -947,6 +973,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -989,6 +1017,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: false },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -1018,6 +1048,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: true },
       homeBottom: true,
     });
@@ -1045,6 +1077,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: true },
       homeBottom: true,
     });
@@ -1081,6 +1115,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -1137,6 +1173,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -1195,6 +1233,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: true },
       homeBottom: true,
     });
@@ -1221,6 +1261,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -1278,6 +1320,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -1319,6 +1363,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });
@@ -1357,6 +1403,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: true,
     });
@@ -1400,6 +1448,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: true },
       homeBottom: true,
     });
@@ -1423,6 +1473,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: true },
       homeBottom: true,
     });
@@ -1450,6 +1502,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: true },
       homeBottom: true,
     });
@@ -1535,6 +1589,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: true },
       homeBottom: true,
     });
@@ -1593,6 +1649,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: true,
     });
@@ -1627,6 +1685,8 @@ describe("tui plugin smoke", () => {
         hasNativeProviderQuota: false,
         suppressedByNativeProviderQuota: false,
       },
+      promptBar: { enabled: true },
+
       announcements: { homeBottom: false },
       homeBottom: false,
     });

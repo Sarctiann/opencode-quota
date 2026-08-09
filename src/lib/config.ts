@@ -76,6 +76,7 @@ export const QUOTA_TOAST_SETTING_SOURCE_KEYS = [
   "tuiCompactStatus.suppressWhenNativeProviderQuota",
   "tuiCompactStatus.maxWidth",
   "tuiCompactStatus.formatStyle",
+  "tuiPromptBar.enabled",
   "maintainerAnnouncements.enabled",
   "maintainerAnnouncements.home",
   "layout.maxWidth",
@@ -141,6 +142,7 @@ type PricingSnapshotPatch = Partial<QuotaToastConfig["pricingSnapshot"]>;
 type QuotaResetNotificationsPatch = Partial<QuotaToastConfig["resetNotifications"]>;
 type TuiSidebarPanelPatch = Partial<QuotaToastConfig["tuiSidebarPanel"]>;
 type TuiCompactStatusPatch = Partial<QuotaToastConfig["tuiCompactStatus"]>;
+type TuiPromptBarPatch = Partial<QuotaToastConfig["tuiPromptBar"]>;
 type MaintainerAnnouncementsPatch = Partial<QuotaToastConfig["maintainerAnnouncements"]>;
 type LayoutPatch = Partial<QuotaToastConfig["layout"]>;
 type ExportConfigPatch = Partial<QuotaToastConfig["export"]>;
@@ -177,6 +179,7 @@ type ValidatedQuotaToastPatch = {
   sessionTokenScope?: SessionTokenScope;
   tuiSidebarPanel?: TuiSidebarPanelPatch;
   tuiCompactStatus?: TuiCompactStatusPatch;
+  tuiPromptBar?: TuiPromptBarPatch;
   maintainerAnnouncements?: MaintainerAnnouncementsPatch;
   layout?: LayoutPatch;
   export?: ExportConfigPatch;
@@ -333,6 +336,7 @@ function cloneConfig(config: QuotaToastConfig): QuotaToastConfig {
     pricingSnapshot: { ...config.pricingSnapshot },
     tuiSidebarPanel: { ...config.tuiSidebarPanel },
     tuiCompactStatus: { ...config.tuiCompactStatus },
+    tuiPromptBar: { ...config.tuiPromptBar },
     maintainerAnnouncements: { ...config.maintainerAnnouncements },
     layout: { ...config.layout },
     export: { ...config.export },
@@ -516,6 +520,20 @@ function extractTuiCompactStatusPatch(value: unknown): TuiCompactStatusPatch | u
   const compactFormatStyle = getExplicitFormatStyle(value);
   if (compactFormatStyle) {
     patch.formatStyle = compactFormatStyle;
+  }
+
+  return Object.keys(patch).length > 0 ? patch : undefined;
+}
+
+function extractTuiPromptBarPatch(value: unknown): TuiPromptBarPatch | undefined {
+  if (!isPlainObject(value)) {
+    return undefined;
+  }
+
+  const patch: TuiPromptBarPatch = {};
+
+  if (hasOwnKey(value, "enabled") && typeof value.enabled === "boolean") {
+    patch.enabled = value.enabled;
   }
 
   return Object.keys(patch).length > 0 ? patch : undefined;
@@ -805,6 +823,13 @@ function extractValidatedQuotaToastPatch(
     }
   }
 
+  if (hasOwnKey(quotaToastConfig, "tuiPromptBar")) {
+    const tuiPromptBar = extractTuiPromptBarPatch(quotaToastConfig.tuiPromptBar);
+    if (tuiPromptBar) {
+      patch.tuiPromptBar = tuiPromptBar;
+    }
+  }
+
   if (hasOwnKey(quotaToastConfig, "maintainerAnnouncements")) {
     const maintainerAnnouncements = extractMaintainerAnnouncementsPatch(
       quotaToastConfig.maintainerAnnouncements,
@@ -1049,6 +1074,13 @@ function applyValidatedQuotaToastPatch(
     if (hasOwnKey(patch.tuiCompactStatus, "formatStyle")) {
       config.tuiCompactStatus.formatStyle = patch.tuiCompactStatus.formatStyle!;
       applySettingSource(settingSources, "tuiCompactStatus.formatStyle", sourcePath);
+    }
+  }
+
+  if (patch.tuiPromptBar) {
+    if (hasOwnKey(patch.tuiPromptBar, "enabled")) {
+      config.tuiPromptBar.enabled = patch.tuiPromptBar.enabled!;
+      applySettingSource(settingSources, "tuiPromptBar.enabled", sourcePath);
     }
   }
 

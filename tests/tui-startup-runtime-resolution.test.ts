@@ -272,6 +272,7 @@ function writeGenerationConfig(worktreeDir: string, generation: number): void {
           export: { enabled: false },
           maintainerAnnouncements: { enabled: false, home: false },
           tuiSidebarPanel: { enabled: true },
+          tuiPromptBar: { enabled: false },
           tuiCompactStatus: {
             enabled: true,
             homeBottom: true,
