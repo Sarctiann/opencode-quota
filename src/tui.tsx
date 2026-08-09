@@ -546,7 +546,7 @@ function buildPromptBarParts(params: {
   return {
     label: windowLabel,
     barText,
-    meta: [percent.replace(/\s+left$/u, ""), reset].filter(Boolean).join(" · "),
+    meta: [percent.replace(/\s+left$/u, ""), reset].filter(Boolean).join(" | "),
   };
 }
 

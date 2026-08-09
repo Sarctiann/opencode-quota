@@ -1696,7 +1696,11 @@ describe("tui plugin smoke", () => {
       compact: { status: "disabled" },
       promptBar: {
         status: "ready",
-        entry: { name: "Copilot 5h", percentRemaining: 50 },
+        entry: {
+          name: "Copilot 5h",
+          percentRemaining: 50,
+          resetTimeIso: "2099-01-01T00:00:00.000Z",
+        },
         percentDisplayMode: "remaining",
       },
     });
@@ -1728,6 +1732,8 @@ describe("tui plugin smoke", () => {
     expect(hint.props).not.toHaveProperty("left");
     expect(hint.props).not.toHaveProperty("bottom");
     expect(hint.props.children[1].props.children).toHaveLength(12);
+    expect(hint.props.children[2].props.children).toContain(" | ");
+    expect(hint.props.children[2].props.children).not.toContain("·");
 
     expect(api.ui.Prompt).toHaveBeenCalledTimes(2);
     expect(api.ui.Prompt).toHaveBeenCalledWith({
