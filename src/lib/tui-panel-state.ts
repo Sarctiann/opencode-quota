@@ -1,4 +1,5 @@
 import { sanitizeSingleLineDisplayText } from "./display-sanitize.js";
+import type { PercentDisplayMode } from "./types.js";
 
 const SIDEBAR_LOADING_LINE = "Loading…";
 const SIDEBAR_UNAVAILABLE_LINE = "Unavailable";
@@ -22,6 +23,22 @@ export type HomeBottomState =
   | { status: "loading"; announcementText?: string; compact: CompactStatusState }
   | { status: "disabled"; announcementText?: string; compact: CompactStatusState }
   | { status: "ready"; announcementText?: string; compact: CompactStatusState };
+
+export type PromptBarEntry = {
+  label?: string;
+  name?: string;
+  percentRemaining?: number;
+  resetTimeIso?: string;
+};
+
+export type PromptBarState =
+  | { status: "loading" | "disabled" }
+  | {
+      status: "ready";
+      entry?: PromptBarEntry;
+      percentDisplayMode?: PercentDisplayMode;
+      resetTimeDecimals?: number;
+    };
 
 export function shouldRenderSidebarPanel(panel: SidebarPanelState): boolean {
   return panel.status !== "disabled";

@@ -97,6 +97,7 @@ Put these settings in `quota-toast.jsonc`, not `tui.jsonc`.
 | Sidebar panel               | `tuiSidebarPanel.enabled: true`          |
 | Popup quota notifications   | `enableToast: true`                      |
 | Compact quota line          | `tuiCompactStatus.enabled: true`         |
+| Quota bar under the prompt  | `tuiPromptBar.enabled: true`             |
 | Slash results with messages | `tuiCommandDisplay: "inline"`            |
 | Slash results in a popup    | `tuiCommandDisplay: "dialog"`            |
 | Manual slash commands only  | Disable sidebar, toast, and compact line |

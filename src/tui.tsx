@@ -8,18 +8,21 @@ import type {
 } from "@opencode-ai/plugin/tui";
 import type { JSX } from "@opentui/solid";
 import { createEffect, createSignal, onCleanup, Show } from "solid-js";
+import { formatDisplayedPercentLabel, formatResetCountdown } from "./lib/format-utils.js";
 import {
   buildQuotaDialogCommandOutput,
   QUOTA_DIALOG_COMMANDS,
   type QuotaDialogCommandId,
   type QuotaDialogCommandSpec,
 } from "./lib/quota-dialog-commands.js";
+import { extractSingleWindowWindowLabel } from "./lib/quota-entry-display.js";
 import type { SessionTokenError } from "./lib/quota-status.js";
 import { disposeQuotaTelemetryOwner } from "./lib/quota-telemetry.js";
 import { getSidebarBodyLineColor } from "./lib/tui-line-style.js";
 import type {
   CompactStatusState,
   HomeBottomState,
+  PromptBarState,
   SidebarPanelState,
 } from "./lib/tui-panel-state.js";
 import {
@@ -65,6 +68,7 @@ type SessionQuotaResource = {
   sessionID: string;
   sidebar: () => SidebarPanelState;
   compact: () => CompactStatusState;
+  promptBar: () => PromptBarState;
   retain: () => SessionQuotaResource;
   release: () => void;
 };
@@ -108,6 +112,7 @@ const FALLBACK_SURFACE_REGISTRATION: TuiSurfaceRegistration = {
     hasNativeProviderQuota: false,
     suppressedByNativeProviderQuota: false,
   },
+  promptBar: { enabled: false },
   announcements: { homeBottom: false },
   homeBottom: false,
 };
@@ -168,6 +173,7 @@ function createSessionQuotaResource(
     lines: [],
   });
   const [compact, setCompact] = createSignal<CompactStatusState>({ status: "loading" });
+  const [promptBar, setPromptBar] = createSignal<PromptBarState>({ status: "loading" });
 
   let loadOrdinal = 0;
   const lifecycle = createTuiRefreshLifecycle({
@@ -183,6 +189,7 @@ function createSessionQuotaResource(
     apply: (next) => {
       setSidebar(next.sidebar);
       setCompact(next.compact);
+      setPromptBar(next.promptBar ?? { status: "loading" });
     },
     intervalMs: REFRESH_INTERVAL_MS,
     eventRefreshDelaysMs: EVENT_REFRESH_DELAYS_MS,
@@ -220,6 +227,7 @@ function createSessionQuotaResource(
     sessionID,
     sidebar,
     compact,
+    promptBar,
     retain: () => {
       lifecycle.retain();
       return resource;
@@ -443,6 +451,166 @@ function SessionPromptWithCompactStatus(props: {
         ref={props.promptRef}
       />
       <CompactStatusLine api={props.api} panel={panel} justifyContent="flex-end" />
+    </box>
+  );
+}
+
+const PROMPT_BAR_WIDTH = 12;
+
+function shouldRenderPromptBar(
+  bar: PromptBarState,
+): bar is Extract<PromptBarState, { status: "ready" }> {
+  return bar.status === "ready" && Boolean(bar.entry);
+}
+
+function useSessionRunning(api: TuiPluginApi, sessionID: () => string): () => boolean {
+  const [running, setRunning] = createSignal(false);
+  createEffect(() => {
+    const id = sessionID();
+    if (!id) {
+      setRunning(false);
+      return;
+    }
+    const update = () => {
+      try {
+        const sessionState = api.state.session as {
+          status?: (sessionID: string) => { type?: string } | undefined;
+        };
+        const status = sessionState.status?.(id);
+        setRunning(status?.type === "busy" || status?.type === "retry");
+      } catch {
+        setRunning(false);
+      }
+    };
+    update();
+    const disposers = [
+      api.event.on("session.status", (event) => {
+        if (event.properties?.sessionID === id) {
+          update();
+        }
+      }),
+      api.event.on("session.updated", (event) => {
+        if (event.properties?.info?.id === id) {
+          update();
+        }
+      }),
+    ];
+    onCleanup(() => {
+      for (const dispose of disposers) {
+        if (typeof dispose === "function") {
+          dispose();
+        }
+      }
+    });
+  });
+  return running;
+}
+
+function buildPromptBarParts(params: {
+  bar: () => PromptBarState;
+  running: () => boolean;
+  phase: () => number;
+}): { label: string; barText: string; meta: string } | undefined {
+  const bar = params.bar();
+  if (!shouldRenderPromptBar(bar)) return undefined;
+  const entry = bar.entry;
+  if (!entry) return undefined;
+  const windowLabel =
+    extractSingleWindowWindowLabel(entry.label ?? "") ??
+    extractSingleWindowWindowLabel(entry.name ?? "") ??
+    "Quota";
+  const percent = formatDisplayedPercentLabel(
+    entry.percentRemaining ?? 0,
+    bar.percentDisplayMode ?? "remaining",
+  );
+  const reset = entry.resetTimeIso
+    ? formatResetCountdown(entry.resetTimeIso, {
+        compactRounded: true,
+        decimals: bar.resetTimeDecimals,
+      })
+    : "";
+  const p = Math.max(0, Math.min(100, Math.round(entry.percentRemaining ?? 0)));
+  const filled = Math.round((p / 100) * PROMPT_BAR_WIDTH);
+  const empty = PROMPT_BAR_WIDTH - filled;
+  let barText = "█".repeat(filled) + "░".repeat(empty);
+  if (params.running() && filled > 0) {
+    const cells = Array(filled).fill("▓");
+    const center = params.phase() % filled;
+    const gradient = ["▒", "▓", "█", "▓", "▒"];
+    for (let offset = -2; offset <= 2; offset++) {
+      const position = (center + offset + filled) % filled;
+      cells[position] = gradient[offset + 2];
+    }
+    barText = cells.join("") + "░".repeat(empty);
+  }
+  return {
+    label: windowLabel,
+    barText,
+    meta: [percent.replace(/\s+left$/u, ""), reset].filter(Boolean).join(" | "),
+  };
+}
+
+function PromptQuotaHint(props: {
+  api: TuiPluginApi;
+  bar: () => PromptBarState;
+  running: () => boolean;
+  phase: () => number;
+}) {
+  const parts = () => buildPromptBarParts(props);
+  const barColor = () => props.api.theme.current.textMuted;
+  const label = () => parts()?.label ?? "";
+  const bar = () => parts()?.barText ?? "";
+  const meta = () => parts()?.meta ?? "";
+
+  return (
+    <Show when={parts()}>
+      <box flexDirection="row" justifyContent="flex-end" gap={1}>
+        <text fg={props.api.theme.current.textMuted} wrapMode="none">
+          {label()}
+        </text>
+        <text fg={barColor()} wrapMode="none">
+          {bar()}
+        </text>
+        <text fg={props.api.theme.current.textMuted} wrapMode="none">
+          {meta()}
+        </text>
+      </box>
+    </Show>
+  );
+}
+
+function SessionQuotaPromptBar(props: {
+  api: TuiPluginApi;
+  sessionID: string;
+  initialLoads?: TuiInitialLoadCoordinator;
+  visible?: boolean;
+  disabled?: boolean;
+  onSubmit?: () => void;
+  promptRef?: TuiPromptRefCallback;
+}) {
+  const resource = useSessionQuotaResource(props.api, () => props.sessionID, props.initialLoads);
+  const promptBar = () => resource().promptBar();
+  const running = useSessionRunning(props.api, () => props.sessionID);
+  const [phase, setPhase] = createSignal(0);
+  createEffect(() => {
+    if (!running() || !shouldRenderPromptBar(promptBar())) {
+      setPhase(0);
+      return;
+    }
+    const interval = setInterval(() => setPhase((p) => p + 1), 160);
+    onCleanup(() => clearInterval(interval));
+  });
+
+  return (
+    <box gap={0}>
+      <props.api.ui.Prompt
+        sessionID={props.sessionID}
+        visible={props.visible}
+        disabled={props.disabled}
+        onSubmit={props.onSubmit}
+        ref={props.promptRef}
+      />
+      <PromptQuotaHint api={props.api} bar={promptBar} running={running} phase={phase} />
     </box>
   );
 }
@@ -740,7 +908,21 @@ function registerStableTuiSlots(api: TuiPluginApi, current: () => TuiRegistratio
         },
       ) {
         const state = current();
-        if (state.status !== "active" || !state.registration.compact.sessionPrompt) return null;
+        if (state.status !== "active") return null;
+        if (state.registration.promptBar.enabled) {
+          return (
+            <SessionQuotaPromptBar
+              api={api}
+              sessionID={props.session_id}
+              initialLoads={state.initialLoads}
+              visible={props.visible}
+              disabled={props.disabled}
+              onSubmit={props.on_submit}
+              promptRef={props.ref}
+            />
+          );
+        }
+        if (!state.registration.compact.sessionPrompt) return null;
         return (
           <SessionPromptWithCompactStatus
             api={api}

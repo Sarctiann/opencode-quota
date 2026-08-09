@@ -379,18 +379,46 @@ describe("loadConfig", () => {
     expect(withLegacyCompactToastStyle.meta.settingSources).toEqual({});
   });
 
+  it("defaults tuiPromptBar off and accepts validated opt-in overrides", async () => {
+    const defaults = await loadSdkConfig({});
+    expect(defaults.config.tuiPromptBar).toEqual({ enabled: false });
+    expect(defaults.config.tuiPromptBar).not.toBe(DEFAULT_CONFIG.tuiPromptBar);
+
+    const enabled = await loadSdkConfig({ tuiPromptBar: { enabled: true } });
+    expect(enabled.config.tuiPromptBar).toEqual({ enabled: true });
+    expect(enabled.meta.settingSources).toEqual({
+      "tuiPromptBar.enabled": "client.config.get",
+    });
+
+    const disabled = await loadSdkConfig({ tuiPromptBar: { enabled: false } });
+    expect(disabled.config.tuiPromptBar).toEqual({ enabled: false });
+    expect(disabled.meta.settingSources).toEqual({
+      "tuiPromptBar.enabled": "client.config.get",
+    });
+
+    const invalidValue = await loadSdkConfig({ tuiPromptBar: { enabled: "yes" } });
+    expect(invalidValue.config.tuiPromptBar).toEqual({ enabled: false });
+    expect(invalidValue.meta.settingSources).toEqual({});
+
+    const invalidNested = await loadSdkConfig({ tuiPromptBar: true });
+    expect(invalidNested.config.tuiPromptBar).toEqual({ enabled: false });
+    expect(invalidNested.meta.settingSources).toEqual({});
+  });
+
   it("deep-clones default config when no config source exists", async () => {
     const meta = createLoadConfigMeta();
     const first = await loadConfig(undefined, meta, { cwd: isolatedCwd });
     first.tuiSidebarPanel.enabled = false;
     first.tuiCompactStatus.enabled = true;
     first.tuiCompactStatus.maxWidth = 1;
+    first.tuiPromptBar.enabled = true;
     first.maintainerAnnouncements.enabled = false;
     first.maintainerAnnouncements.home = false;
 
     const second = await loadConfig(undefined, undefined, { cwd: isolatedCwd });
     expect(second.tuiSidebarPanel).toEqual(DEFAULT_CONFIG.tuiSidebarPanel);
     expect(second.tuiCompactStatus).toEqual(DEFAULT_CONFIG.tuiCompactStatus);
+    expect(second.tuiPromptBar).toEqual(DEFAULT_CONFIG.tuiPromptBar);
     expect(DEFAULT_CONFIG.tuiSidebarPanel).toEqual({ enabled: true });
     expect(DEFAULT_CONFIG.tuiCompactStatus).toEqual({
       enabled: false,
@@ -399,6 +427,7 @@ describe("loadConfig", () => {
       suppressWhenNativeProviderQuota: true,
       maxWidth: 96,
     });
+    expect(DEFAULT_CONFIG.tuiPromptBar).toEqual({ enabled: false });
     expect(second.maintainerAnnouncements).toEqual(DEFAULT_CONFIG.maintainerAnnouncements);
     expect(DEFAULT_CONFIG.maintainerAnnouncements).toEqual({
       enabled: true,
