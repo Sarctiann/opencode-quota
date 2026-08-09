@@ -87,7 +87,7 @@ More ways to use it:
 - Send quota data to monitoring tools with optional OpenTelemetry metrics
 - Run the same slash commands in the TUI, Web, and Desktop
 - Tune reset countdown precision without changing the default compact display
-- Opt in to popup notifications when selected quota windows reset with [`resetNotifications`](docs/readme/configuration.md#notify-when-quota-becomes-available-again); they reuse existing quota checks
+- Get a popup when quota becomes available again for the windows you choose via [`resetNotifications`](docs/readme/configuration.md#notify-when-quota-becomes-available-again)
 - Choose current-session or descendant-tree token totals across `/quota`, toasts, the sidebar, and the compact input line
 - Diagnose authentication, quota sources, pricing, and maintainer notices
 
