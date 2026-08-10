@@ -316,6 +316,14 @@ export interface CursorOAuthAuthData {
   [key: string]: unknown;
 }
 
+export interface AnthropicOAuthAuthData {
+  type: string;
+  access?: string;
+  refresh?: string;
+  expires?: number;
+  [key: string]: unknown;
+}
+
 export interface OpenAIOAuthData {
   type: string;
   access?: string;
@@ -430,6 +438,7 @@ export interface CopilotQuotaConfig {
 
 /** Full auth.json structure (partial - only what we need) */
 export interface AuthData {
+  anthropic?: AnthropicOAuthAuthData;
   "github-copilot"?: CopilotAuthData;
   copilot?: CopilotAuthData;
   "copilot-chat"?: CopilotAuthData;

@@ -9,11 +9,68 @@ import {
 import { createProviderAvailabilityContext } from "./helpers/provider-test-harness.js";
 
 vi.mock("../src/lib/anthropic.js", () => ({
+  getAnthropicDiagnostics: vi.fn(),
   hasAnthropicCredentialsConfigured: vi.fn(),
   queryAnthropicQuota: vi.fn(),
 }));
 
 describe("anthropic provider", () => {
+  it("reports the credential store that answered the usage probe", async () => {
+    const { getAnthropicDiagnostics, queryAnthropicQuota } = await import(
+      "../src/lib/anthropic.js"
+    );
+    (getAnthropicDiagnostics as any).mockResolvedValueOnce({
+      installed: true,
+      version: "1.2.3",
+      authStatus: "authenticated",
+      quotaSupported: true,
+      quotaSource: "opencode-auth-oauth-api",
+      oauthCredentialSource: "opencode-auth",
+      checkedCommands: ["claude --version"],
+      quota: {
+        success: true,
+        five_hour: { percentRemaining: 80 },
+        seven_day: { percentRemaining: 70 },
+      },
+    });
+    (queryAnthropicQuota as any).mockResolvedValueOnce({
+      success: true,
+      five_hour: { percentRemaining: 80 },
+      seven_day: { percentRemaining: 70 },
+    });
+
+    const out = await anthropicProvider.fetch({} as any);
+    expect(out.statusDetails).toContainEqual({
+      key: "oauth_credential_source",
+      value: "opencode-auth",
+    });
+    expect(out.statusDetails).toContainEqual({
+      key: "quota_source",
+      value: "opencode-auth-oauth-api",
+    });
+  });
+
+  it("reports no credential store when the OAuth probe was never reached", async () => {
+    const { getAnthropicDiagnostics, queryAnthropicQuota } = await import(
+      "../src/lib/anthropic.js"
+    );
+    (getAnthropicDiagnostics as any).mockResolvedValueOnce({
+      installed: true,
+      version: "1.2.3",
+      authStatus: "authenticated",
+      quotaSupported: false,
+      quotaSource: "none",
+      checkedCommands: ["claude --version"],
+    });
+    (queryAnthropicQuota as any).mockResolvedValueOnce(null);
+
+    const out = await anthropicProvider.fetch({} as any);
+    expect(out.statusDetails).toContainEqual({
+      key: "oauth_credential_source",
+      value: "(none)",
+    });
+  });
+
   it("returns attempted:false when Anthropic quota is unavailable locally", async () => {
     const { queryAnthropicQuota } = await import("../src/lib/anthropic.js");
     (queryAnthropicQuota as any).mockResolvedValueOnce(null);

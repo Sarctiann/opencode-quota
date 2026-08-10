@@ -379,6 +379,8 @@ claude auth status
 
 If Claude lives at a custom path, set `anthropicBinaryPath` in `opencode-quota/quota-toast.json`.
 
+When Claude Code does not expose quota windows itself, quota is read from Anthropic's OAuth usage endpoint using the first usable access token: OpenCode's own `anthropic` OAuth credential from `auth.json`, then Claude Code's credentials. `/quota_status` reports which store answered as `oauth_credential_source`.
+
 <a id="cursor"></a>
 
 ### Cursor
