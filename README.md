@@ -115,20 +115,17 @@ See [Configuration](docs/readme/configuration.md) for UI options and [Manual ins
 
 ### CLI commands
 
-Use the CLI for scripts, CI, or a quick terminal check outside OpenCode.
+Use the CLI for setup, updates, terminal checks, and custom providers.
 
-| Command                                        | Use when                                                     |
-| ---------------------------------------------- | ------------------------------------------------------------ |
-| `opencode-quota init --dry-run`                | Validate and preview installer changes without writing files |
-| `opencode-quota update`                        | Preview, confirm, and apply a scoped OpenCode Quota update   |
-| `opencode-quota update --dry-run`              | Preview exact config and cache targets without changing them |
-| `opencode-quota show`                          | Check quota from your terminal                               |
-| `opencode-quota show --provider <id>`          | Check one provider only, such as `copilot` or `openai`       |
-| `opencode-quota show --json`                   | Print JSON for scripts, status bars, and other tools         |
-| `opencode-quota show --json --threshold <pct>` | Fail when quota is low; return exit 2 for incomplete results |
-| `opencode-quota status`                        | Run the same diagnostics as `/quota_status` from a terminal  |
-| `opencode-quota status --provider <id>`        | Diagnose one provider by canonical ID or synonym             |
-| `opencode-quota status --json`                 | Print secret-safe JSON diagnostics for scripts and CI        |
+| Command                                                  | What it does                                |
+| -------------------------------------------------------- | ------------------------------------------- |
+| `npx @slkiser/opencode-quota@latest init`                | Set up OpenCode Quota                       |
+| `npx @slkiser/opencode-quota@latest provider add`        | Add or update a custom provider             |
+| `npx @slkiser/opencode-quota@latest show`                | Show current quota                          |
+| `npx @slkiser/opencode-quota@latest status`              | Check configuration and provider problems  |
+| `npx @slkiser/opencode-quota@latest update`              | Update an existing installation             |
+
+Run `npx @slkiser/opencode-quota@latest --help` for command options. See [External integration](docs/readme/external-integration.md#1-get-json-from-a-command) for JSON, scripts, and CI examples.
 
 ## Providers
 
@@ -217,17 +214,13 @@ The quota view uses short labels such as `Day quota`, `5h quota`, `Day budget`, 
 
 ### Custom providers
 
-You can add a provider with an HTTPS quota API, or track a local usage estimate for one that does not have one. Run the guided setup:
+Add a provider that uses a remote quota API or tracks a local usage estimate:
 
 ```bash
 npx @slkiser/opencode-quota@latest provider add
 ```
 
-OpenRouter works automatically with the API key already configured in OpenCode. A custom OpenRouter definition remains available when you need a different endpoint or label.
-
-For another API, choose the response format it uses: `quota-v1` for OpenCode Quota's standard response, `json-v1` to point to each value in a JSON response, or `openrouter-key-v1` for OpenRouter's key endpoint. The setup asks one question at a time, never asks for a response body or secret, and shows the complete config before saving.
-
-Setup details live in the [Provider setup guide](docs/readme/providers.md#custom-providers).
+The guided setup previews the change before saving. See the [custom-provider guide](docs/readme/providers.md#custom-providers) for details.
 
 ## Troubleshooting
 
