@@ -566,7 +566,9 @@ async function readClaudeCredentialsAccessTokenFromFile(): Promise<ClaudeCredent
   }
 }
 
-async function readAnthropicOAuthAccessToken(): Promise<AnthropicCredentialsAccess> {
+async function readAnthropicOAuthAccessToken(options: {
+  includeClaudeCredentials: boolean;
+}): Promise<AnthropicCredentialsAccess> {
   const locationsChecked: string[] = [];
   const unavailableDetails: string[] = [];
 
@@ -577,6 +579,10 @@ async function readAnthropicOAuthAccessToken(): Promise<AnthropicCredentialsAcce
       accessToken: opencodeCredentials.accessToken,
       source: "opencode-auth",
     };
+  }
+
+  if (!options.includeClaudeCredentials) {
+    return { state: "unavailable" };
   }
 
   const keychainCredentials = await readClaudeCredentialsAccessTokenFromMacOSKeychain();
@@ -1192,12 +1198,18 @@ export async function getAnthropicDiagnostics(
 
   const inFlight = (async () => {
     const localDiagnostics = await getCachedAnthropicLocalDiagnostics({ binaryPath });
-    if (localDiagnostics.authStatus !== "authenticated" || localDiagnostics.localQuota) {
+    if (localDiagnostics.localQuota) {
       return mapLocalDiagnosticsToAnthropicDiagnostics(localDiagnostics);
     }
 
-    const credentials = await readAnthropicOAuthAccessToken();
+    const credentials = await readAnthropicOAuthAccessToken({
+      includeClaudeCredentials: localDiagnostics.authStatus === "authenticated",
+    });
     if (credentials.state !== "configured") {
+      if (localDiagnostics.authStatus !== "authenticated") {
+        return mapLocalDiagnosticsToAnthropicDiagnostics(localDiagnostics);
+      }
+
       const diagnostics: AnthropicDiagnostics = {
         installed: localDiagnostics.installed,
         version: localDiagnostics.version,
@@ -1272,6 +1284,15 @@ export async function getAnthropicDiagnostics(
 export async function hasAnthropicCredentialsConfigured(
   options: AnthropicProbeOptions = {},
 ): Promise<boolean> {
+  try {
+    const opencodeCredentials = await resolveAnthropicOAuthCached();
+    if (opencodeCredentials.state === "configured") {
+      return true;
+    }
+  } catch {
+    // Fall back to the existing local Claude CLI probe.
+  }
+
   try {
     const diagnostics = await getCachedAnthropicLocalDiagnostics(options);
     return diagnostics.installed && diagnostics.authStatus === "authenticated";

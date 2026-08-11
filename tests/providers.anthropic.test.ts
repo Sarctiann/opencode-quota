@@ -48,6 +48,10 @@ describe("anthropic provider", () => {
       key: "quota_source",
       value: "opencode-auth-oauth-api",
     });
+    expect(out.entries).toHaveLength(2);
+    expect(out.entries.every((entry) => entry.accounting.acquisitionMethod === "remote_api")).toBe(
+      true,
+    );
   });
 
   it("reports no credential store when the OAuth probe was never reached", async () => {
@@ -79,8 +83,23 @@ describe("anthropic provider", () => {
     expectNotAttempted(out);
   });
 
-  it("maps quota windows into canonical grouped-capable rows", async () => {
-    const { queryAnthropicQuota } = await import("../src/lib/anthropic.js");
+  it("maps local CLI quota windows into canonical grouped-capable rows", async () => {
+    const { getAnthropicDiagnostics, queryAnthropicQuota } = await import(
+      "../src/lib/anthropic.js"
+    );
+    (getAnthropicDiagnostics as any).mockResolvedValueOnce({
+      installed: true,
+      version: "1.2.3",
+      authStatus: "authenticated",
+      quotaSupported: true,
+      quotaSource: "claude-auth-status-json",
+      checkedCommands: ["claude --version"],
+      quota: {
+        success: true,
+        five_hour: { percentRemaining: 43 },
+        seven_day: { percentRemaining: 88 },
+      },
+    });
     (queryAnthropicQuota as any).mockResolvedValueOnce({
       success: true,
       five_hour: { percentRemaining: 43, resetTimeIso: "2026-03-25T18:00:00.000Z" },
@@ -105,6 +124,9 @@ describe("anthropic provider", () => {
         resetTimeIso: "2026-04-01T00:00:00.000Z",
       },
     ]);
+    expect(out.entries.every((entry) => entry.accounting.acquisitionMethod === "local_cli")).toBe(
+      true,
+    );
     expect(out.presentation).toBeUndefined();
   });
 

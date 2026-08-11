@@ -57,9 +57,13 @@ export const anthropicProvider: QuotaProvider = {
       requestTimeoutMs: ctx.config?.requestTimeoutMs,
     };
     let statusDetails;
+    let acquisitionMethod: QuotaToastEntry["accounting"]["acquisitionMethod"] = "local_cli";
     try {
       const diagnostics = await getAnthropicDiagnostics(options);
       const quota = diagnostics.quotaSupported ? diagnostics.quota : undefined;
+      if (diagnostics.quotaSupported && diagnostics.quotaSource !== "claude-auth-status-json") {
+        acquisitionMethod = "remote_api";
+      }
       statusDetails = statusDetailsFromRecord({
         cli_installed: diagnostics.installed ? "true" : "false",
         cli_version: diagnostics.version ?? "(none)",
@@ -96,7 +100,7 @@ export const anthropicProvider: QuotaProvider = {
       {
         accounting: {
           resultType: "quota",
-          acquisitionMethod: "local_cli",
+          acquisitionMethod,
           ownership: "maintained",
           authority: "provider_reported",
         },
@@ -109,7 +113,7 @@ export const anthropicProvider: QuotaProvider = {
       {
         accounting: {
           resultType: "quota",
-          acquisitionMethod: "local_cli",
+          acquisitionMethod,
           ownership: "maintained",
           authority: "provider_reported",
         },

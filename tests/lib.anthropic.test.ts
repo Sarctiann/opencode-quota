@@ -318,6 +318,43 @@ describe("Claude CLI diagnostics", () => {
     await expect(queryAnthropicQuota()).resolves.toBeNull();
   });
 
+  it("uses OpenCode Anthropic OAuth when Claude CLI is unavailable", async () => {
+    mockExecSequence([
+      {
+        code: "ENOENT",
+        errorMessage: "spawn claude ENOENT",
+      },
+    ]);
+    readAuthFileCachedMock.mockResolvedValue({
+      anthropic: { type: "oauth", access: "opencode-access-token", expires: Date.now() + 60_000 },
+    });
+    fetchResponseMock.mockResolvedValue(
+      mockJsonResponse({
+        five_hour: { utilization: 20 },
+        seven_day: { utilization: 30 },
+      }),
+    );
+
+    await expect(hasAnthropicCredentialsConfigured()).resolves.toBe(true);
+    expect(execFileMock).not.toHaveBeenCalled();
+    expect(readFileMock).not.toHaveBeenCalled();
+    expect(fetchWithTimeoutMock).not.toHaveBeenCalled();
+
+    const diagnostics = await getAnthropicDiagnostics();
+
+    expect(diagnostics.installed).toBe(false);
+    expect(diagnostics.authStatus).toBe("unknown");
+    expect(diagnostics.quotaSupported).toBe(true);
+    expect(diagnostics.quotaSource).toBe("opencode-auth-oauth-api");
+    expect(diagnostics.oauthCredentialSource).toBe("opencode-auth");
+    expect(diagnostics.quota?.five_hour.percentRemaining).toBe(80);
+    expect(diagnostics.quota?.seven_day.percentRemaining).toBe(70);
+    await expect(queryAnthropicQuota()).resolves.toMatchObject({ success: true });
+    expect(execFileMock).toHaveBeenCalledTimes(1);
+    expect(readFileMock).not.toHaveBeenCalled();
+    expect(fetchWithTimeoutMock).toHaveBeenCalledTimes(1);
+  });
+
   it("uses a configured Claude binary path for probe commands", async () => {
     mockExecSequence([
       {
@@ -354,6 +391,8 @@ describe("Claude CLI diagnostics", () => {
     expect(diagnostics.message).toContain("claude auth login");
     await expect(hasAnthropicCredentialsConfigured()).resolves.toBe(false);
     await expect(queryAnthropicQuota()).resolves.toBeNull();
+    expect(readFileMock).not.toHaveBeenCalled();
+    expect(fetchWithTimeoutMock).not.toHaveBeenCalled();
   });
 
   it("returns quota data when Claude auth status JSON includes quota windows", async () => {

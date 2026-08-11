@@ -370,7 +370,7 @@ Official references: [AI Credit billing reports](https://docs.github.com/en/rest
 
 ### Anthropic (Claude)
 
-Install Claude Code, authenticate it, and make sure `claude` is on your `PATH`:
+OpenCode's existing Anthropic OAuth credential is sufficient; a separate Claude Code installation is not required. To use Claude Code as the local quota source and credential fallback, install it, authenticate it, and make sure `claude` is on your `PATH`:
 
 ```bash
 claude auth login
