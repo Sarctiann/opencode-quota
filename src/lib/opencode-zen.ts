@@ -50,39 +50,24 @@ function parseSsrBillingData(html: string): OpenCodeZenBillingData | null {
  * layout-dependent, so every anchor is a generic `$R[\d+]`.
  */
 function extractSsrAssignment(html: string, key: string): string | null {
-  const keyMatch = new RegExp(
-    `${key}\\[\\\\?"[^"]+\\\\?"\\]"]=\\$R\\[\\d+\\]=\\$R\\[\\d+\\]\\(\\$R\\[(\\d+)\\]`,
+  const match = new RegExp(
+    `${key}\\[\\\\?"[^"]+\\\\?"\\]"]=\\$R\\[\\d+\\]=\\$R\\[\\d+\\]\\(\\$R\\[(\\d+)\\]` +
+      `[\\s\\S]*?\\$R\\[\\d+\\]\\(\\$R\\[\\1\\],\\$R\\[\\d+\\]=`,
   ).exec(html);
-  if (!keyMatch) return null;
+  if (!match) return null;
 
-  const resolveMatch = new RegExp(`\\$R\\[\\d+\\]\\(\\$R\\[${keyMatch[1]}\\],\\$R\\[\\d+\\]=`).exec(
-    html,
-  );
-  if (!resolveMatch) return null;
-
-  const start = resolveMatch.index + resolveMatch[0].length;
+  const start = match.index + match[0].length;
   const open = html[start];
   if (open !== "{" && open !== "[") return null;
   const close = open === "{" ? "}" : "]";
 
   let depth = 0;
-  let inString = false;
-  let escaped = false;
   for (let i = start; i < html.length; i++) {
     const ch = html[i];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === '"') inString = false;
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-    } else if (ch === open) {
+    if (ch === open) {
       depth++;
-    } else if (ch === close) {
-      depth--;
-      if (depth === 0) return html.slice(start, i + 1);
+    } else if (ch === close && --depth === 0) {
+      return html.slice(start, i + 1);
     }
   }
   return null;

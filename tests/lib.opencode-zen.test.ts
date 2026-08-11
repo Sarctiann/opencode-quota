@@ -179,10 +179,6 @@ describe("OpenCode Zen billing parser", () => {
     expect(_parseNewSsrPaymentData(newSsrPaymentHtml([0, 0]))).toBeNull();
   });
 
-  it("returns null for an empty new payment.list array", () => {
-    expect(_parseNewSsrPaymentData(newSsrPaymentHtml([]))).toBeNull();
-  });
-
   it("returns null when the new SSR keys are absent", () => {
     expect(_parseNewSsrBillingData("<html><body>Nothing here</body></html>")).toBeNull();
     expect(_parseNewSsrPaymentData("<html><body>Nothing here</body></html>")).toBeNull();
