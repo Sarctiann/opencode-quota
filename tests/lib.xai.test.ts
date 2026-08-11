@@ -258,6 +258,30 @@ describe("queryXaiQuota", () => {
         ],
       },
     ],
+    [
+      "a misleading Heavy offer prefix",
+      {
+        subscriptions: [
+          {
+            tier: "SUBSCRIPTION_TIER_SUPER_GROK_PRO",
+            status: "SUBSCRIPTION_STATUS_ACTIVE",
+            activeOffer: { providerOfferId: "not-heavy-p3m-30-may2026" },
+          },
+        ],
+      },
+    ],
+    [
+      "a Heavy offer with an unverified suffix",
+      {
+        subscriptions: [
+          {
+            tier: "SUBSCRIPTION_TIER_SUPER_GROK_PRO",
+            status: "SUBSCRIPTION_STATUS_ACTIVE",
+            activeOffer: { providerOfferId: "heavy-p3m-30-may2026-extra" },
+          },
+        ],
+      },
+    ],
     ["a changed root shape", { subscription: [] }],
   ])("falls back to the standard label for %s", async (_name, payload) => {
     await mockConfiguredAuth();

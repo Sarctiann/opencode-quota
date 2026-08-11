@@ -22,6 +22,7 @@ export const DEFAULT_XAI_AUTH_CACHE_MAX_AGE_MS = 5_000;
 const CREDITS_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
 const SUBSCRIPTIONS_URL = "https://grok.com/rest/subscriptions";
 const SUBSCRIPTIONS_TIMEOUT_MS = 2_000;
+const HEAVY_OFFER_ID_RE = /^heavy-p\d+m-\d{1,2}-[a-z]{3}\d{4}$/i;
 const USER_AGENT = "OpenCode-Quota-Toast/1.0";
 
 export type XaiPeriodKind = "weekly" | "monthly" | "daily" | "period";
@@ -172,7 +173,7 @@ function parseXaiSubscriptionTier(payload: unknown): XaiSubscriptionTier | null 
   const activeOffer = isRecord(active.activeOffer) ? active.activeOffer : null;
   const providerOfferId = getNonEmptyString(activeOffer?.providerOfferId);
 
-  if (providerOfferId?.toLowerCase().includes("heavy")) return "Heavy";
+  if (providerOfferId && HEAVY_OFFER_ID_RE.test(providerOfferId)) return "Heavy";
 
   switch (tier) {
     case "SUBSCRIPTION_TIER_SUPER_GROK_HEAVY":

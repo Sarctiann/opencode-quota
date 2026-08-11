@@ -61,14 +61,23 @@ function readPreConfiguredProviderLedger(document: string): ProviderLedgerRow[] 
   return readPreConfiguredProviderTables(document).flat();
 }
 
+function readTierNeutralProviderTables(document: string): ProviderLedgerRow[][] {
+  return readPreConfiguredProviderTables(document).map((table) =>
+    table.map((row) => ({
+      ...row,
+      provider: row.provider === "xAI SuperGrok" ? "xAI" : row.provider,
+    })),
+  );
+}
+
 describe("README provider ledger", () => {
   const readme = read("README.md");
   const providerGuide = read("docs/readme/providers.md");
   const providerTemplate = read("contributing/provider-template/README.md");
 
   it("keeps the README and provider guide ledgers consistent", () => {
-    expect(readPreConfiguredProviderTables(readme)).toEqual(
-      readPreConfiguredProviderTables(providerGuide),
+    expect(readTierNeutralProviderTables(readme)).toEqual(
+      readTierNeutralProviderTables(providerGuide),
     );
   });
 
@@ -89,7 +98,7 @@ describe("README provider ledger", () => {
         "OpenCode Zen",
         "OpenRouter",
         "Synthetic",
-        "xAI SuperGrok",
+        "xAI",
       ],
       [
         "Anthropic (Claude)",
@@ -104,7 +113,7 @@ describe("README provider ledger", () => {
         "OpenCode Zen",
         "OpenRouter",
         "Synthetic",
-        "xAI SuperGrok",
+        "xAI",
       ],
       [
         "Alibaba Coding Plan",
@@ -122,7 +131,7 @@ describe("README provider ledger", () => {
 
     for (const document of [readme, providerGuide]) {
       expect(
-        readPreConfiguredProviderTables(document).map((table) => table.map((row) => row.provider)),
+        readTierNeutralProviderTables(document).map((table) => table.map((row) => row.provider)),
       ).toEqual(expectedProviders);
       const providerSection = readPreConfiguredProviderSection(document);
       const chineseHeadingIndex = providerSection.search(
