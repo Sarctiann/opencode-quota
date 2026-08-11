@@ -43,6 +43,84 @@ function parseSsrBillingData(html: string): OpenCodeZenBillingData | null {
   };
 }
 
+/**
+ * Extracts the object/array assigned to a SolidJS SSR `_$HY.r["key[\"id\"]"]`
+ * response via `$R[N]($R[promise],$R[value]={...})`, brace-matched so nested
+ * `new Date(...)` / object literals don't break the scan. `$R` indices are
+ * layout-dependent, so every anchor is a generic `$R[\d+]`.
+ */
+function extractSsrAssignment(html: string, key: string): string | null {
+  const keyMatch = new RegExp(
+    `${key}\\[\\\\?"[^"]+\\\\?"\\]"]=\\$R\\[\\d+\\]=\\$R\\[\\d+\\]\\(\\$R\\[(\\d+)\\]`,
+  ).exec(html);
+  if (!keyMatch) return null;
+
+  const resolveMatch = new RegExp(`\\$R\\[\\d+\\]\\(\\$R\\[${keyMatch[1]}\\],\\$R\\[\\d+\\]=`).exec(
+    html,
+  );
+  if (!resolveMatch) return null;
+
+  const start = resolveMatch.index + resolveMatch[0].length;
+  const open = html[start];
+  if (open !== "{" && open !== "[") return null;
+  const close = open === "{" ? "}" : "]";
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < html.length; i++) {
+    const ch = html[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === open) {
+      depth++;
+    } else if (ch === close) {
+      depth--;
+      if (depth === 0) return html.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+function parseNewSsrBillingData(html: string): OpenCodeZenBillingData | null {
+  const object = extractSsrAssignment(html, "billing\\.get");
+  if (!object) return null;
+
+  const balanceMatch = object.match(/\bbalance\s*:\s*(-?\d+)/);
+  const limitMatch = object.match(/\bmonthlyLimit\s*:\s*(\d+)/);
+  const usageMatch = object.match(/\bmonthlyUsage\s*:\s*(\d+)/);
+  if (!balanceMatch) return null;
+
+  return {
+    balance: Math.max(0, Number(balanceMatch[1])),
+    monthlyLimit: limitMatch ? Number(limitMatch[1]) : null,
+    monthlyUsage: usageMatch ? Number(usageMatch[1]) : null,
+    lastPayment: null,
+  };
+}
+
+function parseNewSsrPaymentData(html: string): number | null {
+  const array = extractSsrAssignment(html, "payment\\.list");
+  if (!array) return null;
+
+  let latest: number | null = null;
+  // Real SSR output pairs `amount` directly with `timeRefunded`; a non-null
+  // refund date means the payment was refunded and must be skipped.
+  for (const match of array.matchAll(
+    /\bamount\s*:\s*(\d+)\s*,\s*timeRefunded\s*:\s*(null|new Date\([^)]*\))/g,
+  )) {
+    const amount = Number(match[1]);
+    if (amount > 0 && match[2] === "null") latest = amount;
+  }
+  return latest === null ? null : latest / OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR;
+}
+
 function parseDataSlotBillingData(html: string): OpenCodeZenBillingData | null {
   let balance: number | null = null;
   let monthlyLimit: number | null = null;
@@ -150,7 +228,10 @@ export async function queryOpenCodeZenQuota(
         }
 
         const html = await response.text();
-        const data = parseSsrBillingData(html) ?? parseDataSlotBillingData(html);
+        const data =
+          parseNewSsrBillingData(html) ??
+          parseSsrBillingData(html) ??
+          parseDataSlotBillingData(html);
         if (!data) {
           return {
             success: false,
@@ -159,7 +240,10 @@ export async function queryOpenCodeZenQuota(
           };
         }
 
-        data.lastPayment = parseSsrPaymentData(html) ?? parseDataSlotPaymentData(html);
+        data.lastPayment =
+          parseNewSsrPaymentData(html) ??
+          parseSsrPaymentData(html) ??
+          parseDataSlotPaymentData(html);
         return { success: true, data };
       },
     });
@@ -177,6 +261,8 @@ export async function queryOpenCodeZenQuota(
 export {
   parseDataSlotBillingData as _parseDataSlotBillingData,
   parseDataSlotPaymentData as _parseDataSlotPaymentData,
+  parseNewSsrBillingData as _parseNewSsrBillingData,
+  parseNewSsrPaymentData as _parseNewSsrPaymentData,
   parseSsrBillingData as _parseSsrBillingData,
   parseSsrPaymentData as _parseSsrPaymentData,
 };
