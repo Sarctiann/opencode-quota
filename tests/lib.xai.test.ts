@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hasXaiOAuth, periodKindLabel, queryXaiQuota, resolveXaiOAuth } from "../src/lib/xai.js";
+import heavySubscriptionFixture from "./fixtures/xai/subscriptions-heavy.sanitized.json";
 import superGrokWeeklyFixture from "./fixtures/xai/supergrok-weekly.json";
 
 vi.mock("../src/lib/opencode-auth.js", () => ({
@@ -17,6 +18,18 @@ async function mockConfiguredAuth(overrides: Record<string, unknown> = {}): Prom
       ...overrides,
     },
   });
+}
+
+function jsonResponse(payload: unknown, status = 200): Response {
+  return new Response(JSON.stringify(payload), { status });
+}
+
+function successfulXaiFetch(subscriptionPayload: unknown) {
+  return vi.fn(async (url: string) =>
+    jsonResponse(
+      url === "https://grok.com/rest/subscriptions" ? subscriptionPayload : superGrokWeeklyFixture,
+    ),
+  );
 }
 
 describe("xAI auth resolution", () => {
@@ -123,17 +136,15 @@ describe("queryXaiQuota", () => {
     );
   });
 
-  it("maps the exact PR fixture through one fixed authenticated GET", async () => {
+  it("keeps the exact credits fixture authoritative before querying subscription metadata", async () => {
     await mockConfiguredAuth();
 
-    const fetchMock = vi.fn(
-      async () => new Response(JSON.stringify(superGrokWeeklyFixture), { status: 200 }),
-    ) as any;
+    const fetchMock = successfulXaiFetch(heavySubscriptionFixture) as any;
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(queryXaiQuota({ requestTimeoutMs: 3_210 })).resolves.toEqual({
       success: true,
-      label: "xAI SuperGrok",
+      label: "xAI Heavy",
       window: {
         percentRemaining: 95,
         resetTimeIso: "2026-07-20T02:24:00.983Z",
@@ -141,21 +152,184 @@ describe("queryXaiQuota", () => {
       },
     });
 
-    expect(fetchMock).toHaveBeenCalledOnce();
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://cli-chat-proxy.grok.com/v1/billing?format=credits");
-    expect(init).toEqual({
-      method: "GET",
-      headers: {
-        Authorization: "Bearer token-1",
-        Accept: "application/json",
-        "User-Agent": "OpenCode-Quota-Toast/1.0",
-        "x-grok-client-surface": "grok-build",
-        "x-grok-client-version": "1.0.0",
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map(([url]: [string]) => url)).toEqual([
+      "https://cli-chat-proxy.grok.com/v1/billing?format=credits",
+      "https://grok.com/rest/subscriptions",
+    ]);
+    for (const [, init] of fetchMock.mock.calls as [string, RequestInit][]) {
+      expect(init).toEqual({
+        method: "GET",
+        headers: {
+          Authorization: "Bearer token-1",
+          Accept: "application/json",
+          "User-Agent": "OpenCode-Quota-Toast/1.0",
+          "x-grok-client-surface": "grok-build",
+          "x-grok-client-version": "1.0.0",
+        },
+        signal: expect.any(AbortSignal),
+      });
+      expect(init).not.toHaveProperty("body");
+    }
+  });
+
+  it.each([
+    [
+      "Lite",
+      {
+        subscriptions: [
+          {
+            tier: "SUBSCRIPTION_TIER_SUPER_GROK_LITE",
+            status: "SUBSCRIPTION_STATUS_ACTIVE",
+          },
+        ],
       },
-      signal: expect.any(AbortSignal),
+      "xAI Lite",
+    ],
+    [
+      "standard SuperGrok",
+      {
+        subscriptions: [
+          {
+            tier: "SUBSCRIPTION_TIER_SUPER_GROK",
+            status: "SUBSCRIPTION_STATUS_ACTIVE",
+          },
+        ],
+      },
+      "xAI SuperGrok",
+    ],
+    [
+      "standard PRO without a Heavy offer",
+      {
+        subscriptions: [
+          {
+            tier: "SUBSCRIPTION_TIER_SUPER_GROK_PRO",
+            status: "SUBSCRIPTION_STATUS_ACTIVE",
+          },
+        ],
+      },
+      "xAI SuperGrok",
+    ],
+    [
+      "Heavy tier",
+      {
+        subscriptions: [
+          {
+            tier: "SUBSCRIPTION_TIER_SUPER_GROK_HEAVY",
+            status: "SUBSCRIPTION_STATUS_ACTIVE",
+          },
+        ],
+      },
+      "xAI Heavy",
+    ],
+    ["Heavy offer", heavySubscriptionFixture, "xAI Heavy"],
+  ])("maps %s subscription evidence to %s", async (_name, payload, expectedLabel) => {
+    await mockConfiguredAuth();
+    vi.stubGlobal("fetch", successfulXaiFetch(payload) as any);
+
+    await expect(queryXaiQuota()).resolves.toMatchObject({
+      success: true,
+      label: expectedLabel,
+      window: { percentRemaining: 95, kind: "weekly" },
     });
-    expect(init).not.toHaveProperty("body");
+  });
+
+  it.each([
+    ["an empty subscription list", { subscriptions: [] }],
+    [
+      "an inactive subscription",
+      {
+        subscriptions: [
+          {
+            tier: "SUBSCRIPTION_TIER_SUPER_GROK_LITE",
+            status: "SUBSCRIPTION_STATUS_INACTIVE",
+          },
+        ],
+      },
+    ],
+    [
+      "an unknown tier",
+      {
+        subscriptions: [
+          {
+            tier: "SUBSCRIPTION_TIER_SUPER_GROK_PLUS",
+            status: "SUBSCRIPTION_STATUS_ACTIVE",
+          },
+        ],
+      },
+    ],
+    ["a changed root shape", { subscription: [] }],
+  ])("falls back to the standard label for %s", async (_name, payload) => {
+    await mockConfiguredAuth();
+    vi.stubGlobal("fetch", successfulXaiFetch(payload) as any);
+
+    await expect(queryXaiQuota()).resolves.toMatchObject({
+      success: true,
+      label: "xAI SuperGrok",
+      window: { percentRemaining: 95, kind: "weekly" },
+    });
+  });
+
+  it("isolates subscription HTTP, JSON, and network failures from successful credits", async () => {
+    const subscriptionFailures = [
+      () => Promise.resolve(new Response("denied token-1", { status: 403 })),
+      () => Promise.resolve(new Response("not json", { status: 200 })),
+      () => Promise.reject(new Error("subscription failed for token-1")),
+    ];
+
+    for (const failSubscription of subscriptionFailures) {
+      await mockConfiguredAuth();
+      const fetchMock = vi.fn((url: string) =>
+        url === "https://grok.com/rest/subscriptions"
+          ? failSubscription()
+          : Promise.resolve(jsonResponse(superGrokWeeklyFixture)),
+      );
+      vi.stubGlobal("fetch", fetchMock as any);
+
+      await expect(queryXaiQuota()).resolves.toEqual({
+        success: true,
+        label: "xAI SuperGrok",
+        window: {
+          percentRemaining: 95,
+          resetTimeIso: "2026-07-20T02:24:00.983Z",
+          kind: "weekly",
+        },
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it.each([
+    [5_000, 2_000],
+    [750, 750],
+  ])("caps subscription metadata at %i ms with an effective timeout of %i ms", async (requestTimeoutMs, effectiveTimeoutMs) => {
+    vi.useFakeTimers();
+    await mockConfiguredAuth();
+
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (url !== "https://grok.com/rest/subscriptions") {
+        return Promise.resolve(jsonResponse(superGrokWeeklyFixture));
+      }
+      return new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => {
+          const error = new Error("aborted");
+          error.name = "AbortError";
+          reject(error);
+        });
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock as any);
+
+    const resultPromise = queryXaiQuota({ requestTimeoutMs });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(effectiveTimeoutMs);
+
+    await expect(resultPromise).resolves.toMatchObject({
+      success: true,
+      label: "xAI SuperGrok",
+      window: { percentRemaining: 95, kind: "weekly" },
+    });
   });
 
   it("treats an omitted protobuf percentage as 0% used when a period exists", async () => {
@@ -268,15 +442,13 @@ describe("queryXaiQuota", () => {
 
   it("bounds and sanitizes HTTP errors without exposing the bearer token", async () => {
     await mockConfiguredAuth();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(
-        async () =>
-          new Response(`denied\u001b[31m token-1 ${"x".repeat(300)}`, {
-            status: 401,
-          }),
-      ) as any,
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(`denied\u001b[31m token-1 ${"x".repeat(300)}`, {
+          status: 401,
+        }),
     );
+    vi.stubGlobal("fetch", fetchMock as any);
 
     const result = await queryXaiQuota();
     expect(result && !result.success ? result.error : "").toMatch(
@@ -284,6 +456,11 @@ describe("queryXaiQuota", () => {
     );
     expect(result && !result.success ? result.error : "").not.toContain("token-1");
     expect(result && !result.success ? result.error.length : 0).toBeLessThanOrEqual(180);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://cli-chat-proxy.grok.com/v1/billing?format=credits",
+      expect.any(Object),
+    );
   });
 
   it("sanitizes network errors without exposing the bearer token", async () => {

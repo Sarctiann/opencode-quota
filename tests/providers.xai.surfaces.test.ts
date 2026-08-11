@@ -5,27 +5,34 @@ import { formatQuotaRowsGrouped } from "../src/lib/toast-format-grouped.js";
 import { buildCompactQuotaStatusLine } from "../src/lib/tui-compact-format.js";
 import { buildSidebarQuotaPanelLines } from "../src/lib/tui-sidebar-format.js";
 
-const data: QuotaRenderData = {
-  entries: [
-    {
-      accounting: {
-        resultType: "quota",
-        acquisitionMethod: "remote_api",
-        ownership: "maintained",
-        authority: "provider_reported",
+const xaiLabels = ["xAI Lite", "xAI SuperGrok", "xAI Heavy"] as const;
+
+function renderDataForLabel(label: (typeof xaiLabels)[number]): QuotaRenderData {
+  return {
+    entries: [
+      {
+        accounting: {
+          resultType: "quota",
+          acquisitionMethod: "remote_api",
+          ownership: "maintained",
+          authority: "provider_reported",
+        },
+        name: `${label} Weekly`,
+        group: label,
+        label: "Weekly:",
+        percentRemaining: 95,
+        resetTimeIso: "2099-08-01T00:00:00.000Z",
       },
-      name: "xAI SuperGrok Weekly",
-      group: "xAI SuperGrok",
-      label: "Weekly:",
-      percentRemaining: 95,
-      resetTimeIso: "2099-08-01T00:00:00.000Z",
-    },
-  ],
-  errors: [],
-};
+    ],
+    errors: [],
+  };
+}
 
 describe("xAI four-surface formatting", () => {
-  it("shows the weekly quota in command, toast, sidebar, and compact output", () => {
+  it.each(
+    xaiLabels,
+  )("shows the %s weekly quota in command, toast, sidebar, and compact output", (label) => {
+    const data = renderDataForLabel(label);
     const command = formatQuotaCommand({ ...data, generatedAtMs: 0 });
     const toast = formatQuotaRowsGrouped(data);
     const sidebar = buildSidebarQuotaPanelLines({
@@ -40,10 +47,7 @@ describe("xAI four-surface formatting", () => {
 
     for (const output of [command, toast, sidebar, compact]) {
       expect(output).toContain("95%");
+      expect(output).toContain(label);
     }
-    expect(command).toContain("xAI SuperGrok");
-    expect(toast).toContain("xAI SuperGrok");
-    expect(sidebar).toContain("xAI SuperGrok");
-    expect(compact).toContain("xAI SuperGrok");
   });
 });

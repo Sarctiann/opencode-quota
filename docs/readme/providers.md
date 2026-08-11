@@ -97,7 +97,7 @@ These vendors offer team or business plans, but the current integrations report 
 
 The friendly `Quota` label covers quota and rate-limit windows; v4 JSON distinguishes them.
 
-xAI SuperGrok reads OpenCode's existing xAI OAuth login and reports its single Weekly quota window.
+xAI reads OpenCode's existing xAI OAuth login and reports its single Weekly quota window. The credits endpoint remains authoritative for quota; a best-effort subscriptions lookup labels recognized plans as xAI Lite, xAI SuperGrok, or xAI Heavy. If subscription metadata is unavailable or unrecognized, the quota remains visible under the xAI SuperGrok label.
 
 OpenRouter reads the existing OpenCode API key and calls OpenRouter's current-key endpoint. Limited keys show used budget and the remaining percentage; unlimited keys show spend. It does not invent a reset time.
 

@@ -1,0 +1,18 @@
+{
+  "subscriptions": [
+    {
+      "tier": "SUBSCRIPTION_TIER_SUPER_GROK_PRO",
+      "status": "SUBSCRIPTION_STATUS_ACTIVE",
+      "google": {
+        "productId": "grok.ultra",
+        "basePlanId": "p1m"
+      },
+      "activeOffer": {
+        "providerOfferId": "heavy-p3m-30-may2026",
+        "type": "ACTIVE_OFFER_DISCOUNT"
+      },
+      "billingInterval": "BILLING_INTERVAL_MONTHLY",
+      "billingPeriodEnd": "2026-08-13T02:23:57.129Z"
+    }
+  ]
+}

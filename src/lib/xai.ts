@@ -5,6 +5,9 @@
  * period meter exposed by Grok Build:
  * GET https://cli-chat-proxy.grok.com/v1/billing?format=credits
  *
+ * After quota succeeds, subscription metadata may refine the display label via:
+ * GET https://grok.com/rest/subscriptions
+ *
  * OpenCode remains the sole owner of OAuth refresh and auth.json persistence.
  */
 
@@ -17,9 +20,13 @@ import type { AuthData, QuotaError } from "./types.js";
 export const DEFAULT_XAI_AUTH_CACHE_MAX_AGE_MS = 5_000;
 
 const CREDITS_URL = "https://cli-chat-proxy.grok.com/v1/billing?format=credits";
+const SUBSCRIPTIONS_URL = "https://grok.com/rest/subscriptions";
+const SUBSCRIPTIONS_TIMEOUT_MS = 2_000;
 const USER_AGENT = "OpenCode-Quota-Toast/1.0";
 
 export type XaiPeriodKind = "weekly" | "monthly" | "daily" | "period";
+export type XaiSubscriptionTier = "Lite" | "SuperGrok" | "Heavy";
+export type XaiLabel = "xAI Lite" | "xAI SuperGrok" | "xAI Heavy";
 
 export interface XaiWindowValue {
   percentRemaining: number;
@@ -30,7 +37,7 @@ export interface XaiWindowValue {
 export type XaiResult =
   | {
       success: true;
-      label: "xAI SuperGrok";
+      label: XaiLabel;
       window: XaiWindowValue;
     }
   | QuotaError
@@ -142,6 +149,76 @@ function parseCreditsWindow(payload: unknown): XaiWindowValue | null {
   };
 }
 
+function xaiHeaders(accessToken: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/json",
+    "User-Agent": USER_AGENT,
+    "x-grok-client-surface": "grok-build",
+    "x-grok-client-version": "1.0.0",
+  };
+}
+
+function parseXaiSubscriptionTier(payload: unknown): XaiSubscriptionTier | null {
+  if (!isRecord(payload) || !Array.isArray(payload.subscriptions)) return null;
+
+  const active = payload.subscriptions.find(
+    (subscription) =>
+      isRecord(subscription) && subscription.status === "SUBSCRIPTION_STATUS_ACTIVE",
+  );
+  if (!isRecord(active)) return null;
+
+  const tier = getNonEmptyString(active.tier);
+  const activeOffer = isRecord(active.activeOffer) ? active.activeOffer : null;
+  const providerOfferId = getNonEmptyString(activeOffer?.providerOfferId);
+
+  if (providerOfferId?.toLowerCase().includes("heavy")) return "Heavy";
+
+  switch (tier) {
+    case "SUBSCRIPTION_TIER_SUPER_GROK_HEAVY":
+      return "Heavy";
+    case "SUBSCRIPTION_TIER_SUPER_GROK_LITE":
+      return "Lite";
+    case "SUBSCRIPTION_TIER_SUPER_GROK":
+    case "SUBSCRIPTION_TIER_SUPER_GROK_PRO":
+      return "SuperGrok";
+    default:
+      return null;
+  }
+}
+
+function xaiLabelForTier(tier: XaiSubscriptionTier | null): XaiLabel {
+  switch (tier) {
+    case "Lite":
+      return "xAI Lite";
+    case "Heavy":
+      return "xAI Heavy";
+    default:
+      return "xAI SuperGrok";
+  }
+}
+
+async function queryXaiSubscriptionTier(
+  accessToken: string,
+  requestTimeoutMs?: number,
+): Promise<XaiSubscriptionTier | null> {
+  try {
+    return await fetchWithTimeout(SUBSCRIPTIONS_URL, {
+      request: {
+        method: "GET",
+        headers: xaiHeaders(accessToken),
+      },
+      timeoutMs: Math.min(requestTimeoutMs ?? SUBSCRIPTIONS_TIMEOUT_MS, SUBSCRIPTIONS_TIMEOUT_MS),
+      consume: async (response) => {
+        if (!response.ok) return null;
+        return parseXaiSubscriptionTier(await response.json());
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
 function safeErrorText(message: string, accessToken: string): string {
   const redacted = accessToken ? message.split(accessToken).join("[redacted]") : message;
   return sanitizeSingleLineDisplaySnippet(redacted, 160);
@@ -164,16 +241,12 @@ export async function queryXaiQuota(
   }
 
   try {
-    return await fetchWithTimeout(CREDITS_URL, {
+    const creditsResult = await fetchWithTimeout<
+      { success: true; window: XaiWindowValue } | QuotaError
+    >(CREDITS_URL, {
       request: {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${resolvedAuth.accessToken}`,
-          Accept: "application/json",
-          "User-Agent": USER_AGENT,
-          "x-grok-client-surface": "grok-build",
-          "x-grok-client-version": "1.0.0",
-        },
+        headers: xaiHeaders(resolvedAuth.accessToken),
       },
       timeoutMs: options.requestTimeoutMs,
       consume: async (response) => {
@@ -188,9 +261,13 @@ export async function queryXaiQuota(
         const window = parseCreditsWindow(await response.json());
         if (!window) return { success: false, error: "No weekly quota data" };
 
-        return { success: true, label: "xAI SuperGrok", window };
+        return { success: true, window };
       },
     });
+    if (!creditsResult.success) return creditsResult;
+
+    const tier = await queryXaiSubscriptionTier(resolvedAuth.accessToken, options.requestTimeoutMs);
+    return { success: true, label: xaiLabelForTier(tier), window: creditsResult.window };
   } catch (error) {
     return {
       success: false,
