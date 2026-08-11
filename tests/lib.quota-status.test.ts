@@ -1330,7 +1330,7 @@ describe("buildQuotaStatusReport", () => {
           quota_source: "(none)",
           checked_commands: "claude --version | claude auth status --json",
           message:
-            "Claude CLI auth detected, but quota was unavailable from both the local CLI and Claude OAuth fallback. Claude credentials file not found at /Users/test/.claude/.credentials.json.",
+            "Claude CLI auth detected, but quota was unavailable from the local CLI and OAuth credential sources. Claude credentials file not found at /Users/test/.claude/.credentials.json.",
         }),
         makeProviderSuccessProbe("cursor", {
           plan: "none",
@@ -1390,7 +1390,7 @@ describe("buildQuotaStatusReport", () => {
       - quota_supported: false
       - quota_source: (none)
       - checked_commands: claude --version | claude auth status --json
-      - message: Claude CLI auth detected, but quota was unavailable from both the local CLI and Claude OAuth fallback. Claude credentials file not found at /Users/test/.claude/.credentials.json.
+      - message: Claude CLI auth detected, but quota was unavailable from the local CLI and OAuth credential sources. Claude credentials file not found at /Users/test/.claude/.credentials.json.
 
       cursor:
       - plan: none

@@ -3,8 +3,9 @@
  *
  * Uses the local Claude CLI/runtime to detect install/auth state first. When
  * Claude auth is confirmed but local quota windows are missing, it falls back
- * to Claude OAuth credentials (macOS Keychain first, then the local credentials
- * file) and Anthropic's OAuth usage endpoint.
+ * to Anthropic's OAuth usage endpoint using the first usable OAuth access
+ * token: OpenCode's own auth.json, then Claude OAuth credentials (macOS
+ * Keychain first, then the local credentials file).
  */
 
 import { execFile } from "child_process";
@@ -13,6 +14,7 @@ import { readFile } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
 
+import { resolveAnthropicOAuthCached } from "./anthropic-auth.js";
 import { sanitizeDisplaySnippet, sanitizeDisplayText } from "./display-sanitize.js";
 import { fetchWithTimeout } from "./http.js";
 
@@ -27,7 +29,7 @@ const CLAUDE_CODE_CREDENTIALS_SERVICE = "Claude Code-credentials";
 const CLAUDE_NO_LOCAL_QUOTA_MESSAGE =
   "Claude CLI auth detected, but local quota windows were not exposed.";
 const ANTHROPIC_NO_QUOTA_MESSAGE =
-  "Claude CLI auth detected, but quota was unavailable from both the local CLI and Claude OAuth fallback.";
+  "Claude CLI auth detected, but quota was unavailable from the local CLI and OAuth credential sources.";
 
 export interface AnthropicQuotaWindow {
   utilization?: number;
@@ -64,6 +66,7 @@ export type AnthropicAuthStatus = "authenticated" | "unauthenticated" | "unknown
 export type AnthropicQuotaSource =
   | "claude-auth-status-json"
   | "claude-credentials-oauth-api"
+  | "opencode-auth-oauth-api"
   | "none";
 
 export interface AnthropicDiagnostics {
@@ -72,6 +75,8 @@ export interface AnthropicDiagnostics {
   authStatus: AnthropicAuthStatus;
   quotaSupported: boolean;
   quotaSource: AnthropicQuotaSource;
+  /** Credential store that supplied the OAuth token for the usage probe. */
+  oauthCredentialSource?: AnthropicCredentialSource;
   checkedCommands: string[];
   message?: string;
   quota?: AnthropicQuotaResult;
@@ -123,10 +128,14 @@ type AnthropicOAuthCooldown = {
   blockedUntilMs: number;
 };
 
-type ClaudeCredentialsAccess =
+/** Which credential store provided the OAuth access token used for the usage probe. */
+export type AnthropicCredentialSource = "opencode-auth" | "claude-credentials";
+
+type AnthropicCredentialsAccess =
   | {
       state: "configured";
       accessToken: string;
+      source: AnthropicCredentialSource;
     }
   | {
       state: "unavailable";
@@ -557,13 +566,28 @@ async function readClaudeCredentialsAccessTokenFromFile(): Promise<ClaudeCredent
   }
 }
 
-async function readClaudeCredentialsAccessToken(): Promise<ClaudeCredentialsAccess> {
+async function readAnthropicOAuthAccessToken(options: {
+  includeClaudeCredentials: boolean;
+}): Promise<AnthropicCredentialsAccess> {
   const locationsChecked: string[] = [];
   const unavailableDetails: string[] = [];
 
+  const opencodeCredentials = await resolveAnthropicOAuthCached();
+  if (opencodeCredentials.state === "configured") {
+    return {
+      state: "configured",
+      accessToken: opencodeCredentials.accessToken,
+      source: "opencode-auth",
+    };
+  }
+
+  if (!options.includeClaudeCredentials) {
+    return { state: "unavailable" };
+  }
+
   const keychainCredentials = await readClaudeCredentialsAccessTokenFromMacOSKeychain();
   if (keychainCredentials?.state === "configured") {
-    return keychainCredentials;
+    return { ...keychainCredentials, source: "claude-credentials" };
   }
   if (keychainCredentials?.state === "unavailable") {
     unavailableDetails.push(keychainCredentials.detail);
@@ -574,7 +598,7 @@ async function readClaudeCredentialsAccessToken(): Promise<ClaudeCredentialsAcce
 
   const fileCredentials = await readClaudeCredentialsAccessTokenFromFile();
   if (fileCredentials.state === "configured") {
-    return fileCredentials;
+    return { ...fileCredentials, source: "claude-credentials" };
   }
   if (fileCredentials.state === "unavailable") {
     unavailableDetails.push(fileCredentials.detail);
@@ -1174,12 +1198,18 @@ export async function getAnthropicDiagnostics(
 
   const inFlight = (async () => {
     const localDiagnostics = await getCachedAnthropicLocalDiagnostics({ binaryPath });
-    if (localDiagnostics.authStatus !== "authenticated" || localDiagnostics.localQuota) {
+    if (localDiagnostics.localQuota) {
       return mapLocalDiagnosticsToAnthropicDiagnostics(localDiagnostics);
     }
 
-    const credentials = await readClaudeCredentialsAccessToken();
+    const credentials = await readAnthropicOAuthAccessToken({
+      includeClaudeCredentials: localDiagnostics.authStatus === "authenticated",
+    });
     if (credentials.state !== "configured") {
+      if (localDiagnostics.authStatus !== "authenticated") {
+        return mapLocalDiagnosticsToAnthropicDiagnostics(localDiagnostics);
+      }
+
       const diagnostics: AnthropicDiagnostics = {
         installed: localDiagnostics.installed,
         version: localDiagnostics.version,
@@ -1203,6 +1233,7 @@ export async function getAnthropicDiagnostics(
         authStatus: localDiagnostics.authStatus,
         quotaSupported: false,
         quotaSource: "none",
+        oauthCredentialSource: credentials.source,
         checkedCommands: localDiagnostics.checkedCommands,
         message: buildAnthropicNoQuotaDiagnosticsMessage(fallbackQuota.detail),
       };
@@ -1214,7 +1245,11 @@ export async function getAnthropicDiagnostics(
       version: localDiagnostics.version,
       authStatus: localDiagnostics.authStatus,
       quotaSupported: true,
-      quotaSource: "claude-credentials-oauth-api",
+      quotaSource:
+        credentials.source === "opencode-auth"
+          ? "opencode-auth-oauth-api"
+          : "claude-credentials-oauth-api",
+      oauthCredentialSource: credentials.source,
       checkedCommands: localDiagnostics.checkedCommands,
       quota: fallbackQuota.quota,
     };
@@ -1249,6 +1284,15 @@ export async function getAnthropicDiagnostics(
 export async function hasAnthropicCredentialsConfigured(
   options: AnthropicProbeOptions = {},
 ): Promise<boolean> {
+  try {
+    const opencodeCredentials = await resolveAnthropicOAuthCached();
+    if (opencodeCredentials.state === "configured") {
+      return true;
+    }
+  } catch {
+    // Fall back to the existing local Claude CLI probe.
+  }
+
   try {
     const diagnostics = await getCachedAnthropicLocalDiagnostics(options);
     return diagnostics.installed && diagnostics.authStatus === "authenticated";
