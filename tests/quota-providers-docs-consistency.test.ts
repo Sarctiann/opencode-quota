@@ -2,6 +2,12 @@ import { readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
 
 import { validateQuotaProviders } from "../src/lib/quota-providers.js";
+import {
+  hasMarkdownLinkTo,
+  readFencedCodeBlocks,
+  readMarkdownParagraphContaining,
+  readMarkdownSection,
+} from "./helpers/markdown-document.js";
 
 function read(path: string): string {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -46,8 +52,19 @@ describe("quota provider Phase 7 documentation consistency", () => {
     const manualInstall = read("docs/readme/manual-install.md");
     const migration = read("docs/readme/v4-migration.md");
 
-    expect(readme).toContain("provider add");
-    expect(readme).toContain("[Provider setup guide](docs/readme/providers.md#custom-providers)");
+    const readmeCommands = readMarkdownSection(readme, /^Commands$/);
+    const readmeCustomProviders = readMarkdownSection(readme, /^Custom providers$/);
+    const configurationCustomProviders = readMarkdownSection(configuration, /^Custom providers$/);
+    const providerGuideCustomProviders = readMarkdownSection(providers, /^Custom providers$/);
+    const troubleshootingProviderFixes = readMarkdownSection(troubleshooting, /^Provider fixes$/);
+    const externalJsonBasics = readMarkdownSection(external, /^JSON basics$/);
+
+    const providerAddCommand = "npx @slkiser/opencode-quota@latest provider add";
+    expect(readmeCommands).toContain(providerAddCommand);
+    expect(readmeCustomProviders).toContain(providerAddCommand);
+    expect(
+      hasMarkdownLinkTo(readmeCustomProviders, "docs/readme/providers.md#custom-providers"),
+    ).toBe(true);
     expect(readme).not.toContain("experimental.quotaToast");
     expect(readme).not.toContain("apiKeyEnv");
 
@@ -75,46 +92,120 @@ describe("quota provider Phase 7 documentation consistency", () => {
       expect(document).toContain("quota-providers");
     }
 
-    expect(configuration).toContain("global-only");
-    expect(configuration).toContain("affects only `onlyCurrentModel`");
-    expect(configuration).toContain("pricingModelMap");
-    expect(configuration).toContain("cannot override a successful");
-    expect(configuration).toContain("budget percentage is reported unavailable");
-    expect(configuration).toContain("~/.local/state/opencode/opencode-quota/");
-    expect(providers).toContain("limited to 256 KiB");
-    expect(providers).toContain("limited to 100 rows");
-    expect(providers).toContain("128 objects, 384 object properties, and 640 array elements");
-    expect(providers).toContain("at most 32 container levels");
-    expect(providers).toContain("absolute magnitude at most `1e15`");
-    expect(providers).toContain("offsets through `±14:00`");
-    expect(providers).toContain("Metric compatibility and fixed output");
-    expect(providers).toContain("`used-limit`");
-    expect(providers).toContain('For `metric.type: "value"`');
-    expect(providers).toContain("Pair denominators");
-    expect(providers).toContain("Units are forbidden for `percentage` and `status`");
-    expect(providers).toContain("Never put secrets in adapter display configuration");
-    expect(troubleshooting).toContain("cached results are not substituted");
-    expect(troubleshooting).toContain("URLs, request/response contents, raw errors");
-    expect(external).toContain('"version": 2');
-    expect(external).toContain('providers["quota-providers"]');
-    expect(external).toContain("configured `quotaProviders` definition");
+    expect(configurationCustomProviders).toContain("global-only");
+    expect(
+      readMarkdownParagraphContaining(
+        configurationCustomProviders,
+        "`modelIds`",
+        "`onlyCurrentModel`",
+      ),
+    ).toMatch(/`modelIds`[\s\S]*\bonly\b[\s\S]*`onlyCurrentModel`/);
+    const pricingMapRule = readMarkdownParagraphContaining(
+      configurationCustomProviders,
+      "pricingModelMap",
+      "successful automatic match",
+    );
+    expect(pricingMapRule).toMatch(
+      /pricingModelMap[\s\S]*\b(?:cannot|must not|does not) override\b[\s\S]*\bsuccessful automatic match\b/i,
+    );
+    expect(
+      readMarkdownParagraphContaining(
+        configurationCustomProviders,
+        "budget percentage",
+        "unavailable",
+      ),
+    ).toMatch(/budget percentage[\s\S]*\b(?:reported|shown|marked) unavailable\b/i);
+    expect(configurationCustomProviders).toContain("~/.local/state/opencode/opencode-quota/");
+    expect(providerGuideCustomProviders).toContain("limited to 256 KiB");
+    expect(providerGuideCustomProviders).toContain("limited to 100 rows");
+    expect(providerGuideCustomProviders).toContain(
+      "128 objects, 384 object properties, and 640 array elements",
+    );
+    expect(providerGuideCustomProviders).toContain("at most 32 container levels");
+    expect(providerGuideCustomProviders).toContain("absolute magnitude at most `1e15`");
+    expect(providerGuideCustomProviders).toContain("offsets through `±14:00`");
+    expect(providerGuideCustomProviders).toContain("Metric compatibility and fixed output");
+    expect(providerGuideCustomProviders).toContain("`used-limit`");
+    expect(providerGuideCustomProviders).toContain('For `metric.type: "value"`');
+    expect(providerGuideCustomProviders).toContain("Pair denominators");
+    const unitRule = readMarkdownParagraphContaining(
+      providerGuideCustomProviders,
+      "`unit`",
+      "`unitPosition`",
+      "`percentage`",
+      "`status`",
+    );
+    expect(unitRule).toMatch(
+      /`unit`[\s\S]*`unitPosition`[\s\S]*\b(?:must|required to)\b[\s\S]*\btogether\b/i,
+    );
+    expect(unitRule).toMatch(
+      /\b(?:forbidden|not allowed|must not appear)\b[\s\S]*`percentage`[\s\S]*`status`/i,
+    );
+    const secretRule = readMarkdownParagraphContaining(
+      providerGuideCustomProviders,
+      "secrets",
+      "adapter display configuration",
+    );
+    expect(secretRule).toMatch(
+      /\b(?:never|must not|cannot|forbidden)\b[\s\S]*\bsecrets\b[\s\S]*adapter display configuration/i,
+    );
+    expect(
+      readMarkdownParagraphContaining(
+        troubleshootingProviderFixes,
+        "cached results",
+        "substituted",
+      ),
+    ).toMatch(/cached results[\s\S]*\b(?:not|never) substituted\b/i);
+    const hiddenDiagnostics = readMarkdownParagraphContaining(
+      troubleshootingProviderFixes,
+      "URLs",
+      "request/response contents",
+      "raw errors",
+    );
+    expect(hiddenDiagnostics).toMatch(
+      /\b(?:hide|hides|hidden|exclude|excludes)\b[\s\S]*URLs[\s\S]*request\/response contents[\s\S]*raw errors/i,
+    );
+    expect(externalJsonBasics).toContain('"version": 2');
+    expect(externalJsonBasics).toContain('providers["quota-providers"]');
+    expect(externalJsonBasics).toContain("configured `quotaProviders` definition");
     expect(external).not.toContain("custom-sources");
     expect(external).not.toContain("Custom-provider");
-    expect(external).toContain('"sourceId": "openrouter-primary"');
-    expect(external).toContain('"sources": [');
-    expect(external).toContain('"id": "openrouter-primary"');
-    expect(external).toContain('"entryCount": 1');
-    expect(external).toContain(
-      "Each summary is exactly `id`, effective `providerId`, coarse `status`, and `entryCount`",
+    expect(externalJsonBasics).toContain('"sourceId": "openrouter-primary"');
+    expect(externalJsonBasics).toContain('"sources": [');
+    expect(externalJsonBasics).toContain('"id": "openrouter-primary"');
+    expect(externalJsonBasics).toContain('"entryCount": 1');
+    const sourceSummaryBlock = readFencedCodeBlocks(externalJsonBasics).find(
+      (block) => block.info === "json" && block.content.includes('"sources"'),
     );
-    expect(external).toContain(
-      "failed mapping candidates can still make the aggregate provider `partial`",
+    if (sourceSummaryBlock === undefined) throw new Error("Source summary JSON example not found");
+    const sourceSummaryExample = JSON.parse(`{${sourceSummaryBlock.content}}`) as {
+      sources: Array<Record<string, unknown>>;
+    };
+    expect(sourceSummaryExample.sources).toHaveLength(1);
+    expect(Object.keys(sourceSummaryExample.sources[0]).sort()).toEqual(
+      ["id", "providerId", "status", "entryCount"].sort(),
     );
-    expect(external).toContain("raw provider responses remain excluded from public JSON");
+
+    const sourceSummaryRule = readMarkdownParagraphContaining(
+      externalJsonBasics,
+      "Each summary",
+      "`providerId`",
+      "`status`",
+      "`entryCount`",
+    );
+    expect(sourceSummaryRule).toMatch(/\bexactly\b/i);
+    expect(sourceSummaryRule).toMatch(/\beffective `providerId`/i);
+    expect(sourceSummaryRule).toMatch(/\bcoarse `status`/i);
+    expect(sourceSummaryRule).toMatch(
+      /failed mapping candidates?[\s\S]*aggregate provider[\s\S]*`partial`/i,
+    );
+    expect(
+      readMarkdownParagraphContaining(externalJsonBasics, "raw provider responses", "public JSON"),
+    ).toMatch(/raw provider responses[\s\S]*\b(?:excluded|omitted) from public JSON\b/i);
   });
 
   it("links to the authoritative external references used by the README", () => {
-    const readme = read("README.md");
+    const referenceSection = readMarkdownSection(read("README.md"), /^Reference$/);
 
     for (const url of [
       "https://opencode.ai/docs/",
@@ -124,7 +215,7 @@ describe("quota provider Phase 7 documentation consistency", () => {
       "https://models.dev/",
       "https://nodejs.org/en/download",
     ]) {
-      expect(readme).toContain(`](${url})`);
+      expect(hasMarkdownLinkTo(referenceSection, url), url).toBe(true);
     }
   });
 

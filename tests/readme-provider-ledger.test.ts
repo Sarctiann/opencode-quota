@@ -1,6 +1,11 @@
 import { readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
 
+import {
+  readMarkdownParagraphContaining,
+  readMarkdownSection,
+} from "./helpers/markdown-document.js";
+
 function read(path: string): string {
   return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 }
@@ -195,29 +200,70 @@ describe("README provider ledger", () => {
   });
 
   it("uses the approved provider headings and data provenance label", () => {
-    const customReports =
-      "Custom providers can report quota, rate limit, usage, spend, budget, balance, or status.";
-
-    expect(providerTemplate).toContain("`Data from` rather than `Source`");
-    expect(providerTemplate).toContain("friendly labels, not exact internal result types");
-    expect(providerTemplate).toContain("`Quota` as the umbrella");
-    expect(providerTemplate).toContain("exact internal `resultType` values");
+    const templateWording = readMarkdownSection(providerTemplate, /^README wording rule$/);
+    const terminologyRule = readMarkdownParagraphContaining(
+      templateWording,
+      "`Data from`",
+      "`Source`",
+      "friendly labels",
+      "internal result types",
+      "`Quota`",
+      "`resultType`",
+    );
+    expect(terminologyRule).toMatch(/\buse `Data from`/i);
+    expect(terminologyRule).toMatch(/\b(?:rather than|not) `Source`/i);
+    expect(terminologyRule).toMatch(
+      /friendly labels[\s\S]*\b(?:not|rather than)\b[\s\S]*internal result types/i,
+    );
+    expect(terminologyRule).toMatch(/\buse `Quota` as (?:an?|the) umbrella\b/i);
+    expect(terminologyRule).toMatch(
+      /\bkeep\b[\s\S]*internal `resultType` values[\s\S]*(?:code|JSON|export)/i,
+    );
 
     for (const document of [readme, providerGuide]) {
+      const providersSection = readMarkdownSection(document, /^Providers$/);
+      const preConfiguredSection = readPreConfiguredProviderSection(document);
+
       expect(document).toMatch(
         /^#{2,3} (?:Pre-configured providers|Pre-configured American providers)$/m,
       );
-      expect(document).toMatch(/^### (?:Pre-configured )?American providers$/m);
-      expect(document).toMatch(/^### (?:Pre-configured )?Chinese providers$/m);
-      expect(document).toContain("Custom providers");
-      expect(document).toContain("| Data from");
-      expect(document).not.toContain("| Source");
+      expect(providersSection).toMatch(/^### (?:Pre-configured )?American providers$/m);
+      expect(providersSection).toMatch(/^### (?:Pre-configured )?Chinese providers$/m);
+      expect(providersSection).toMatch(/^#{2,3} Custom providers$/m);
+      expect(preConfiguredSection).toContain("| Data from");
+      expect(preConfiguredSection).not.toContain("| Source");
     }
 
-    expect(readme).toContain(
-      "You can add a provider with an HTTPS quota API, or track a local usage estimate",
+    const readmeCustomProviders = readMarkdownSection(readme, /^Custom providers$/);
+    expect(readmeCustomProviders).toMatch(/\bHTTPS quota API\b/i);
+    expect(readmeCustomProviders).toMatch(/\blocal usage estimate\b/i);
+    expect(readmeCustomProviders).not.toMatch(/\brate limit\b/i);
+
+    const guideCustomProviders = readMarkdownSection(providerGuide, /^Custom providers$/);
+    const reportingRule = readMarkdownParagraphContaining(
+      guideCustomProviders,
+      "Custom providers",
+      "rate limit",
+      "usage",
+      "spend",
+      "budget",
+      "balance",
+      "status",
     );
-    expect(readme).not.toContain(customReports);
-    expect(providerGuide).toContain(customReports);
+    expect(reportingRule).toMatch(/\bCustom providers (?:can|may) report\b/i);
+    expect(reportingRule).not.toMatch(/\b(?:cannot|must not|do not) report\b/i);
+    for (const reportConcept of [
+      "quota",
+      "rate limit",
+      "usage",
+      "spend",
+      "budget",
+      "balance",
+      "status",
+    ]) {
+      expect(reportingRule.toLowerCase()).toContain(reportConcept);
+    }
+    expect(guideCustomProviders).toMatch(/\bRemote API\b/);
+    expect(guideCustomProviders).toMatch(/\bLocal estimate\b/);
   });
 });
