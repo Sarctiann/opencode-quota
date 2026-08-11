@@ -25,6 +25,8 @@ vi.mock("../src/lib/http.js", () => ({
 import {
   _parseDataSlotBillingData,
   _parseDataSlotPaymentData,
+  _parseNewSsrBillingData,
+  _parseNewSsrPaymentData,
   _parseSsrBillingData,
   _parseSsrPaymentData,
   OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR,
@@ -57,6 +59,38 @@ function dataSlotHtml(): string {
     <span data-slot="billing-label">Monthly Usage</span>
     <span data-slot="billing-value">$12.50</span>
   </div>`;
+}
+
+function newSsrBillingHtml(balance: number, monthlyLimit?: number, monthlyUsage?: number): string {
+  const fields = [
+    'customerID:"cus_1"',
+    `balance:${balance}`,
+    ...(monthlyLimit === undefined ? [] : [`monthlyLimit:${monthlyLimit}`]),
+    ...(monthlyUsage === undefined ? [] : [`monthlyUsage:${monthlyUsage}`]),
+    `timeMonthlyUsageUpdated:$R[26]=new Date("2026-08-11T07:05:05.000Z")`,
+    "lite:$R[27]={useBalance:!0}",
+  ].join(",");
+  return (
+    `<html><script>_$HY.r["billing.get[\\"wrk_X\\"]"]=$R[21]=$R[2]($R[22]={p:0,s:0,f:0});` +
+    `$R[16]($R[22],$R[25]={${fields}});</script></html>`
+  );
+}
+
+function newSsrPaymentHtml(
+  amounts: Array<number | { amount: number; refunded?: boolean }>,
+): string {
+  const entries = amounts
+    .map((entry, index) => {
+      const amount = typeof entry === "number" ? entry : entry.amount;
+      const refunded = typeof entry === "number" ? false : Boolean(entry.refunded);
+      const timeRefunded = refunded ? `new Date("2026-08-01T00:00:00.000Z")` : "null";
+      return `$R[${39 + index * 2}]={id:"pay_${index}",amount:${amount},timeRefunded:${timeRefunded}}`;
+    })
+    .join(",");
+  return (
+    `<html><script>_$HY.r["payment.list[\\"wrk_X\\"]"]=$R[34]=$R[2]($R[35]={p:0,s:0,f:0});` +
+    `$R[16]($R[35],$R[38]=[${entries}]);</script></html>`
+  );
 }
 
 describe("OpenCode Zen billing parser", () => {
@@ -108,6 +142,110 @@ describe("OpenCode Zen billing parser", () => {
     </table>`;
     expect(_parseDataSlotPaymentData(html)).toBe(20);
   });
+
+  it("clamps a negative new-SSR balance to zero and keeps dollars as-is", () => {
+    expect(_parseNewSsrBillingData(newSsrBillingHtml(-14_496, 50, 17_321_332))).toEqual({
+      balance: 0,
+      monthlyLimit: 50,
+      monthlyUsage: 17_321_332,
+      lastPayment: null,
+    });
+  });
+
+  it("keeps a positive new-SSR balance in billing units", () => {
+    expect(_parseNewSsrBillingData(newSsrBillingHtml(425_000_000, 20, 12_500_000))).toEqual({
+      balance: 425_000_000,
+      monthlyLimit: 20,
+      monthlyUsage: 12_500_000,
+      lastPayment: null,
+    });
+  });
+
+  it("returns the first positive payment in provider order", () => {
+    expect(
+      _parseNewSsrPaymentData(newSsrPaymentHtml([500_000_000, 2_000_000_000, 1_000_000_000])),
+    ).toBe(5);
+  });
+
+  it("skips refunded payments in the new payment.list array", () => {
+    expect(
+      _parseNewSsrPaymentData(
+        newSsrPaymentHtml([{ amount: 2_000_000_000, refunded: true }, { amount: 1_000_000_000 }]),
+      ),
+    ).toBe(10);
+  });
+
+  it("parses reordered payment fields and skips malformed or explicitly refunded entries", () => {
+    const html =
+      `<html><script>_$HY.r["payment.list[\\"wrk_X\\"]"]=$R[34]=$R[2]($R[35]={p:0,s:0,f:0});` +
+      `$R[16]($R[35],$R[38]=[` +
+      `$R[39]={timeRefunded:null,amount:"invalid"},` +
+      `$R[41]={timeRefunded:new Date("2026-08-01T00:00:00.000Z"),id:"refunded",amount:2000000000},` +
+      `$R[43]={refunded:true,note:"skip",amount:1500000000},` +
+      `$R[45]={timeRefunded:null,note:"brace } and escaped \\" quote {",id:"valid",amount:1000000000},` +
+      `$R[47]={amount:3000000000}` +
+      `]);</script></html>`;
+
+    expect(_parseNewSsrPaymentData(html)).toBe(10);
+  });
+
+  it("returns null when the new payment.list has no positive amount", () => {
+    expect(_parseNewSsrPaymentData(newSsrPaymentHtml([0, 0]))).toBeNull();
+  });
+
+  it("returns null when the new SSR keys are absent", () => {
+    expect(_parseNewSsrBillingData("<html><body>Nothing here</body></html>")).toBeNull();
+    expect(_parseNewSsrPaymentData("<html><body>Nothing here</body></html>")).toBeNull();
+  });
+
+  it("parses a nested object literal inside the new billing object", () => {
+    const html =
+      `<html><script>_$HY.r["billing.get[\\"wrk_X\\"]"]=$R[21]=$R[2]($R[22]={p:0,s:0,f:0});` +
+      `$R[16]($R[22],$R[25]={customerID:"cus_1",balance:425000000,` +
+      `lite:$R[27]={useBalance:!0},monthlyLimit:20,monthlyUsage:12500000});</script></html>`;
+    expect(_parseNewSsrBillingData(html)).toEqual({
+      balance: 425_000_000,
+      monthlyLimit: 20,
+      monthlyUsage: 12_500_000,
+      lastPayment: null,
+    });
+  });
+
+  it("scopes billing fields and ignores escaped quotes or braces inside strings", () => {
+    const html =
+      `<script>const unrelated={balance:999,monthlyLimit:999};</script>` +
+      `<script>_$HY.r["billing.get[\\"wrk_X\\"]"]=$R[21]=$R[2]($R[22]={p:0,s:0,f:0});` +
+      `$R[16]($R[22],$R[25]={note:"brace } and escaped \\" quote {",` +
+      `balance:425000000,monthlyLimit:20,monthlyUsage:12500000});</script>`;
+
+    expect(_parseNewSsrBillingData(html)).toEqual({
+      balance: 425_000_000,
+      monthlyLimit: 20,
+      monthlyUsage: 12_500_000,
+      lastPayment: null,
+    });
+  });
+
+  it("returns null for missing optional fields in the new billing object", () => {
+    expect(_parseNewSsrBillingData(newSsrBillingHtml(425_000_000))).toEqual({
+      balance: 425_000_000,
+      monthlyLimit: null,
+      monthlyUsage: null,
+      lastPayment: null,
+    });
+  });
+
+  it("returns null for unbalanced or unterminated new SSR assignments", () => {
+    const unbalancedBilling =
+      `<script>_$HY.r["billing.get[\\"wrk_X\\"]"]=$R[21]=$R[2]($R[22]={p:0,s:0,f:0});` +
+      `$R[16]($R[22],$R[25]={note:"unterminated },balance:425000000});</script>`;
+    const unbalancedPayments =
+      `<script>_$HY.r["payment.list[\\"wrk_X\\"]"]=$R[34]=$R[2]($R[35]={p:0,s:0,f:0});` +
+      `$R[16]($R[35],$R[38]=[$R[39]={amount:100000000,timeRefunded:null});</script>`;
+
+    expect(_parseNewSsrBillingData(unbalancedBilling)).toBeNull();
+    expect(_parseNewSsrPaymentData(unbalancedPayments)).toBeNull();
+  });
 });
 
 describe("queryOpenCodeZenQuota", () => {
@@ -157,6 +295,25 @@ describe("queryOpenCodeZenQuota", () => {
         monthlyLimit: 100,
         monthlyUsage: 575_000_000,
         lastPayment: 21,
+      },
+    });
+  });
+
+  it("parses the new SolidJS SSR format end to end", async () => {
+    mocks.fetchResponse.mockResolvedValueOnce(
+      response(
+        newSsrBillingHtml(-14_496, 50, 17_321_332) +
+          newSsrPaymentHtml([500_000_000, 2_000_000_000, 1_000_000_000]),
+      ),
+    );
+
+    await expect(queryOpenCodeZenQuota("wrk_abc", "cookie")).resolves.toEqual({
+      success: true,
+      data: {
+        balance: 0,
+        monthlyLimit: 50,
+        monthlyUsage: 17_321_332,
+        lastPayment: 5,
       },
     });
   });
