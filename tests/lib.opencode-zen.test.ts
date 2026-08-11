@@ -161,10 +161,10 @@ describe("OpenCode Zen billing parser", () => {
     });
   });
 
-  it("returns the latest positive payment from the new payment.list array", () => {
+  it("returns the first positive payment in provider order", () => {
     expect(
       _parseNewSsrPaymentData(newSsrPaymentHtml([500_000_000, 2_000_000_000, 1_000_000_000])),
-    ).toBe(10);
+    ).toBe(5);
   });
 
   it("skips refunded payments in the new payment.list array", () => {
@@ -173,6 +173,20 @@ describe("OpenCode Zen billing parser", () => {
         newSsrPaymentHtml([{ amount: 2_000_000_000, refunded: true }, { amount: 1_000_000_000 }]),
       ),
     ).toBe(10);
+  });
+
+  it("parses reordered payment fields and skips malformed or explicitly refunded entries", () => {
+    const html =
+      `<html><script>_$HY.r["payment.list[\\"wrk_X\\"]"]=$R[34]=$R[2]($R[35]={p:0,s:0,f:0});` +
+      `$R[16]($R[35],$R[38]=[` +
+      `$R[39]={timeRefunded:null,amount:"invalid"},` +
+      `$R[41]={timeRefunded:new Date("2026-08-01T00:00:00.000Z"),id:"refunded",amount:2000000000},` +
+      `$R[43]={refunded:true,note:"skip",amount:1500000000},` +
+      `$R[45]={timeRefunded:null,note:"brace } and escaped \\" quote {",id:"valid",amount:1000000000},` +
+      `$R[47]={amount:3000000000}` +
+      `]);</script></html>`;
+
+    expect(_parseNewSsrPaymentData(html)).toBe(10);
   });
 
   it("returns null when the new payment.list has no positive amount", () => {
@@ -197,6 +211,21 @@ describe("OpenCode Zen billing parser", () => {
     });
   });
 
+  it("scopes billing fields and ignores escaped quotes or braces inside strings", () => {
+    const html =
+      `<script>const unrelated={balance:999,monthlyLimit:999};</script>` +
+      `<script>_$HY.r["billing.get[\\"wrk_X\\"]"]=$R[21]=$R[2]($R[22]={p:0,s:0,f:0});` +
+      `$R[16]($R[22],$R[25]={note:"brace } and escaped \\" quote {",` +
+      `balance:425000000,monthlyLimit:20,monthlyUsage:12500000});</script>`;
+
+    expect(_parseNewSsrBillingData(html)).toEqual({
+      balance: 425_000_000,
+      monthlyLimit: 20,
+      monthlyUsage: 12_500_000,
+      lastPayment: null,
+    });
+  });
+
   it("returns null for missing optional fields in the new billing object", () => {
     expect(_parseNewSsrBillingData(newSsrBillingHtml(425_000_000))).toEqual({
       balance: 425_000_000,
@@ -204,6 +233,18 @@ describe("OpenCode Zen billing parser", () => {
       monthlyUsage: null,
       lastPayment: null,
     });
+  });
+
+  it("returns null for unbalanced or unterminated new SSR assignments", () => {
+    const unbalancedBilling =
+      `<script>_$HY.r["billing.get[\\"wrk_X\\"]"]=$R[21]=$R[2]($R[22]={p:0,s:0,f:0});` +
+      `$R[16]($R[22],$R[25]={note:"unterminated },balance:425000000});</script>`;
+    const unbalancedPayments =
+      `<script>_$HY.r["payment.list[\\"wrk_X\\"]"]=$R[34]=$R[2]($R[35]={p:0,s:0,f:0});` +
+      `$R[16]($R[35],$R[38]=[$R[39]={amount:100000000,timeRefunded:null});</script>`;
+
+    expect(_parseNewSsrBillingData(unbalancedBilling)).toBeNull();
+    expect(_parseNewSsrPaymentData(unbalancedPayments)).toBeNull();
   });
 });
 
@@ -272,7 +313,7 @@ describe("queryOpenCodeZenQuota", () => {
         balance: 0,
         monthlyLimit: 50,
         monthlyUsage: 17_321_332,
-        lastPayment: 10,
+        lastPayment: 5,
       },
     });
   });

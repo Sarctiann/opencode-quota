@@ -43,12 +43,42 @@ function parseSsrBillingData(html: string): OpenCodeZenBillingData | null {
   };
 }
 
-/**
- * Extracts the object/array assigned to a SolidJS SSR `_$HY.r["key[\"id\"]"]`
- * response via `$R[N]($R[promise],$R[value]={...})`, brace-matched so nested
- * `new Date(...)` / object literals don't break the scan. `$R` indices are
- * layout-dependent, so every anchor is a generic `$R[\d+]`.
- */
+/** Extracts one balanced object/array while ignoring delimiters inside quoted strings. */
+function extractBalancedValue(
+  source: string,
+  start: number,
+): { value: string; end: number } | null {
+  const open = source[start];
+  if (open !== "{" && open !== "[") return null;
+  const close = open === "{" ? "}" : "]";
+
+  let depth = 0;
+  let quote: '"' | "'" | "`" | null = null;
+  let escaped = false;
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i];
+    if (quote !== null) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'" || ch === "`") {
+      quote = ch;
+    } else if (ch === open) {
+      depth++;
+    } else if (ch === close && --depth === 0) {
+      return { value: source.slice(start, i + 1), end: i };
+    }
+  }
+  return null;
+}
+
 function extractSsrAssignment(html: string, key: string): string | null {
   const match = new RegExp(
     `${key}\\[\\\\?"[^"]+\\\\?"\\]"]=\\$R\\[\\d+\\]=\\$R\\[\\d+\\]\\(\\$R\\[(\\d+)\\]` +
@@ -57,20 +87,7 @@ function extractSsrAssignment(html: string, key: string): string | null {
   if (!match) return null;
 
   const start = match.index + match[0].length;
-  const open = html[start];
-  if (open !== "{" && open !== "[") return null;
-  const close = open === "{" ? "}" : "]";
-
-  let depth = 0;
-  for (let i = start; i < html.length; i++) {
-    const ch = html[i];
-    if (ch === open) {
-      depth++;
-    } else if (ch === close && --depth === 0) {
-      return html.slice(start, i + 1);
-    }
-  }
-  return null;
+  return extractBalancedValue(html, start)?.value ?? null;
 }
 
 function parseNewSsrBillingData(html: string): OpenCodeZenBillingData | null {
@@ -94,16 +111,26 @@ function parseNewSsrPaymentData(html: string): number | null {
   const array = extractSsrAssignment(html, "payment\\.list");
   if (!array) return null;
 
-  let latest: number | null = null;
-  // Real SSR output pairs `amount` directly with `timeRefunded`; a non-null
-  // refund date means the payment was refunded and must be skipped.
-  for (const match of array.matchAll(
-    /\bamount\s*:\s*(\d+)\s*,\s*timeRefunded\s*:\s*(null|new Date\([^)]*\))/g,
-  )) {
-    const amount = Number(match[1]);
-    if (amount > 0 && match[2] === "null") latest = amount;
+  for (let i = 1; i < array.length - 1; i++) {
+    if (array[i] !== "{") continue;
+
+    const extracted = extractBalancedValue(array, i);
+    if (!extracted) return null;
+    i = extracted.end;
+
+    const amountMatch = extracted.value.match(/\bamount\s*:\s*(-?\d+(?:\.\d+)?)/);
+    const amount = amountMatch ? Number(amountMatch[1]) : Number.NaN;
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+
+    const timeRefunded = extracted.value.match(/\btimeRefunded\s*:\s*([^,}]+)/)?.[1].trim();
+    const explicitlyRefunded =
+      /\brefunded\s*:\s*true\b/.test(extracted.value) ||
+      (timeRefunded !== undefined && timeRefunded !== "null");
+    if (!explicitlyRefunded) {
+      return amount / OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR;
+    }
   }
-  return latest === null ? null : latest / OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR;
+  return null;
 }
 
 function parseDataSlotBillingData(html: string): OpenCodeZenBillingData | null {
