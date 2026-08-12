@@ -268,7 +268,7 @@ function createAgyActivityRequestId() {
 import os from "os";
 
 // src/sdk/agy-cli-version.ts
-var AGY_CLI_VERSION = "1.1.10";
+var AGY_CLI_VERSION = "1.1.11";
 
 // src/sdk/user-agent.ts
 var cachedUserAgent = null;
