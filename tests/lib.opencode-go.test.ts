@@ -252,6 +252,28 @@ describe("queryOpenCodeGoQuota", () => {
     );
   });
 
+  it("retains the HTTP status when reading a non-success body fails", async () => {
+    const token = "distinctive-secret-token";
+    mocks.fetchResponse.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      text: vi
+        .fn()
+        .mockRejectedValue(new Error(`body ${token}\n${"x".repeat(140)} ${token} failed`)),
+    });
+
+    const result = await queryOpenCodeGoQuota(token);
+
+    expect(result).toMatchObject({ success: false });
+    expect(JSON.stringify(result)).not.toContain(token);
+    expect((result as { error: string }).error).toContain(
+      "OpenCode Go API error 503: body [redacted]",
+    );
+    expect((result as { error: string }).error.length).toBeLessThanOrEqual(
+      "OpenCode Go API error 503: ".length + 120,
+    );
+  });
+
   it.each(["network", "body"])("redacts tokens from %s failures", async (failure) => {
     const token = "distinctive-secret-token";
     if (failure === "network") {

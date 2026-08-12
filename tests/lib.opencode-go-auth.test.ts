@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createProviderAvailabilityContext } from "./helpers/provider-test-harness.js";
 import {
   createRuntimePathsMockModule,
   getTrustedOpencodeConfigPaths,
@@ -13,6 +14,7 @@ import {
 const authMocks = vi.hoisted(() => ({
   getAuthPaths: vi.fn(() => ["/tmp/auth.json"]),
   readAuthFileCached: vi.fn(),
+  queryOpenCodeGoQuota: vi.fn(),
 }));
 
 vi.mock("../src/lib/opencode-runtime-paths.js", () => createRuntimePathsMockModule());
@@ -21,6 +23,9 @@ vi.mock("fs/promises", () => ({ readFile: vi.fn() }));
 vi.mock("../src/lib/opencode-auth.js", () => ({
   getAuthPaths: authMocks.getAuthPaths,
   readAuthFileCached: authMocks.readAuthFileCached,
+}));
+vi.mock("../src/lib/opencode-go.js", () => ({
+  queryOpenCodeGoQuota: authMocks.queryOpenCodeGoQuota,
 }));
 
 import {
@@ -83,7 +88,7 @@ describe("OpenCode Go auth resolution", () => {
     });
     expect(resolveOpenCodeGoAuth(authEntry({ type: "oauth", key: "ignored" }))).toEqual({
       state: "invalid",
-      error: 'Unsupported OpenCode Go auth type: "oauth"',
+      error: "OpenCode Go auth entry has unsupported type",
     });
     expect(resolveOpenCodeGoAuth(authEntry({ type: "api", key: " " }))).toEqual({
       state: "invalid",
@@ -150,13 +155,18 @@ describe("OpenCode Go auth resolution", () => {
     });
   });
 
-  it("surfaces malformed canonical auth without aliases or secret diagnostics", async () => {
+  it("uses a fixed unsupported-type error without leaking type or key secrets", async () => {
     const secret = "distinctive-go-secret";
-    authMocks.readAuthFileCached.mockResolvedValue(authEntry({ type: "oauth", key: secret }));
+    const auth = authEntry({ type: secret, key: secret });
+    authMocks.readAuthFileCached.mockResolvedValue(auth);
 
+    expect(resolveOpenCodeGoAuth(auth)).toEqual({
+      state: "invalid",
+      error: "OpenCode Go auth entry has unsupported type",
+    });
     await expect(resolveOpenCodeGoAuthCached()).resolves.toEqual({
       state: "invalid",
-      error: 'Unsupported OpenCode Go auth type: "oauth"',
+      error: "OpenCode Go auth entry has unsupported type",
     });
     const diagnostics = await getOpenCodeGoAuthDiagnostics({ maxAgeMs: -1 });
     expect(diagnostics).toEqual({
@@ -164,10 +174,19 @@ describe("OpenCode Go auth resolution", () => {
       source: "auth.json",
       checkedPaths: expect.any(Array),
       authPaths: ["/tmp/auth.json"],
-      error: 'Unsupported OpenCode Go auth type: "oauth"',
+      error: "OpenCode Go auth entry has unsupported type",
     });
     expect(JSON.stringify(diagnostics)).not.toContain(secret);
     expect(authMocks.readAuthFileCached).toHaveBeenLastCalledWith({ maxAgeMs: 0 });
+
+    const { opencodeGoProvider } = await import("../src/providers/opencode-go.js");
+    const result = await opencodeGoProvider.fetch(createProviderAvailabilityContext());
+    expect(result.errors).toContainEqual({
+      label: "OpenCode Go",
+      message: "OpenCode Go auth entry has unsupported type",
+    });
+    expect(JSON.stringify(result)).not.toContain(secret);
+    expect(authMocks.queryOpenCodeGoQuota).not.toHaveBeenCalled();
   });
 
   it("reports exact configured source and shared trusted paths", async () => {

@@ -145,7 +145,15 @@ export async function queryOpenCodeGoQuota(
       timeoutMs: options.requestTimeoutMs,
       consume: async (response) => {
         if (!response.ok) {
-          const text = await response.text();
+          let text: string;
+          try {
+            text = await response.text();
+          } catch (error) {
+            return {
+              success: false,
+              error: `OpenCode Go API error ${response.status}: ${errorMessage(error, accessToken)}`,
+            };
+          }
           return {
             success: false,
             error: `OpenCode Go API error ${response.status}: ${sanitizeMessage(text, accessToken)}`,
