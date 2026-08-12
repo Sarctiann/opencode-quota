@@ -305,11 +305,11 @@ const PROVIDER_CATALOG_SOURCE = {
     runtimeIds: ["opencode-go"],
     synonyms: ["opencode-go-subscription"],
     shape: {
-      autoSetup: "needs_quick_setup",
-      authentication: "state_only",
+      autoSetup: "yes",
+      authentication: "opencode_auth_api_key",
+      authFallbacks: ["env_api_key", "global_opencode_config"],
       quota: "remote_api",
-      quickSetupAnchor: "opencode-go",
-      notes: "Scrapes the OpenCode Go dashboard; requires workspaceId and authCookie",
+      notes: "Reads the official OpenCode Go usage API through standard Go API-key sources",
     },
   },
   opencode: {

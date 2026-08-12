@@ -117,6 +117,7 @@ vi.mock("../src/providers/registry.js", () => ({
     { id: "synthetic" },
     { id: "nanogpt" },
     { id: "deepseek" },
+    { id: "opencode-go" },
     { id: "xiaomi" },
     { id: "kimi-for-coding" },
     { id: "kimi-code" },
@@ -1028,58 +1029,112 @@ describe("buildQuotaStatusReport", () => {
     );
   });
 
-  it("reports OpenCode Go rolling, weekly, and monthly live usage when configured", async () => {
+  it("reports OpenCode Go auth and normalized usage API details", async () => {
     const report = await buildOpenCodeGoStatusReport({
       providerAvailability: [makeProviderAvailability("opencode-go")],
       providerLiveProbes: [
         makeProviderSuccessProbe("opencode-go", {
-          config_state: "configured",
-          config_source: "env",
+          auth_state: "configured",
+          auth_source: "env:OPENCODE_API_KEY",
+          auth_checked_paths: "env:OPENCODE_API_KEY | provider.opencode.options.apiKey",
+          auth_paths: "/tmp/auth.json",
           selected_windows: "rolling,weekly,monthly",
           rolling_usage:
-            "percent_used=7 percent_remaining=93 reset_in_sec=18000 reset_at=2026-03-12T17:45:00.000Z",
+            "status=ok percent_used=7 percent_remaining=93 reset_at=2026-03-12T17:45:00.000Z",
           weekly_usage:
-            "percent_used=22 percent_remaining=78 reset_in_sec=540000 reset_at=2026-03-18T18:45:00.000Z",
+            "status=ok percent_used=22 percent_remaining=78 reset_at=2026-03-18T18:45:00.000Z",
           monthly_usage:
-            "percent_used=64 percent_remaining=36 reset_in_sec=2480000 reset_at=2026-04-10T05:38:20.000Z",
+            "status=ok percent_used=64 percent_remaining=36 reset_at=2026-04-10T05:38:20.000Z",
+          config_state: "configured",
+          workspace_id: "workspace-secret",
+          auth_cookie: "cookie-secret",
+          reset_in_sec: "18000",
         }),
       ],
     });
 
-    expect(report).toContain("opencode_go:");
-    expect(report).toContain("- config_state: configured");
-    expect(report).toContain("- config_source: env");
-    expect(report).toContain("- selected_windows: rolling,weekly,monthly");
-    expect(report).toContain(
-      "- rolling_usage: percent_used=7 percent_remaining=93 reset_in_sec=18000 reset_at=2026-03-12T17:45:00.000Z",
+    const section = getReportSection(report, "opencode_go:");
+    expect(section).toContain("- auth_state: configured");
+    expect(section).toContain("- auth_source: env:OPENCODE_API_KEY");
+    expect(section).toContain(
+      "- auth_checked_paths: env:OPENCODE_API_KEY | provider.opencode.options.apiKey",
     );
-    expect(report).toContain(
-      "- weekly_usage: percent_used=22 percent_remaining=78 reset_in_sec=540000 reset_at=2026-03-18T18:45:00.000Z",
+    expect(section).toContain("- auth_paths: /tmp/auth.json");
+    expect(section).toContain("- selected_windows: rolling,weekly,monthly");
+    expect(section).toContain(
+      "- rolling_usage: status=ok percent_used=7 percent_remaining=93 reset_at=2026-03-12T17:45:00.000Z",
     );
+    expect(section).toContain(
+      "- weekly_usage: status=ok percent_used=22 percent_remaining=78 reset_at=2026-03-18T18:45:00.000Z",
+    );
+    expect(section).toContain(
+      "- monthly_usage: status=ok percent_used=64 percent_remaining=36 reset_at=2026-04-10T05:38:20.000Z",
+    );
+    expect(section).not.toContain("config_");
+    expect(section).not.toContain("workspace");
+    expect(section).not.toContain("cookie");
+    expect(section).not.toContain("reset_in_sec");
     expect(report).toContain(
-      "- monthly_usage: percent_used=64 percent_remaining=36 reset_in_sec=2480000 reset_at=2026-04-10T05:38:20.000Z",
+      "- opencode-go: pricing=no (subscription percentage quota from the OpenCode Go usage API (not token-priced))",
     );
   });
 
-  it("reports OpenCode Go invalid config details without attempting a live fetch", async () => {
+  it("reports safe OpenCode Go invalid-auth details without legacy config fields", async () => {
     const report = await buildOpenCodeGoStatusReport({
       providerLiveProbes: [
         makeProviderProbe("opencode-go", {
           statusDetails: makeStatusDetails({
+            auth_state: "invalid",
+            auth_source: "auth.json",
+            auth_checked_paths: "env:OPENCODE_API_KEY | provider.opencode.options.apiKey",
+            auth_paths: "/tmp/auth.json",
+            auth_error: "auth.json entry opencode must contain a non-empty API key",
+            selected_windows: "rolling,weekly,monthly",
             config_state: "invalid",
-            config_source: "/tmp/config/opencode-quota/opencode-go.json",
-            config_error: "Config file must contain a JSON object",
-            config_checked_paths: "/tmp/config/opencode-quota/opencode-go.json",
+            config_error: "legacy secret",
           }),
         }),
       ],
     });
 
-    expect(report).toContain("opencode_go:");
-    expect(report).toContain("- config_state: invalid");
-    expect(report).toContain("- config_source: /tmp/config/opencode-quota/opencode-go.json");
-    expect(report).toContain("- config_error: Config file must contain a JSON object");
-    expect(report).toContain("- config_checked_paths: /tmp/config/opencode-quota/opencode-go.json");
+    const section = getReportSection(report, "opencode_go:");
+    expect(section).toContain("- auth_state: invalid");
+    expect(section).toContain("- auth_source: auth.json");
+    expect(section).toContain("- auth_paths: /tmp/auth.json");
+    expect(section).toContain(
+      "- auth_error: auth.json entry opencode must contain a non-empty API key",
+    );
+    expect(section).toContain("- selected_windows: rolling,weekly,monthly");
+    expect(section).not.toContain("config_");
+    expect(section).not.toContain("legacy secret");
+  });
+
+  it("reports safe OpenCode Go usage API failures", async () => {
+    const report = await buildOpenCodeGoStatusReport({
+      providerAvailability: [makeProviderAvailability("opencode-go")],
+      providerLiveProbes: [
+        makeProviderSafeFailureProbe(
+          "opencode-go",
+          {
+            auth_state: "configured",
+            auth_source: "auth.json",
+            auth_checked_paths: "env:OPENCODE_API_KEY",
+            auth_paths: "/tmp/auth.json",
+            selected_windows: "rolling,weekly,monthly",
+            live_fetch_error: "OpenCode Go API error 503: unavailable",
+            dashboard_url: "https://opencode.ai/workspace/private",
+          },
+          "OpenCode Go API error 503: unavailable",
+        ),
+      ],
+    });
+
+    const section = getReportSection(report, "opencode_go:");
+    expect(section).toContain("- live_fetch_error: OpenCode Go API error 503: unavailable");
+    expect(section).toContain("- live_probe: error");
+    expect(section).toContain("- live_error_1: OpenCode Go API error 503: unavailable");
+    expect(section).not.toContain("dashboard");
+    expect(section).not.toContain("workspace/private");
   });
 
   it("reports OpenCode Zen config and live billing details without exposing credentials", async () => {

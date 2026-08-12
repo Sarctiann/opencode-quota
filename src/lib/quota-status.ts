@@ -81,6 +81,18 @@ const STATUS_SAMPLE_LIMIT = 5;
 const STATUS_LIVE_ENTRY_LIMIT = 2;
 const STATUS_LIVE_ERROR_LIMIT = 2;
 const STATUS_LIVE_ROW_MAX_LENGTH = 120;
+const OPENCODE_GO_STATUS_DETAIL_KEYS = new Set([
+  "auth_state",
+  "auth_source",
+  "auth_checked_paths",
+  "auth_paths",
+  "auth_error",
+  "selected_windows",
+  "rolling_usage",
+  "weekly_usage",
+  "monthly_usage",
+  "live_fetch_error",
+]);
 type ProviderLiveProbe = {
   providerId: string;
   result: QuotaProviderResult;
@@ -237,10 +249,11 @@ function createProviderStatusSection(params: {
   probes?: ProviderLiveProbe[];
   availability: ProviderAvailability[];
   includeDetails?: boolean;
+  detailKeys?: ReadonlySet<string>;
 }): ReportSection {
   const rows: ReportKvRow[] = [];
   if (params.includeDetails !== false) {
-    appendProviderStatusDetailRows(rows, params.providerId, params.probes);
+    appendProviderStatusDetailRows(rows, params.providerId, params.probes, params.detailKeys);
   }
   appendProviderCompactLiveProbeRows(rows, params.providerId, params.probes, params.availability);
   return createKvSection(params.id, params.title, rows);
@@ -576,7 +589,7 @@ function supportedProviderPricingRow(params: {
     return {
       id,
       pricing: "no",
-      notes: "subscription percentage quota via dashboard scraping (not token-priced)",
+      notes: "subscription percentage quota from the OpenCode Go usage API (not token-priced)",
     };
   }
 
@@ -897,7 +910,12 @@ export async function buildQuotaStatusReport(params: {
       providerId: "minimax-china-coding-plan",
     },
     { id: "kimi", title: "kimi:", providerId: "kimi-for-coding" },
-    { id: "opencode_go", title: "opencode_go:", providerId: "opencode-go" },
+    {
+      id: "opencode_go",
+      title: "opencode_go:",
+      providerId: "opencode-go",
+      detailKeys: OPENCODE_GO_STATUS_DETAIL_KEYS,
+    },
     { id: "opencode_zen", title: "opencode_zen:", providerId: "opencode" },
     { id: "xiaomi", title: "xiaomi:", providerId: "xiaomi" },
     { id: "zai", title: "zai:", providerId: "zai" },
