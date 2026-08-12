@@ -373,6 +373,11 @@ export interface SyntheticAuthData {
   key: string;
 }
 
+export interface OpenCodeGoAuthData {
+  type: "api";
+  key: string;
+}
+
 export interface MiniMaxAuthData {
   type: string;
   key?: string;
@@ -449,8 +454,8 @@ export interface AuthData {
   codex?: OpenAIOAuthData;
   // Some OpenCode installs store ChatGPT auth under "chatgpt".
   chatgpt?: OpenAIOAuthData;
-  // Some OpenCode installs store OpenAI auth under "opencode".
-  opencode?: OpenAIOAuthData;
+  // Canonical OpenCode key. Go uses the API record; older OpenAI auth data may also exist here.
+  opencode?: OpenCodeGoAuthData | OpenAIOAuthData;
   synthetic?: SyntheticAuthData;
   chutes?: {
     type: string;
@@ -870,31 +875,27 @@ export type OllamaCloudResult =
   | QuotaError
   | null;
 
-/** Single usage window from OpenCode Go dashboard */
+/** Single normalized usage window from the OpenCode Go API. */
 export interface OpenCodeGoWindow {
-  /** Usage percentage [0..100] */
+  /** Raw API status after exact validation. */
+  status: "ok";
+  /** Usage percentage [0..100]. */
   usagePercent: number;
-  /** Seconds until usage resets */
-  resetInSec: number;
-  /** Remaining percentage [0..100] */
+  /** Remaining percentage [0..100]. */
   percentRemaining: number;
-  /** ISO reset timestamp */
+  /** Canonical ISO reset timestamp. */
   resetTimeIso: string;
 }
 
-/** Result from scraping OpenCode Go dashboard usage */
+/** Strictly validated result from the OpenCode Go usage API. */
 export type OpenCodeGoResult =
   | {
       success: true;
-      /** Rolling (~5h) usage window, when present in the dashboard payload */
-      rolling?: OpenCodeGoWindow;
-      /** Weekly usage window, when present in the dashboard payload */
-      weekly?: OpenCodeGoWindow;
-      /** Monthly usage window, when present in the dashboard payload */
-      monthly?: OpenCodeGoWindow;
+      rolling: OpenCodeGoWindow;
+      weekly: OpenCodeGoWindow;
+      monthly: OpenCodeGoWindow;
     }
-  | QuotaError
-  | null;
+  | QuotaError;
 
 /** Cached toast data */
 export interface CachedToast {

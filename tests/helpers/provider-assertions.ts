@@ -260,7 +260,7 @@ export const PROVIDER_ACCOUNTING_LEDGER: Record<string, Array<QuotaToastEntry["a
   "opencode-go": [
     {
       resultType: "quota",
-      acquisitionMethod: "dashboard_scrape",
+      acquisitionMethod: "remote_api",
       ownership: "maintained",
       authority: "provider_reported",
     },
