@@ -139,7 +139,7 @@ Run `npx @slkiser/opencode-quota@latest --help` for command options. See [Extern
 | Anthropic (Claude) | [Needs setup](docs/readme/providers.md#anthropic-claude)       | Local CLI/OAuth    | Quota              |
 | Chutes AI          | Automatic                                                      | Remote API         | Quota              |
 | Cursor             | [Needs setup](docs/readme/providers.md#cursor)                 | Local estimate     | Budget and spend   |
-| GitHub Copilot     | Automatic                                                      | Remote API         | Usage and budget   |
+| GitHub Copilot     | Automatic                                                      | Remote API         | Budget and usage   |
 | Google AGY         | [Needs setup](docs/readme/providers.md#google-agy-quick-setup) | Remote API         | Quota              |
 | Google Antigravity | [Needs setup](docs/readme/providers.md#google-antigravity)     | Remote API         | Quota              |
 | Kilo Gateway       | Automatic                                                      | Remote API         | Quota and balance  |
@@ -163,7 +163,7 @@ Run `npx @slkiser/opencode-quota@latest --help` for command options. See [Extern
 | Chutes AI               | Automatic                                                      | Remote API         | Quota              |
 | Cursor                  | [Needs setup](docs/readme/providers.md#cursor)                 | Local estimate     | Budget and spend   |
 | Gemini CLI (deprecated) | [Existing setups only](docs/readme/providers.md#gemini-cli)    | Remote API         | Quota              |
-| GitHub Copilot          | [Needs setup](docs/readme/providers.md#github-copilot)         | Remote API         | Usage and budget   |
+| GitHub Copilot          | [Needs setup](docs/readme/providers.md#github-copilot)         | Remote API         | Budget and usage   |
 | Google AGY              | [Needs setup](docs/readme/providers.md#google-agy-quick-setup) | Remote API         | Quota              |
 | Google Antigravity      | [Needs setup](docs/readme/providers.md#google-antigravity)     | Remote API         | Quota              |
 | NanoGPT                 | Automatic                                                      | Remote API         | Quota and balance  |
@@ -269,4 +269,4 @@ OpenCode Quota is not built by the OpenCode team and is not affiliated with Open
 
 ## Star history
 
-![Star History Chart](https://shawnkiser.com/opencode-quota/star-history-2026710.webp)
+![Star History Chart](https://shawnkiser.com/opencode-quota/star-history-2026813.svg)
