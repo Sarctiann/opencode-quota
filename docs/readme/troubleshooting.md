@@ -234,15 +234,17 @@ Run `/quota_status` and check the `xiaomi` section. Diagnostics show state, sour
 <details>
 <summary><strong>OpenCode Go</strong></summary>
 
-Run `/quota_status` and check the `opencode_go` section.
+Run `/quota_status` and check the `opencode_go` section. It reports safe `auth_*` diagnostics, the selected display windows, normalized API usage, and `live_fetch_error` without exposing the API key.
 
-| Symptom                  | Fix                                                                                                                                                                                            |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Config not detected      | Set both `OPENCODE_GO_WORKSPACE_ID` and `OPENCODE_GO_AUTH_COOKIE`, then rerun `/quota_status`.                                                                                                 |
-| Incomplete config        | `workspaceId` and `authCookie` must come from the same source.                                                                                                                                 |
-| Scrape returns no data   | Refresh the browser `auth` cookie from `opencode.ai`.                                                                                                                                          |
-| Selected window missing  | Check `/quota_status` for `selected_windows` and `live_fetch_error`; remove unavailable windows from `opencodeGoWindows` in `opencode-quota/quota-toast.json` or refresh the dashboard cookie. |
-| Dashboard format changed | This integration scrapes the dashboard, so it can break if the dashboard markup changes.                                                                                                       |
+| Symptom                             | Fix                                                                                                                                                                                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider not detected               | Set `OPENCODE_API_KEY`, trusted global `provider.opencode.options.apiKey`, or a strict `opencode` API-key entry in OpenCode `auth.json`; then check `auth_state`, `auth_source`, and `auth_checked_paths`.                |
+| `auth_state` is `invalid`           | Fix the canonical `opencode` record in `auth.json` so it is `{ "type": "api", "key": "..." }`. A malformed canonical record is reported in `auth_error`.                                                        |
+| API returns 401 or 403              | The usage API rejected the key. Update the winning source shown by `auth_source`, wait briefly for credential caching to expire, and rerun `/quota_status`.                                                           |
+| Invalid API response                | Check `live_fetch_error`. OpenCode Quota requires valid 5h, Weekly, and Monthly results, so one missing or malformed API window rejects the full response instead of showing partial quota.                            |
+| API request times out or fails      | Check `live_fetch_error`, confirm `https://opencode.ai/zen/go/v1/usage` is reachable, and retry. Increase `requestTimeoutMs` only when the error is a timeout.                                                          |
+| Expected window is not displayed    | Check `selected_windows`, then update `opencodeGoWindows` in `opencode-quota/quota-toast.json`. This setting only filters the already validated 5h (`rolling`), Weekly (`weekly`), and Monthly (`monthly`) API results. |
+| Provider missing in manual mode     | Include `opencode-go` in `enabledProviders` in `opencode-quota/quota-toast.json`.                                                                                                                                     |
 
 </details>
 

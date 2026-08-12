@@ -31,7 +31,7 @@ Most providers work automatically. `Automatic` means OpenCode Quota reuses the c
 | NanoGPT            | Automatic                              | Remote API         | Quota and balance  |
 | Ollama Cloud       | Automatic                              | Remote API         | Quota and usage    |
 | OpenAI             | Automatic                              | Remote API         | Quota              |
-| OpenCode Go        | [Needs setup](#opencode-go)            | Dashboard scraping | Quota              |
+| OpenCode Go        | Automatic                              | Remote API         | Quota              |
 | OpenCode Zen       | [Needs setup](#opencode-zen)           | Dashboard scraping | Budget and balance |
 | OpenRouter         | Automatic                              | Remote API         | Budget and spend   |
 | Synthetic          | Automatic                              | Remote API         | Quota              |
@@ -562,14 +562,13 @@ Project-local `opencode.json` and `opencode.jsonc` files are not read for this s
 
 ### OpenCode Go
 
-OpenCode Go quota scrapes the dashboard and needs a workspace ID plus an `auth` cookie:
+OpenCode Go reads subscription quota from the official `https://opencode.ai/zen/go/v1/usage` API. OpenCode Quota automatically resolves the API key in this order:
 
-```bash
-export OPENCODE_GO_WORKSPACE_ID="your-workspace-id"
-export OPENCODE_GO_AUTH_COOKIE="your-auth-cookie"
-```
+1. `OPENCODE_API_KEY`
+2. Trusted user/global OpenCode config: `provider.opencode.options.apiKey`
+3. A strict `opencode` API-key entry in OpenCode `auth.json`: `{ "type": "api", "key": "..." }`
 
-Use `opencodeGoWindows` to choose **5h**, **Weekly**, and/or **Monthly** windows. Environment variables take precedence over the optional `opencode-go.json` file.
+Project-local `opencode.json` and `opencode.jsonc` files are not read for this secret. Use `opencodeGoWindows` to choose which validated API results appear: **5h** (`rolling`), **Weekly** (`weekly`), and/or **Monthly** (`monthly`). This setting filters display rows only; it does not change authentication or the API request.
 
 <a id="opencode-zen"></a>
 

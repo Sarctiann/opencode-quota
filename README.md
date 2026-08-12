@@ -146,7 +146,7 @@ Run `npx @slkiser/opencode-quota@latest --help` for command options. See [Extern
 | NanoGPT            | Automatic                                                      | Remote API         | Quota and balance  |
 | Ollama Cloud       | Automatic                                                      | Remote API         | Quota and usage    |
 | OpenAI             | Automatic                                                      | Remote API         | Quota              |
-| OpenCode Go        | [Needs setup](docs/readme/providers.md#opencode-go)            | Dashboard scraping | Quota              |
+| OpenCode Go        | Automatic                                                      | Remote API         | Quota              |
 | OpenCode Zen       | [Needs setup](docs/readme/providers.md#opencode-zen)           | Dashboard scraping | Budget and balance |
 | OpenRouter         | Automatic                                                      | Remote API         | Budget and spend   |
 | Synthetic          | Automatic                                                      | Remote API         | Quota              |
