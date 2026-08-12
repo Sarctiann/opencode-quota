@@ -43,6 +43,96 @@ function parseSsrBillingData(html: string): OpenCodeZenBillingData | null {
   };
 }
 
+/** Extracts one balanced object/array while ignoring delimiters inside quoted strings. */
+function extractBalancedValue(
+  source: string,
+  start: number,
+): { value: string; end: number } | null {
+  const open = source[start];
+  if (open !== "{" && open !== "[") return null;
+  const close = open === "{" ? "}" : "]";
+
+  let depth = 0;
+  let quote: '"' | "'" | "`" | null = null;
+  let escaped = false;
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i];
+    if (quote !== null) {
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'" || ch === "`") {
+      quote = ch;
+    } else if (ch === open) {
+      depth++;
+    } else if (ch === close && --depth === 0) {
+      return { value: source.slice(start, i + 1), end: i };
+    }
+  }
+  return null;
+}
+
+function extractSsrAssignment(html: string, key: string): string | null {
+  const match = new RegExp(
+    `${key}\\[\\\\?"[^"]+\\\\?"\\]"]=\\$R\\[\\d+\\]=\\$R\\[\\d+\\]\\(\\$R\\[(\\d+)\\]` +
+      `[\\s\\S]*?\\$R\\[\\d+\\]\\(\\$R\\[\\1\\],\\$R\\[\\d+\\]=`,
+  ).exec(html);
+  if (!match) return null;
+
+  const start = match.index + match[0].length;
+  return extractBalancedValue(html, start)?.value ?? null;
+}
+
+function parseNewSsrBillingData(html: string): OpenCodeZenBillingData | null {
+  const object = extractSsrAssignment(html, "billing\\.get");
+  if (!object) return null;
+
+  const balanceMatch = object.match(/\bbalance\s*:\s*(-?\d+)/);
+  const limitMatch = object.match(/\bmonthlyLimit\s*:\s*(\d+)/);
+  const usageMatch = object.match(/\bmonthlyUsage\s*:\s*(\d+)/);
+  if (!balanceMatch) return null;
+
+  return {
+    balance: Math.max(0, Number(balanceMatch[1])),
+    monthlyLimit: limitMatch ? Number(limitMatch[1]) : null,
+    monthlyUsage: usageMatch ? Number(usageMatch[1]) : null,
+    lastPayment: null,
+  };
+}
+
+function parseNewSsrPaymentData(html: string): number | null {
+  const array = extractSsrAssignment(html, "payment\\.list");
+  if (!array) return null;
+
+  for (let i = 1; i < array.length - 1; i++) {
+    if (array[i] !== "{") continue;
+
+    const extracted = extractBalancedValue(array, i);
+    if (!extracted) return null;
+    i = extracted.end;
+
+    const amountMatch = extracted.value.match(/\bamount\s*:\s*(-?\d+(?:\.\d+)?)/);
+    const amount = amountMatch ? Number(amountMatch[1]) : Number.NaN;
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+
+    const timeRefunded = extracted.value.match(/\btimeRefunded\s*:\s*([^,}]+)/)?.[1].trim();
+    const explicitlyRefunded =
+      /\brefunded\s*:\s*true\b/.test(extracted.value) ||
+      (timeRefunded !== undefined && timeRefunded !== "null");
+    if (!explicitlyRefunded) {
+      return amount / OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR;
+    }
+  }
+  return null;
+}
+
 function parseDataSlotBillingData(html: string): OpenCodeZenBillingData | null {
   let balance: number | null = null;
   let monthlyLimit: number | null = null;
@@ -150,7 +240,10 @@ export async function queryOpenCodeZenQuota(
         }
 
         const html = await response.text();
-        const data = parseSsrBillingData(html) ?? parseDataSlotBillingData(html);
+        const data =
+          parseNewSsrBillingData(html) ??
+          parseSsrBillingData(html) ??
+          parseDataSlotBillingData(html);
         if (!data) {
           return {
             success: false,
@@ -159,7 +252,10 @@ export async function queryOpenCodeZenQuota(
           };
         }
 
-        data.lastPayment = parseSsrPaymentData(html) ?? parseDataSlotPaymentData(html);
+        data.lastPayment =
+          parseNewSsrPaymentData(html) ??
+          parseSsrPaymentData(html) ??
+          parseDataSlotPaymentData(html);
         return { success: true, data };
       },
     });
@@ -177,6 +273,8 @@ export async function queryOpenCodeZenQuota(
 export {
   parseDataSlotBillingData as _parseDataSlotBillingData,
   parseDataSlotPaymentData as _parseDataSlotPaymentData,
+  parseNewSsrBillingData as _parseNewSsrBillingData,
+  parseNewSsrPaymentData as _parseNewSsrPaymentData,
   parseSsrBillingData as _parseSsrBillingData,
   parseSsrPaymentData as _parseSsrPaymentData,
 };

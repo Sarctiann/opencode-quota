@@ -26,7 +26,7 @@ import {
 } from "./result-helpers.js";
 
 export function getAnthropicNoDataMessage(): string {
-  return "Quota unavailable via local Claude CLI or Claude OAuth fallback";
+  return "Quota unavailable via local Claude CLI or OAuth credentials";
 }
 
 export const anthropicProvider: QuotaProvider = {
@@ -57,15 +57,20 @@ export const anthropicProvider: QuotaProvider = {
       requestTimeoutMs: ctx.config?.requestTimeoutMs,
     };
     let statusDetails;
+    let acquisitionMethod: QuotaToastEntry["accounting"]["acquisitionMethod"] = "local_cli";
     try {
       const diagnostics = await getAnthropicDiagnostics(options);
       const quota = diagnostics.quotaSupported ? diagnostics.quota : undefined;
+      if (diagnostics.quotaSupported && diagnostics.quotaSource !== "claude-auth-status-json") {
+        acquisitionMethod = "remote_api";
+      }
       statusDetails = statusDetailsFromRecord({
         cli_installed: diagnostics.installed ? "true" : "false",
         cli_version: diagnostics.version ?? "(none)",
         auth_status: diagnostics.authStatus,
         quota_supported: diagnostics.quotaSupported ? "true" : "false",
         quota_source: diagnostics.quotaSource === "none" ? "(none)" : diagnostics.quotaSource,
+        oauth_credential_source: diagnostics.oauthCredentialSource ?? "(none)",
         checked_commands: diagnostics.checkedCommands.join(" | ") || "(none)",
         message: diagnostics.message,
         five_hour_remaining: quota
@@ -95,7 +100,7 @@ export const anthropicProvider: QuotaProvider = {
       {
         accounting: {
           resultType: "quota",
-          acquisitionMethod: "local_cli",
+          acquisitionMethod,
           ownership: "maintained",
           authority: "provider_reported",
         },
@@ -108,7 +113,7 @@ export const anthropicProvider: QuotaProvider = {
       {
         accounting: {
           resultType: "quota",
-          acquisitionMethod: "local_cli",
+          acquisitionMethod,
           ownership: "maintained",
           authority: "provider_reported",
         },

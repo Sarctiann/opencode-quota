@@ -887,7 +887,7 @@ describe("/quota command behavior", () => {
 
     const injected = await buildDialogOutput({ client, sessionID: "session-anthropic-empty" });
     expect(injected).toContain(
-      "Anthropic: Quota unavailable via local Claude CLI or Claude OAuth fallback",
+      "Anthropic: Quota unavailable via local Claude CLI or OAuth credentials",
     );
     expect(injected).not.toContain("Anthropic: Not configured");
   });
@@ -922,7 +922,7 @@ describe("/quota command behavior", () => {
 
     const injected = await buildDialogOutput({ client, sessionID: "session-anthropic-auto-empty" });
     expect(injected).toContain(
-      "Anthropic: Quota unavailable via local Claude CLI or Claude OAuth fallback",
+      "Anthropic: Quota unavailable via local Claude CLI or OAuth credentials",
     );
     expect(injected).not.toContain("Providers detected");
   });

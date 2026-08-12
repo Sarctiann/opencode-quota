@@ -370,7 +370,7 @@ Official references: [AI Credit billing reports](https://docs.github.com/en/rest
 
 ### Anthropic (Claude)
 
-Install Claude Code, authenticate it, and make sure `claude` is on your `PATH`:
+OpenCode's existing Anthropic OAuth credential is sufficient; a separate Claude Code installation is not required. To use Claude Code as the local quota source and credential fallback, install it, authenticate it, and make sure `claude` is on your `PATH`:
 
 ```bash
 claude auth login
@@ -378,6 +378,8 @@ claude auth status
 ```
 
 If Claude lives at a custom path, set `anthropicBinaryPath` in `opencode-quota/quota-toast.json`.
+
+When Claude Code does not expose quota windows itself, quota is read from Anthropic's OAuth usage endpoint using the first usable access token: OpenCode's own `anthropic` OAuth credential from `auth.json`, then Claude Code's credentials. `/quota_status` reports which store answered as `oauth_credential_source`.
 
 <a id="cursor"></a>
 
