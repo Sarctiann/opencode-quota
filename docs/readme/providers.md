@@ -24,7 +24,7 @@ Most providers work automatically. `Automatic` means OpenCode Quota reuses the c
 | Anthropic (Claude) | [Needs setup](#anthropic-claude)       | Local CLI/OAuth    | Quota              |
 | Chutes AI          | Automatic                              | Remote API         | Quota              |
 | Cursor             | [Needs setup](#cursor)                 | Local estimate     | Budget and spend   |
-| GitHub Copilot     | Automatic                              | Remote API         | Usage and budget   |
+| GitHub Copilot     | Automatic                              | Remote API         | Budget and usage   |
 | Google AGY         | [Needs setup](#google-agy-quick-setup) | Remote API         | Quota              |
 | Google Antigravity | [Needs setup](#google-antigravity)     | Remote API         | Quota              |
 | Kilo Gateway       | Automatic                              | Remote API         | Quota and balance  |
@@ -48,7 +48,7 @@ Most providers work automatically. `Automatic` means OpenCode Quota reuses the c
 | Chutes AI               | Automatic                              | Remote API         | Quota              |
 | Cursor                  | [Needs setup](#cursor)                 | Local estimate     | Budget and spend   |
 | Gemini CLI (deprecated) | [Existing setups only](#gemini-cli)    | Remote API         | Quota              |
-| GitHub Copilot          | [Needs setup](#github-copilot)         | Remote API         | Usage and budget   |
+| GitHub Copilot          | [Needs setup](#github-copilot)         | Remote API         | Budget and usage   |
 | Google AGY              | [Needs setup](#google-agy-quick-setup) | Remote API         | Quota              |
 | Google Antigravity      | [Needs setup](#google-antigravity)     | Remote API         | Quota              |
 | NanoGPT                 | Automatic                              | Remote API         | Quota and balance  |
