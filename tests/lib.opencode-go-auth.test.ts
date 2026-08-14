@@ -131,6 +131,21 @@ describe("OpenCode Go auth resolution", () => {
     });
   });
 
+  it.each([
+    ["null", null, "none"],
+    ["an invalid shape", "key", "invalid"],
+    ["missing a type", {}, "invalid"],
+    ["an unsupported type", { type: "oauth", key: "ignored" }, "invalid"],
+    ["an empty key", { type: "api", key: " " }, "invalid"],
+  ])("does not use legacy auth when opencode-go is %s", (_case, primary, state) => {
+    expect(
+      resolveOpenCodeGoAuth({
+        "opencode-go": primary,
+        opencode: { type: "api", key: "legacy-key" },
+      }),
+    ).toMatchObject({ state });
+  });
+
   it("prefers OPENCODE_API_KEY and does not read lower-priority auth", async () => {
     process.env.OPENCODE_API_KEY = " env-key ";
     authMocks.readAuthFileCached.mockResolvedValue(authEntry({ type: "oauth", key: "ignored" }));
