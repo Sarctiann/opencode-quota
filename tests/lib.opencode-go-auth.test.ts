@@ -100,12 +100,50 @@ describe("OpenCode Go auth resolution", () => {
     });
   });
 
-  it("rejects alias auth keys", () => {
-    for (const alias of ["opencode-go", "opencode-go-subscription", "openai", "zen"]) {
+  it("rejects unrelated alias auth keys", () => {
+    for (const alias of ["opencode-go-subscription", "openai", "zen"]) {
       expect(resolveOpenCodeGoAuth({ [alias]: { type: "api", key: "alias-key" } })).toEqual({
         state: "none",
       });
     }
+  });
+
+  it("accepts the opencode-go auth.json key written by `opencode auth login -p opencode-go`", () => {
+    expect(resolveOpenCodeGoAuth({ "opencode-go": { type: "api", key: "cli-key" } })).toEqual({
+      state: "configured",
+      apiKey: "cli-key",
+    });
+    // The legacy `opencode` key still works as a fallback.
+    expect(resolveOpenCodeGoAuth({ opencode: { type: "api", key: "legacy-key" } })).toEqual({
+      state: "configured",
+      apiKey: "legacy-key",
+    });
+  });
+
+  it("prefers the opencode-go auth.json key over the legacy opencode fallback", () => {
+    const auth = {
+      "opencode-go": { type: "api", key: "cli-key" },
+      opencode: { type: "api", key: "legacy-key" },
+    };
+    expect(resolveOpenCodeGoAuth(auth)).toEqual({
+      state: "configured",
+      apiKey: "cli-key",
+    });
+  });
+
+  it.each([
+    ["null", null, "none"],
+    ["an invalid shape", "key", "invalid"],
+    ["missing a type", {}, "invalid"],
+    ["an unsupported type", { type: "oauth", key: "ignored" }, "invalid"],
+    ["an empty key", { type: "api", key: " " }, "invalid"],
+  ])("does not use legacy auth when opencode-go is %s", (_case, primary, state) => {
+    expect(
+      resolveOpenCodeGoAuth({
+        "opencode-go": primary,
+        opencode: { type: "api", key: "legacy-key" },
+      }),
+    ).toMatchObject({ state });
   });
 
   it("prefers OPENCODE_API_KEY and does not read lower-priority auth", async () => {

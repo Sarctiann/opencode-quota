@@ -392,7 +392,7 @@ Kilo Gateway has no `quota-toast.json` credential setting. Use `KILO_API_KEY`, t
 
 Ollama Cloud has no `quota-toast.json` credential setting. Use `OLLAMA_API_KEY`, trusted user/global `provider.ollama-cloud.options.apiKey`, or a strict `ollama-cloud` API-key entry in OpenCode `auth.json`; project-local OpenCode config is not read for this secret. See [Ollama Cloud setup](providers.md#ollama-cloud).
 
-OpenCode Go has no `quota-toast.json` workspace ID, cookie, endpoint, credential, or token setting. It automatically uses `OPENCODE_API_KEY`, trusted user/global `provider.opencode.options.apiKey`, or a strict `opencode` API-key entry in OpenCode `auth.json`. `opencodeGoWindows` only filters the 5h, Weekly, and Monthly rows returned by the official usage API. See [OpenCode Go setup](providers.md#opencode-go).
+OpenCode Go has no `quota-toast.json` workspace ID, cookie, endpoint, credential, or token setting. It automatically uses `OPENCODE_API_KEY`, trusted user/global `provider.opencode.options.apiKey`, or a strict `opencode-go` API-key entry in OpenCode `auth.json`, with legacy `opencode` supported only as a fallback. `opencodeGoWindows` only filters the 5h, Weekly, and Monthly rows returned by the official usage API. See [OpenCode Go setup](providers.md#opencode-go).
 
 Xiaomi MiMo has no `quota-toast.json` credential or endpoint setting. Use `MIMO_USAGE_COOKIE` or trusted user/global `opencode-quota/mimo.json`; see [Xiaomi MiMo setup](providers.md#xiaomi-mimo).
 

@@ -24,7 +24,7 @@ Most providers work automatically. `Automatic` means OpenCode Quota reuses the c
 | Anthropic (Claude) | [Needs setup](#anthropic-claude)       | Local CLI/OAuth    | Quota              |
 | Chutes AI          | Automatic                              | Remote API         | Quota              |
 | Cursor             | [Needs setup](#cursor)                 | Local estimate     | Budget and spend   |
-| GitHub Copilot     | Automatic                              | Remote API         | Usage and budget   |
+| GitHub Copilot     | Automatic                              | Remote API         | Budget and usage   |
 | Google AGY         | [Needs setup](#google-agy-quick-setup) | Remote API         | Quota              |
 | Google Antigravity | [Needs setup](#google-antigravity)     | Remote API         | Quota              |
 | Kilo Gateway       | Automatic                              | Remote API         | Quota and balance  |
@@ -48,7 +48,7 @@ Most providers work automatically. `Automatic` means OpenCode Quota reuses the c
 | Chutes AI               | Automatic                              | Remote API         | Quota              |
 | Cursor                  | [Needs setup](#cursor)                 | Local estimate     | Budget and spend   |
 | Gemini CLI (deprecated) | [Existing setups only](#gemini-cli)    | Remote API         | Quota              |
-| GitHub Copilot          | [Needs setup](#github-copilot)         | Remote API         | Usage and budget   |
+| GitHub Copilot          | [Needs setup](#github-copilot)         | Remote API         | Budget and usage   |
 | Google AGY              | [Needs setup](#google-agy-quick-setup) | Remote API         | Quota              |
 | Google Antigravity      | [Needs setup](#google-antigravity)     | Remote API         | Quota              |
 | NanoGPT                 | Automatic                              | Remote API         | Quota and balance  |
@@ -568,7 +568,7 @@ OpenCode Go reads subscription quota from the official `https://opencode.ai/zen/
 
 1. `OPENCODE_API_KEY`
 2. Trusted user/global OpenCode config: `provider.opencode.options.apiKey`
-3. A strict `opencode` API-key entry in OpenCode `auth.json`: `{ "type": "api", "key": "..." }`
+3. An `opencode-go` API-key entry in OpenCode `auth.json`: `{ "type": "api", "key": "..." }`. This is the key the OpenCode CLI writes via `opencode auth login -p opencode-go`. A legacy `opencode` entry is still accepted as a fallback.
 
 Project-local `opencode.json` and `opencode.jsonc` files are not read for this secret. Use `opencodeGoWindows` to choose which validated API results appear: **5h** (`rolling`), **Weekly** (`weekly`), and/or **Monthly** (`monthly`). This setting filters display rows only; it does not change authentication or the API request.
 
