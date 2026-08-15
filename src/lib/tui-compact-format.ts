@@ -221,18 +221,19 @@ export function buildCompactQuotaStatusLine(params: {
   const data = sanitizeQuotaRenderData(params.data);
   const percentDisplayMode = params.percentDisplayMode ?? "remaining";
   const segments = formatCompactEntrySegments({ entries: data.entries, percentDisplayMode });
+  const issues = data.errors.filter((error) => error.kind !== "intentional-filter");
 
   const sessionTokensSegment = formatCompactSessionTokensSegment(data);
   if (sessionTokensSegment) {
     segments.push(sessionTokensSegment);
   }
 
-  if (data.errors.length > 0) {
+  if (issues.length > 0) {
     if (segments.length === 0) {
-      const errorSegment = formatFirstErrorSegment(data.errors);
+      const errorSegment = formatFirstErrorSegment(issues);
       if (errorSegment) segments.push(errorSegment);
     } else {
-      const issueSegment = formatIssueCount(data.errors.length);
+      const issueSegment = formatIssueCount(issues.length);
       const candidate = [...segments, issueSegment].join(COMPACT_SEGMENT_SEPARATOR);
       if (compactText(candidate).length <= maxWidth) {
         segments.push(issueSegment);

@@ -105,6 +105,8 @@ export interface QuotaToastError {
   /** Short label that will be rendered as "label: message". */
   label: string;
   message: string;
+  /** Intentional diagnostics remain verbose but do not count as compact-status issues. */
+  kind?: "intentional-filter";
 }
 
 /** Per-model token summary for current session (toast display). */

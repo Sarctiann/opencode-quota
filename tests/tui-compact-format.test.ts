@@ -255,6 +255,53 @@ describe("buildCompactQuotaStatusLine", () => {
     expect(line).toBe("Copilot 75% | +2 issues");
   });
 
+  it("does not count providers intentionally excluded by current-model filtering", () => {
+    const line = buildCompactQuotaStatusLine({
+      maxWidth: 96,
+      data: {
+        entries: [{ name: "OpenAI", percentRemaining: 75 }],
+        errors: [
+          {
+            kind: "intentional-filter",
+            label: "xAI",
+            message: "Skipped (current model: gpt-5.6-sol)",
+          },
+          {
+            kind: "intentional-filter",
+            label: "Ollama Cloud",
+            message: "Skipped (current model: gpt-5.6-sol)",
+          },
+          {
+            kind: "intentional-filter",
+            label: "OpenRouter",
+            message: "Skipped (current model: gpt-5.6-sol)",
+          },
+        ],
+      },
+    });
+
+    expect(line).toBe("OpenAI 75%");
+  });
+
+  it("still counts genuine errors alongside intentional current-model filtering", () => {
+    const line = buildCompactQuotaStatusLine({
+      maxWidth: 96,
+      data: {
+        entries: [{ name: "OpenAI", percentRemaining: 75 }],
+        errors: [
+          {
+            kind: "intentional-filter",
+            label: "OpenRouter",
+            message: "Skipped (current model: gpt-5.6-sol)",
+          },
+          { label: "OpenAI", message: "Failed to parse quota response" },
+        ],
+      },
+    });
+
+    expect(line).toBe("OpenAI 75% | +1 issue");
+  });
+
   it("renders the first error with a remaining count when no quota segments exist", () => {
     const line = buildCompactQuotaStatusLine({
       percentDisplayMode: "remaining",

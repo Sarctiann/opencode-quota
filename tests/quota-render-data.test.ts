@@ -318,6 +318,48 @@ describe("collectQuotaRenderData shared quota state", () => {
     ]);
   });
 
+  it("marks providers excluded by current-model filtering as intentional diagnostics", async () => {
+    const openaiProvider = testProvider("openai", {
+      entries: [{ accounting: TEST_ACCOUNTING, name: "OpenAI", percentRemaining: 75 }],
+    });
+    const xaiProvider = testProvider("xai");
+    const ollamaProvider = testProvider("ollama-cloud");
+    const openrouterProvider = testProvider("openrouter");
+
+    const result = await collectQuotaRenderData({
+      client: TEST_CLIENT,
+      config: renderConfig({
+        enabledProviders: ["openai", "xai", "ollama-cloud", "openrouter"],
+        onlyCurrentModel: true,
+      }),
+      request: {
+        sessionID: "explicit-openai-session",
+        sessionMeta: { providerID: "openai", modelID: "gpt-5.6-sol" },
+      },
+      surfaceExplicitProviderIssues: true,
+      formatStyle: "allWindows",
+      providers: [openaiProvider, xaiProvider, ollamaProvider, openrouterProvider],
+    });
+
+    expect(result.data?.errors).toEqual([
+      {
+        kind: "intentional-filter",
+        label: "xAI",
+        message: "Skipped (current model: gpt-5.6-sol)",
+      },
+      {
+        kind: "intentional-filter",
+        label: "Ollama Cloud",
+        message: "Skipped (current model: gpt-5.6-sol)",
+      },
+      {
+        kind: "intentional-filter",
+        label: "OpenRouter",
+        message: "Skipped (current model: gpt-5.6-sol)",
+      },
+    ]);
+  });
+
   it("normalizes provider-only session metadata before matching providers", () => {
     expect(
       matchesQuotaProviderCurrentSelection({
@@ -327,23 +369,100 @@ describe("collectQuotaRenderData shared quota state", () => {
     ).toBe(true);
   });
 
-  it("uses currentModel matching when currentProviderID is also present", () => {
-    const provider = {
-      id: "openai",
+  it("selects an explicit OpenAI provider for an unprefixed OpenAI model", () => {
+    const openaiProvider = {
+      ...testProvider("openai"),
       matchesCurrentModel: vi.fn().mockReturnValue(false),
     };
 
     expect(
       matchesQuotaProviderCurrentSelection({
-        provider: provider as any,
+        provider: openaiProvider,
         currentProviderID: "openai",
-        currentModel: "anthropic/claude-sonnet-4",
+        currentModel: "gpt-5.6-sol",
+      }),
+    ).toBe(true);
+    expect(openaiProvider.matchesCurrentModel).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["chatgpt", "openai"],
+    ["codex", "openai"],
+    ["chutes-ai", "chutes"],
+  ])("selects the catalog provider for runtime alias %s", (currentProviderID, providerId) => {
+    const provider = {
+      ...testProvider(providerId),
+      matchesCurrentModel: vi.fn().mockReturnValue(false),
+    };
+
+    expect(
+      matchesQuotaProviderCurrentSelection({
+        provider,
+        currentProviderID,
+        currentModel: "unprefixed-model-id",
+      }),
+    ).toBe(true);
+    expect(provider.matchesCurrentModel).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["gemini-2.5-pro", "google-gemini-cli"],
+    ["antigravity-claude-sonnet", "google-antigravity"],
+  ])("uses model matching to disambiguate the shared google runtime ID for %s", (currentModel, selectedProviderId) => {
+    const antigravityProvider = {
+      ...testProvider("google-antigravity"),
+      matchesCurrentModel: vi.fn((model: string) => model === "google/antigravity-claude-sonnet"),
+    };
+    const geminiProvider = {
+      ...testProvider("google-gemini-cli"),
+      matchesCurrentModel: vi.fn((model: string) => model === "google/gemini-2.5-pro"),
+    };
+
+    for (const provider of [antigravityProvider, geminiProvider]) {
+      expect(
+        matchesQuotaProviderCurrentSelection({
+          provider,
+          currentProviderID: "google",
+          currentModel,
+        }),
+      ).toBe(provider.id === selectedProviderId);
+      expect(provider.matchesCurrentModel).toHaveBeenCalledWith(`google/${currentModel}`, {
+        enabledProviders: "auto",
+        currentProviderID: "google",
+      });
+    }
+  });
+
+  it("fails closed for an unknown explicit provider ID instead of broad model matching", () => {
+    const openaiProvider = {
+      ...testProvider("openai"),
+      matchesCurrentModel: vi.fn().mockReturnValue(true),
+    };
+
+    expect(
+      matchesQuotaProviderCurrentSelection({
+        provider: openaiProvider,
+        currentProviderID: "private-openai-compatible-gateway",
+        currentModel: "openai/gpt-5.6-sol",
       }),
     ).toBe(false);
-    expect(provider.matchesCurrentModel).toHaveBeenCalledWith("anthropic/claude-sonnet-4", {
-      enabledProviders: "auto",
-      currentProviderID: "openai",
-    });
+    expect(openaiProvider.matchesCurrentModel).not.toHaveBeenCalled();
+  });
+
+  it("does not select OpenAI for an explicit OpenRouter provider with an OpenAI-looking model", () => {
+    const openaiProvider = {
+      ...testProvider("openai"),
+      matchesCurrentModel: vi.fn().mockReturnValue(true),
+    };
+
+    expect(
+      matchesQuotaProviderCurrentSelection({
+        provider: openaiProvider,
+        currentProviderID: "openrouter",
+        currentModel: "openai/gpt-5.6-sol",
+      }),
+    ).toBe(false);
+    expect(openaiProvider.matchesCurrentModel).not.toHaveBeenCalled();
   });
 
   it("passes explicit enabledProviders context into current-model matching", () => {
@@ -364,7 +483,7 @@ describe("collectQuotaRenderData shared quota state", () => {
     });
   });
 
-  it("selects quota providers by exact model and permits provider-only identity only for provider-wide sources", () => {
+  it("keeps model-level matching for quota providers that share a provider ID", () => {
     const quotaProviders = [
       {
         id: "wide",
@@ -381,7 +500,7 @@ describe("collectQuotaRenderData shared quota state", () => {
         mode: "remote-api",
         url: "https://model.example/accounting",
         format: "quota-v1" as const,
-        modelIds: ["company/model-a"],
+        modelIds: ["model-a"],
       },
     ];
     const provider = {
@@ -402,11 +521,16 @@ describe("collectQuotaRenderData shared quota state", () => {
     expect(
       matchesQuotaProviderCurrentSelection({
         provider: provider as any,
-        currentModel: "company/model-a",
+        currentModel: "model-a",
         currentProviderID: "company",
         quotaProviders,
       }),
     ).toBe(true);
+    expect(provider.matchesCurrentModel).toHaveBeenCalledWith("model-a", {
+      enabledProviders: "auto",
+      currentProviderID: "company",
+      quotaProviders,
+    });
     expect(
       matchesQuotaProviderCurrentSelection({
         provider: provider as any,
