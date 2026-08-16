@@ -196,9 +196,10 @@ function isQuotaToastError(value: unknown): boolean {
 
   const error = value as Record<string, unknown>;
   return (
-    hasOnlyKeys(error, ["label", "message"]) &&
+    hasOnlyKeys(error, ["label", "message", "kind"]) &&
     typeof error.label === "string" &&
-    typeof error.message === "string"
+    typeof error.message === "string" &&
+    (error.kind === undefined || error.kind === "intentional-filter")
   );
 }
 
