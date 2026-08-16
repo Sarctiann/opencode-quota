@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { formatQuotaCommand } from "../src/lib/quota-command-format.js";
+import type { QuotaRenderData } from "../src/lib/quota-render-data.js";
+import { formatQuotaRowsGrouped } from "../src/lib/toast-format-grouped.js";
+import { buildCompactQuotaStatusLine } from "../src/lib/tui-compact-format.js";
+import { buildSidebarQuotaPanelLines } from "../src/lib/tui-sidebar-format.js";
+
 import {
   expectAttemptedWithErrorLabel,
   expectAttemptedWithNoErrors,
@@ -176,5 +182,64 @@ describe.each(PROVIDERS)("$label GLM provider", (descriptor) => {
       ),
     ).resolves.toBe(false);
     expect(descriptor.resolveAuth).not.toHaveBeenCalled();
+  });
+});
+
+describe("Z.ai credit quota surfaces", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders credit-backed five-hour and weekly percentages on all four surfaces", async () => {
+    mocks.queryZaiQuota.mockResolvedValueOnce({
+      success: true,
+      label: "Z.ai",
+      windows: {
+        fiveHour: { percentRemaining: 96, resetTimeIso: undefined },
+        weekly: { percentRemaining: 89, resetTimeIso: undefined },
+      },
+    });
+
+    const out = await zaiProvider.fetch({} as any);
+    expectAttemptedWithNoErrors(out);
+    expect(visibleEntries(out.entries, "zai")).toEqual([
+      {
+        name: "Z.ai 5h",
+        group: "Z.ai",
+        label: "5h:",
+        percentRemaining: 96,
+        resetTimeIso: undefined,
+      },
+      {
+        name: "Z.ai Weekly",
+        group: "Z.ai",
+        label: "Weekly:",
+        percentRemaining: 89,
+        resetTimeIso: undefined,
+      },
+    ]);
+
+    const data: QuotaRenderData = { entries: out.entries, errors: out.errors };
+    const command = formatQuotaCommand({ ...data, generatedAtMs: 0 });
+    const toast = formatQuotaRowsGrouped(data);
+    const sidebar = buildSidebarQuotaPanelLines({
+      data,
+      config: { formatStyle: "allWindows", percentDisplayMode: "remaining" },
+    }).join("\n");
+    const compact = buildCompactQuotaStatusLine({
+      data,
+      percentDisplayMode: "remaining",
+      maxWidth: 240,
+    });
+
+    for (const output of [command, toast, sidebar, compact]) {
+      expect(output).toContain("Z.ai");
+      expect(output).toContain("96%");
+      expect(output).toContain("89%");
+    }
+    for (const output of [command, toast, sidebar]) {
+      expect(output).toMatch(/(?:5h|Five-hour)/u);
+      expect(output).toMatch(/\bWeek(?:ly)?\b/u);
+    }
   });
 });

@@ -227,6 +227,61 @@ describe("provider-specific GLM envelopes", () => {
     }
   });
 
+  it("maps Z.ai credit limits to percent windows without inferring credit amounts", async () => {
+    const resetMs = 1_735_776_000_000;
+    const creditLimits = [
+      {
+        type: "CREDIT_LIMIT",
+        unit: 3,
+        number: 1,
+        usage: 400,
+        currentValue: 9_600,
+        remaining: 9_600,
+        percentage: 4,
+        nextResetTime: resetMs,
+      },
+      {
+        type: "CREDIT_LIMIT",
+        unit: 6,
+        number: 1,
+        usage: 1_100,
+        currentValue: 8_900,
+        remaining: 8_900,
+        percentage: 11,
+        nextResetTime: resetMs + 1_000,
+      },
+    ];
+
+    configure(providers[0]);
+    stubJson(quotaResponse(creditLimits));
+    const zaiResult = await queryZaiQuota();
+    expect(zaiResult).toEqual({
+      success: true,
+      label: "Z.ai",
+      windows: {
+        fiveHour: {
+          percentRemaining: 96,
+          resetTimeIso: new Date(resetMs).toISOString(),
+        },
+        weekly: {
+          percentRemaining: 89,
+          resetTimeIso: new Date(resetMs + 1_000).toISOString(),
+        },
+      },
+    });
+    expect(zaiResult).not.toHaveProperty("windows.fiveHour.usage");
+    expect(zaiResult).not.toHaveProperty("windows.fiveHour.currentValue");
+    expect(zaiResult).not.toHaveProperty("windows.fiveHour.remaining");
+
+    configure(providers[1]);
+    stubJson(quotaResponse(creditLimits));
+    await expect(queryZhipuQuota()).resolves.toEqual({
+      success: true,
+      label: "Zhipu",
+      windows: {},
+    });
+  });
+
   it("allows Z.ai root limits but keeps Zhipu strict to data.limits", async () => {
     const rootEnvelope = {
       code: 0,
