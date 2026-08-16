@@ -625,7 +625,13 @@ describe("quota-state shared cache", () => {
       fetch: vi.fn().mockResolvedValue({
         attempted: true,
         entries: [{ accounting: TEST_ACCOUNTING, name: "Synthetic", percentRemaining: 55 }],
-        errors: [],
+        errors: [
+          {
+            kind: "intentional-filter",
+            label: "OpenRouter",
+            message: "Skipped (current model: synthetic/default)",
+          },
+        ],
       }),
     } as any;
 
@@ -647,7 +653,13 @@ describe("quota-state shared cache", () => {
     expect(second).toEqual({
       attempted: true,
       entries: [{ accounting: TEST_ACCOUNTING, name: "Synthetic", percentRemaining: 55 }],
-      errors: [],
+      errors: [
+        {
+          kind: "intentional-filter",
+          label: "OpenRouter",
+          message: "Skipped (current model: synthetic/default)",
+        },
+      ],
     });
     expect(provider.fetch).toHaveBeenCalledTimes(1);
   });

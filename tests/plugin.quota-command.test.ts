@@ -1,6 +1,7 @@
 import { rm } from "fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { QuotaProviderContext } from "../src/lib/entries.js";
 import { DEFAULT_CONFIG } from "../src/lib/types.js";
 import {
   createAlibabaAuthModuleMock,
@@ -958,32 +959,60 @@ describe("/quota command behavior", () => {
     expect(injected).not.toContain("Providers detected");
   });
 
-  it("does not reuse shared /quota output after the current model changes in the same session", async () => {
+  it("invalidates model-scoped custom provider output when only the current model changes", async () => {
+    const quotaProviders = [
+      {
+        id: "shared-model-a",
+        providerId: "shared-provider",
+        label: "Shared Model A",
+        mode: "remote-api" as const,
+        url: "https://model-a.example/accounting",
+        format: "quota-v1" as const,
+        modelIds: ["model-a"],
+      },
+      {
+        id: "shared-model-b",
+        providerId: "shared-provider",
+        label: "Shared Model B",
+        mode: "remote-api" as const,
+        url: "https://model-b.example/accounting",
+        format: "quota-v1" as const,
+        modelIds: ["model-b"],
+      },
+    ];
     mocks.loadConfig.mockResolvedValue({
       ...DEFAULT_CONFIG,
       enabled: true,
+      enabledProviders: ["quota-providers"],
+      quotaProviders,
       onlyCurrentModel: true,
       showOnQuestion: false,
       showSessionTokens: false,
       minIntervalMs: 60_000,
     });
 
+    const { quotaProvidersProvider } = await import("../src/providers/quota-providers.js");
     const provider = {
-      id: "openai",
-      matchesCurrentModel: vi.fn((model?: string) => model === "openai/gpt-5"),
+      ...quotaProvidersProvider,
       isAvailable: vi.fn().mockResolvedValue(true),
-      fetch: vi.fn().mockResolvedValue({
+      fetch: vi.fn().mockImplementation(async (ctx: QuotaProviderContext) => ({
         attempted: true,
-        entries: [{ accounting: TEST_ACCOUNTING, name: "OpenAI Pro", percentRemaining: 95 }],
+        entries: [
+          {
+            accounting: TEST_ACCOUNTING,
+            name: ctx.config.currentModel === "model-a" ? "Shared Model A" : "Shared Model B",
+            percentRemaining: ctx.config.currentModel === "model-a" ? 95 : 60,
+          },
+        ],
         errors: [],
-      }),
+      })),
     };
     mocks.getProviders.mockReturnValue([provider]);
 
     const { QuotaToastPlugin } = await import("../src/plugin.js");
-    const client = createClient({ modelID: "openai/gpt-5", providerID: "openai" });
+    const client = createClient({ modelID: "model-a", providerID: "shared-provider" });
     let currentSession = {
-      data: { model: { id: "openai/gpt-5", providerID: "openai" } },
+      data: { model: { id: "model-a", providerID: "shared-provider" } },
     };
     client.session.get = vi.fn().mockImplementation(async () => currentSession);
 
@@ -995,7 +1024,7 @@ describe("/quota command behavior", () => {
     });
 
     currentSession = {
-      data: { model: { id: "openai/gpt-4.1", providerID: "openai" } },
+      data: { model: { id: "model-b", providerID: "shared-provider" } },
     };
 
     const secondInjected = await buildDialogOutput({
@@ -1004,10 +1033,9 @@ describe("/quota command behavior", () => {
     });
 
     expect(firstInjected).toContain("95% left");
-    expect(secondInjected).toContain(
-      "No enabled quota providers matched the current model: openai/gpt-4.1.",
-    );
+    expect(secondInjected).toContain("60% left");
     expect(secondInjected).not.toContain("95% left");
+    expect(provider.fetch).toHaveBeenCalledTimes(2);
   });
 
   it("reuses shared quota-state across /quota sessions when render context matches", async () => {

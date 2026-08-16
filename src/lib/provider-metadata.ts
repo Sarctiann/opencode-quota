@@ -484,6 +484,13 @@ export function getQuotaProviderRuntimeIds(id: string): readonly string[] {
   return [...new Set(QUOTA_PROVIDER_RUNTIME_IDS[shape.id])];
 }
 
+export function getQuotaProviderIdsForRuntimeId(id: string): readonly CanonicalQuotaProviderId[] {
+  const normalized = id.trim().toLowerCase();
+  return catalogKeys().filter((providerId) =>
+    QUOTA_PROVIDER_RUNTIME_IDS[providerId].includes(normalized),
+  );
+}
+
 export function isLiveLocalUsageProviderId(id: string): boolean {
   return LIVE_LOCAL_USAGE_PROVIDER_ID_SET.has(normalizeQuotaProviderId(id));
 }

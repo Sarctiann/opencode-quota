@@ -72,6 +72,7 @@ export function sanitizeQuotaToastError(error: QuotaToastError): QuotaToastError
   return {
     label: sanitizeDisplayText(error.label),
     message: sanitizeDisplayText(error.message),
+    ...(error.kind ? { kind: error.kind } : {}),
   };
 }
 
