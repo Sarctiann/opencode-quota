@@ -34,6 +34,8 @@ import {
 } from "../src/lib/quota-render-data.js";
 import { __resetQuotaStateForTests } from "../src/lib/quota-state.js";
 import { DEFAULT_CONFIG, type QuotaToastConfig } from "../src/lib/types.js";
+import { googleAntigravityProvider } from "../src/providers/google-antigravity.js";
+import { googleGeminiCliProvider } from "../src/providers/google-gemini-cli.js";
 
 function renderConfig(overrides: Partial<QuotaToastConfig> = {}): QuotaToastConfig {
   return { ...DEFAULT_CONFIG, showSessionTokens: false, ...overrides };
@@ -406,6 +408,21 @@ describe("collectQuotaRenderData shared quota state", () => {
   });
 
   it.each([
+    ["claude", "anthropic"],
+    ["open-cursor", "cursor"],
+    ["qwen", "qwen-code"],
+    ["alibaba", "alibaba-coding-plan"],
+  ])("fails closed for normalization-only provider synonym %s", (currentProviderID, providerId) => {
+    expect(
+      matchesQuotaProviderCurrentSelection({
+        provider: testProvider(providerId),
+        currentProviderID,
+        currentModel: "unprefixed-model-id",
+      }),
+    ).toBe(false);
+  });
+
+  it.each([
     ["gemini-2.5-pro", "google-gemini-cli"],
     ["antigravity-claude-sonnet", "google-antigravity"],
   ])("uses model matching to disambiguate the shared google runtime ID for %s", (currentModel, selectedProviderId) => {
@@ -431,6 +448,20 @@ describe("collectQuotaRenderData shared quota state", () => {
         currentProviderID: "google",
       });
     }
+  });
+
+  it("does not let Gemini CLI claim an Antigravity model containing gemini", () => {
+    const selection = {
+      currentProviderID: "google",
+      currentModel: "antigravity-gemini-3-pro",
+    };
+
+    expect(
+      matchesQuotaProviderCurrentSelection({ provider: googleAntigravityProvider, ...selection }),
+    ).toBe(true);
+    expect(
+      matchesQuotaProviderCurrentSelection({ provider: googleGeminiCliProvider, ...selection }),
+    ).toBe(false);
   });
 
   it("fails closed for an unknown explicit provider ID instead of broad model matching", () => {

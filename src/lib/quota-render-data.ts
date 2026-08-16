@@ -166,7 +166,7 @@ export function matchesQuotaProviderCurrentSelection(params: {
       return matchesCurrentModel(qualifiedModel);
     }
 
-    return catalogShape ? params.provider.id === catalogShape.id : false;
+    return false;
   }
 
   return params.currentModel ? matchesCurrentModel(params.currentModel) : false;
