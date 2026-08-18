@@ -1,6 +1,10 @@
 MIT License
 
-Copyright (c) 2026
+Copyright (c) 2026 slkiser
+
+This project is a fork of opencode-quota by slkiser
+(https://github.com/slkiser/opencode-quota). The original author and all
+credit for the software belong to slkiser.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

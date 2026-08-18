@@ -9,13 +9,31 @@
 </p>
 <p align="center">Quota, usage, and token visibility in OpenCode and your terminal.</p>
 <p align="center">
-  <a href="https://www.npmjs.com/package/@sarctiann/opencode-quota"><img alt="npm" src="https://img.shields.io/npm/v/%40slkiser%2Fopencode-quota?style=flat-square" /></a>
-  <a href="https://www.npmjs.com/package/@sarctiann/opencode-quota"><img alt="npm downloads" src="https://img.shields.io/npm/dm/%40slkiser%2Fopencode-quota?style=flat-square" /></a>
-  <a href="https://github.com/slkiser/opencode-quota/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/slkiser/opencode-quota/ci.yml?style=flat-square&branch=main&label=CI" /></a>
+  <a href="https://www.npmjs.com/package/@sarctiann/opencode-quota"><img alt="npm" src="https://img.shields.io/npm/v/%40sarctiann%2Fopencode-quota?style=flat-square" /></a>
+  <a href="https://www.npmjs.com/package/@sarctiann/opencode-quota"><img alt="npm downloads" src="https://img.shields.io/npm/dm/%40sarctiann%2Fopencode-quota?style=flat-square" /></a>
+  <a href="https://github.com/Sarctiann/opencode-quota/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Sarctiann/opencode-quota/ci.yml?style=flat-square&branch=main&label=CI" /></a>
   <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square" /></a>
 </p>
 
 [![OpenCode Quota sidebar](https://shawnkiser.com/opencode-quota/opencode-quota-sidebar.webp)](https://github.com/slkiser/opencode-quota)
+
+---
+
+## Fork
+
+This is a fork of [opencode-quota](https://github.com/slkiser/opencode-quota)
+by **slkiser**, who is the original author and holds all the credit for the
+plugin. Everything here is their work except for the single adjustment
+described below.
+
+**Reason for this fork:** show both the OpenCode Zen **balance** and the
+**configured monthly limit** on the provider name line in the sidebar (next
+to the existing budget bar), instead of the plugin auto-selecting just one of
+the two.
+
+No other behavior was changed. If you are not interested in that specific
+adjustment, please use the original upstream package
+[`@slkiser/opencode-quota`](https://www.npmjs.com/package/@slkiser/opencode-quota).
 
 ---
 
