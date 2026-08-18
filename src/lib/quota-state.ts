@@ -166,7 +166,6 @@ function isQuotaToastEntry(value: unknown): boolean {
       "metricLabel",
       "right",
       "sortPriority",
-      "hideName",
     ]) ||
     !isAccountingMetadata(entry.accounting) ||
     typeof entry.name !== "string" ||

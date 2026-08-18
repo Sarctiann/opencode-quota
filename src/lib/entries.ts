@@ -76,9 +76,6 @@ export type QuotaToastEntry =
 
       /** Optional source-backed ISO reset timestamp (shown when percentRemaining is < 100). */
       resetTimeIso?: string;
-
-      /** Skip the name/label on line 1; render only `right` there (compact value row). */
-      hideName?: boolean;
     })
   | (GroupedQuotaEntryMeta & {
       /** Value-based entry (no percent bar). */

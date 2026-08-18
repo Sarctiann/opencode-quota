@@ -27,6 +27,20 @@ function normalizeLabelText(value?: string): string {
   return value?.trim().replace(/:+$/u, "").trim() ?? "";
 }
 
+/**
+ * Justify text to the edges of a line. Splits on 2+ spaces: the first segment
+ * is left-aligned and the remaining segments are packed to the right.
+ */
+function justifyTextToEdges(text: string, width: number): string {
+  const parts = text.split(/\s{2,}/u).filter(Boolean);
+  if (parts.length < 2) return text.slice(0, width);
+  const left = parts[0] ?? "";
+  const rightText = parts.slice(1).join("  ");
+  const sep = "  ";
+  const leftWidth = Math.max(1, width - sep.length - rightText.length);
+  return (padRight(left, leftWidth) + sep + rightText).slice(0, width);
+}
+
 const GROUPED_WINDOW_LABELS: Readonly<Record<QuotaWindowKind, string>> = {
   rpm: "RPM",
   five_hour: "Five-hour",
@@ -165,6 +179,20 @@ export function formatQuotaRowsGrouped(params: {
 
       const label = resolveGroupedRowLabel(entry);
 
+      // A "value row" has no explicit label and carries a `right` summary to be
+      // shown instead of a name. When present, the `right` is justified to the
+      // edges of line 1 (left + right) and no reset countdown is shown.
+      const isValueRow =
+        !entry.label?.trim() && !entry.metricLabel?.trim() && !!entry.right?.trim();
+      const displayedPercent = resolveDisplayedPercent(
+        entry.percentRemaining,
+        params.percentDisplayMode,
+      );
+      const percentLabel = formatDisplayedPercentLabel(
+        entry.percentRemaining,
+        params.percentDisplayMode,
+      );
+
       // Percent entries
       // Show reset countdown whenever quota is not fully available.
       // (i.e., any usage at all, or depleted)
@@ -175,20 +203,25 @@ export function formatQuotaRowsGrouped(params: {
               decimals: params.resetTimeDecimals,
             })
           : "";
-      const displayedPercent = resolveDisplayedPercent(
-        entry.percentRemaining,
-        params.percentDisplayMode,
-      );
-      const percentLabel = formatDisplayedPercentLabel(
-        entry.percentRemaining,
-        params.percentDisplayMode,
-      );
 
       if (isTiny) {
-        // Tiny: "label  time  XX%" (ignore bar)
+        // Tiny: single line with name/time/percent (or just the right summary)
         const timeWidth = isResetTimeDecimals(params.resetTimeDecimals)
           ? Math.max(timeCol, timeStr.length)
           : timeCol;
+        if (isValueRow) {
+          const tinyNameCol = Math.max(
+            1,
+            maxWidth - separator.length - timeWidth - separator.length - percentCol,
+          );
+          const line = [
+            padRight(entry.right!.trim(), tinyNameCol),
+            padLeft(timeStr, timeWidth),
+            padLeft(percentLabel, percentCol),
+          ].join(separator);
+          lines.push(line.slice(0, maxWidth));
+          continue;
+        }
         const tinyNameCol = Math.max(
           1,
           maxWidth - separator.length - timeWidth - separator.length - percentCol,
@@ -202,13 +235,17 @@ export function formatQuotaRowsGrouped(params: {
         continue;
       }
 
-      // Line 1: label + time at end (or only right when hideName)
-      const timeWidth = Math.max(timeStr.length, timeCol);
-      const leftMax = Math.max(1, maxWidth - separator.length - timeWidth);
-      const line1 = entry.hideName ? (entry.right?.trim() ?? "") : label;
-      lines.push(
-        (padRight(line1, leftMax) + separator + padLeft(timeStr, timeWidth)).slice(0, maxWidth),
-      );
+      if (isValueRow) {
+        // Line 1: right summary justified to the edges (no name, no reset)
+        lines.push(justifyTextToEdges(entry.right!.trim(), maxWidth));
+      } else {
+        // Line 1: label + time at end
+        const timeWidth = Math.max(timeStr.length, timeCol);
+        const leftMax = Math.max(1, maxWidth - separator.length - timeWidth);
+        lines.push(
+          (padRight(label, leftMax) + separator + padLeft(timeStr, timeWidth)).slice(0, maxWidth),
+        );
+      }
 
       // Line 2: bar + percent
       const barCell = bar(displayedPercent, barWidth);

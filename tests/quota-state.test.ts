@@ -1139,7 +1139,7 @@ describe("quota-state shared cache", () => {
     });
   });
 
-  it("accepts a live percent entry with hideName and right (opencode Zen shape)", async () => {
+  it("accepts a live percent entry with right and no label (opencode Zen shape)", async () => {
     const { fetchQuotaProviderResult } = await import("../src/lib/quota-state.js");
     const provider = {
       id: "opencode",
@@ -1150,9 +1150,7 @@ describe("quota-state shared cache", () => {
           {
             accounting: TEST_ACCOUNTING,
             name: "",
-            label: "",
             group: "OpenCode Zen",
-            hideName: true,
             percentRemaining: 94.25,
             right: "Balance $42.50    Limit $100.00",
           },
@@ -1166,7 +1164,6 @@ describe("quota-state shared cache", () => {
 
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]).toMatchObject({
-      hideName: true,
       percentRemaining: 94.25,
       right: "Balance $42.50    Limit $100.00",
     });
