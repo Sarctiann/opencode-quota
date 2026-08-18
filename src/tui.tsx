@@ -49,7 +49,7 @@ import {
 } from "./lib/tui-runtime.js";
 import type { TuiCommandDisplay } from "./lib/types.js";
 
-const id = "@slkiser/opencode-quota";
+const id = "@sarctiann/opencode-quota";
 // Place Quota near the top so variable-height built-in sections
 // (MCP/LSP/Todo/Files) do not push it below the visible fold.
 const SIDEBAR_ORDER = 150;

@@ -17,7 +17,7 @@ describe("package entrypoint", () => {
     const mod = await import("../src/index.js");
 
     expect(mod.default).toEqual({
-      id: "@slkiser/opencode-quota",
+      id: "@sarctiann/opencode-quota",
       server: pluginMocks.QuotaToastPlugin,
     });
     expect(mod.QuotaToastPlugin).toBe(pluginMocks.QuotaToastPlugin);

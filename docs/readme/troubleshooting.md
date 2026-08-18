@@ -33,8 +33,8 @@ If every provider is missing, confirm OpenCode Quota is listed in `opencode.json
 Close OpenCode, preview the update, then apply it:
 
 ```bash
-npx @slkiser/opencode-quota@latest update --dry-run
-npx @slkiser/opencode-quota@latest update
+npx @sarctiann/opencode-quota@latest update --dry-run
+npx @sarctiann/opencode-quota@latest update
 ```
 
 The updater preserves unrelated settings, comments, and plugins. Restart OpenCode when it finishes.
@@ -112,7 +112,7 @@ Run `/quota_status` and check the Cursor section.
 
 | Symptom                                   | Fix                                                                                                     |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Cursor not detected                       | Put `@playwo/opencode-cursor-oauth` before `@slkiser/opencode-quota` in `opencode.json`.                |
+| Cursor not detected                       | Put `@playwo/opencode-cursor-oauth` before `@sarctiann/opencode-quota` in `opencode.json`.                |
 | Cursor auth missing                       | Run `opencode auth login --provider cursor`.                                                            |
 | Quota appears but no remaining percentage | Set `cursorPlan` or `cursorIncludedApiUsd` in `opencode-quota/quota-toast.json`.                        |
 | Billing cycle looks wrong                 | Set `cursorBillingCycleStartDay` in `opencode-quota/quota-toast.json` to your local billing anchor day. |
@@ -127,7 +127,7 @@ Run `/quota_status` and check `qwen_oauth_source`, `qwen_local_plan`, and the `q
 
 | Symptom              | Fix                                                                                                          |
 | -------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Qwen not detected    | Put `opencode-qwencode-auth` before `@slkiser/opencode-quota` in `opencode.json`.                            |
+| Qwen not detected    | Put `opencode-qwencode-auth` before `@sarctiann/opencode-quota` in `opencode.json`.                            |
 | Auth missing         | Complete the Qwen companion plugin auth flow.                                                                |
 | Counters do not move | Confirm the current model is `qwen-code/*`; Qwen quota is local request estimation for matching model usage. |
 | Usage looks stale    | Check the local state file path shown by `/quota_status`.                                                    |
@@ -176,7 +176,7 @@ Run `/quota_status` and check the `google_antigravity` section. The toast diagno
 
 | Symptom                  | Fix                                                                                  |
 | ------------------------ | ------------------------------------------------------------------------------------ |
-| Companion missing        | Put `opencode-antigravity-auth` before `@slkiser/opencode-quota` in `opencode.json`. |
+| Companion missing        | Put `opencode-antigravity-auth` before `@sarctiann/opencode-quota` in `opencode.json`. |
 | Accounts not found       | Check the selected `antigravity-accounts.json` path shown by `/quota_status`.        |
 | Refresh tokens invalid   | Re-authenticate with the companion plugin.                                           |
 | Provider returns no rows | Check `live_probe`, `live_entry_*`, and `live_error_*` in `/quota_status`.           |
@@ -190,7 +190,7 @@ Run `/quota_status` and check the `google_agy` section.
 
 | Symptom                             | Fix                                                                                           |
 | ----------------------------------- | --------------------------------------------------------------------------------------------- |
-| Companion missing                   | Put `@anthonyhaussman/opencode-agy-auth` before `@slkiser/opencode-quota` in `opencode.json`. |
+| Companion missing                   | Put `@anthonyhaussman/opencode-agy-auth` before `@sarctiann/opencode-quota` in `opencode.json`. |
 | Provider not enabled in manual mode | Include `google-agy` in `enabledProviders` in `opencode-quota/quota-toast.json`.              |
 | Auth missing                        | Run `opencode auth login --provider google-agy`.                                              |
 | Project missing                     | Set `OPENCODE_AGY_PROJECT_ID` or `provider.google-agy.options.projectId`.                     |
@@ -207,7 +207,7 @@ Run `/quota_status` and check the Gemini CLI live probe rows.
 
 | Symptom                             | Fix                                                                                                                          |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Companion missing                   | Put `opencode-gemini-auth` before `@slkiser/opencode-quota` in `opencode.json`.                                              |
+| Companion missing                   | Put `opencode-gemini-auth` before `@sarctiann/opencode-quota` in `opencode.json`.                                              |
 | Provider not enabled in manual mode | Include `google-gemini-cli` in `enabledProviders` in `opencode-quota/quota-toast.json`.                                      |
 | Auth missing                        | Run `opencode auth login --provider google`.                                                                                 |
 | Project missing                     | Set `provider.google.options.projectId`, `OPENCODE_GEMINI_PROJECT_ID`, `GOOGLE_CLOUD_PROJECT`, or `GOOGLE_CLOUD_PROJECT_ID`. |

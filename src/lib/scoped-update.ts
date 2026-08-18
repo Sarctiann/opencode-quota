@@ -13,7 +13,7 @@ import {
   getOpencodeRuntimeDirs,
 } from "./opencode-runtime-paths.js";
 
-export const QUOTA_PACKAGE_NAME = "@slkiser/opencode-quota";
+export const QUOTA_PACKAGE_NAME = "@sarctiann/opencode-quota";
 export const QUOTA_LATEST_SPEC = `${QUOTA_PACKAGE_NAME}@latest`;
 const GITHUB_REPO_URL = "https://github.com/slkiser/opencode-quota";
 
@@ -247,7 +247,7 @@ async function removeVerifiedCacheCandidate(path: string): Promise<"removed" | "
     const manifestPath = join(
       candidateReal,
       "node_modules",
-      "@slkiser",
+      "@sarctiann",
       "opencode-quota",
       "package.json",
     );
@@ -367,7 +367,7 @@ export async function runScopedUpdateCommand(
     }
     if (dryRun) {
       log(
-        "OpenCode Quota update preview complete — no files changed. Run npx @slkiser/opencode-quota@latest update to apply.",
+        "OpenCode Quota update preview complete — no files changed. Run npx @sarctiann/opencode-quota@latest update to apply.",
       );
       return 0;
     }

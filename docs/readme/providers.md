@@ -108,7 +108,7 @@ Custom providers can report quota, rate limit, usage, spend, budget, balance, or
 Run the guided setup:
 
 ```bash
-npx @slkiser/opencode-quota@latest provider add
+npx @sarctiann/opencode-quota@latest provider add
 ```
 
 It asks only how the provider works, previews the exact global config change, and asks before writing. It does not ask for a response body, credential, or secret value.
@@ -385,7 +385,7 @@ When Claude Code does not expose quota windows itself, quota is read from Anthro
 
 ### Cursor
 
-Use companion plugin [`@playwo/opencode-cursor-oauth`](https://github.com/PoolPirate/opencode-cursor#readme). Add it before `@slkiser/opencode-quota` in `opencode.json`, then authenticate once:
+Use companion plugin [`@playwo/opencode-cursor-oauth`](https://github.com/PoolPirate/opencode-cursor#readme). Add it before `@sarctiann/opencode-quota` in `opencode.json`, then authenticate once:
 
 ```bash
 opencode auth login --provider cursor
@@ -395,7 +395,7 @@ opencode auth login --provider cursor
 
 ### Qwen Code
 
-Use companion plugin [`opencode-qwencode-auth`](https://github.com/gustavodiasdev/opencode-qwencode-auth#readme). Add it before `@slkiser/opencode-quota` in `opencode.json`.
+Use companion plugin [`opencode-qwencode-auth`](https://github.com/gustavodiasdev/opencode-qwencode-auth#readme). Add it before `@sarctiann/opencode-quota` in `opencode.json`.
 
 OpenCode Quota's Google integrations use independent community companion plugins. They are not endorsed by Google.
 
@@ -403,13 +403,13 @@ OpenCode Quota's Google integrations use independent community companion plugins
 
 ### Google Antigravity
 
-Use companion plugin [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth#readme). Add it before `@slkiser/opencode-quota` in `opencode.json`.
+Use companion plugin [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth#readme). Add it before `@sarctiann/opencode-quota` in `opencode.json`.
 
 <a id="google-agy-quick-setup"></a>
 
 ### Google AGY
 
-Use companion plugin [`@anthonyhaussman/opencode-agy-auth`](https://github.com/anthonyhaussman/opencode-agy-auth). Add it before `@slkiser/opencode-quota` in `opencode.json`, then authenticate Google once:
+Use companion plugin [`@anthonyhaussman/opencode-agy-auth`](https://github.com/anthonyhaussman/opencode-agy-auth). Add it before `@sarctiann/opencode-quota` in `opencode.json`, then authenticate Google once:
 
 Google AGY reports the companion's grouped weekly and five-hour quota windows for each account.
 
@@ -449,7 +449,7 @@ Google's official Antigravity CLI replaces the individual Gemini CLI experience.
 
 The instructions below remain available only to maintain an existing setup.
 
-Use companion plugin [`opencode-gemini-auth`](https://github.com/jenslys/opencode-gemini-auth#readme). Add it before `@slkiser/opencode-quota` in `opencode.json`, then authenticate Google once:
+Use companion plugin [`opencode-gemini-auth`](https://github.com/jenslys/opencode-gemini-auth#readme). Add it before `@sarctiann/opencode-quota` in `opencode.json`, then authenticate Google once:
 
 ```bash
 opencode auth login --provider google

@@ -60,23 +60,23 @@ try {
     import path from "node:path";
     import { fileURLToPath, pathToFileURL } from "node:url";
 
-    const rootExportUrl = import.meta.resolve("@slkiser/opencode-quota");
-    await import("@slkiser/opencode-quota");
-    await import("@slkiser/opencode-quota/server");
+    const rootExportUrl = import.meta.resolve("@sarctiann/opencode-quota");
+    await import("@sarctiann/opencode-quota");
+    await import("@sarctiann/opencode-quota/server");
     const { metrics } = await import("@opentelemetry/api");
     assert.equal(typeof metrics.getMeter, "function");
 
-    const tuiExportUrl = import.meta.resolve("@slkiser/opencode-quota/tui");
+    const tuiExportUrl = import.meta.resolve("@sarctiann/opencode-quota/tui");
     const tuiExportPath = fileURLToPath(tuiExportUrl);
-    assert.match(tuiExportPath, /node_modules\\/\\@slkiser\\/opencode-quota\\/dist\\/tui\\.js$/);
+    assert.match(tuiExportPath, /node_modules\\/\\@sarctiann\\/opencode-quota\\/dist\\/tui\\.js$/);
     const tuiSource = await readFile(tuiExportPath, "utf8");
-    assert.ok(tuiSource.includes("@slkiser/opencode-quota"));
+    assert.ok(tuiSource.includes("@sarctiann/opencode-quota"));
     assert.ok(tuiSource.includes("const pluginModule"));
     assert.ok(tuiSource.includes("tui"));
     assert.ok(!tuiSource.includes("jsx-dev-runtime"));
 
     const pkg = JSON.parse(
-      await readFile("node_modules/@slkiser/opencode-quota/package.json", "utf8"),
+      await readFile("node_modules/@sarctiann/opencode-quota/package.json", "utf8"),
     );
     assert.equal(pkg.engines?.node, ">=22.0.0");
     assert.equal(pkg.dependencies?.["@opentelemetry/api"], "^1.9.1");
@@ -124,7 +124,7 @@ try {
   const cliPath = path.join(
     workdir,
     "node_modules",
-    "@slkiser",
+    "@sarctiann",
     "opencode-quota",
     "dist",
     "bin",

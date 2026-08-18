@@ -383,16 +383,16 @@ describe("package manifest compatibility", () => {
   });
 
   it("smoke-tests public imports, CLI commands, and the compiled TUI export", () => {
-    expect(packedSmoke).toContain('await import("@slkiser/opencode-quota");');
-    expect(packedSmoke).toContain('await import("@slkiser/opencode-quota/server");');
+    expect(packedSmoke).toContain('await import("@sarctiann/opencode-quota");');
+    expect(packedSmoke).toContain('await import("@sarctiann/opencode-quota/server");');
     expect(packedSmoke).toContain('"opencode-quota init"');
     expect(packedSmoke).toContain('"opencode-quota show"');
     expect(packedSmoke).toContain('"opencode-quota update"');
-    expect(packedSmoke).toContain("@slkiser/opencode-quota/tui");
-    expect(packedSmoke).toContain('import.meta.resolve("@slkiser/opencode-quota/tui")');
+    expect(packedSmoke).toContain("@sarctiann/opencode-quota/tui");
+    expect(packedSmoke).toContain('import.meta.resolve("@sarctiann/opencode-quota/tui")');
     expect(packedSmoke).toContain('readFile(tuiExportPath, "utf8")');
     expect(packedSmoke).toContain("dist\\\\/tui\\\\.js");
-    expect(packedSmoke).not.toContain('await import("@slkiser/opencode-quota/tui")');
+    expect(packedSmoke).not.toContain('await import("@sarctiann/opencode-quota/tui")');
     expect(packedSmoke).toContain('const { metrics } = await import("@opentelemetry/api");');
     expect(packedSmoke).toContain('assert.equal(typeof metrics.getMeter, "function");');
     expect(packedSmoke).toContain(

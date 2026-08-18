@@ -56,7 +56,7 @@ describe("tui dist packaging", () => {
     const mod = await import("../dist/tui.js");
 
     expect(mod.default).toMatchObject({
-      id: "@slkiser/opencode-quota",
+      id: "@sarctiann/opencode-quota",
     });
     expect(typeof mod.default.tui).toBe("function");
   });
