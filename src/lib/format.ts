@@ -151,11 +151,12 @@ export function formatQuotaRows(params: {
     resetIso: string | undefined,
     remaining: number,
     rightSummary?: string,
+    hideName?: boolean,
   ) => {
     const displayedPercent = resolveDisplayedPercent(remaining, params.percentDisplayMode);
     const percentLabel = formatDisplayedPercentLabel(remaining, params.percentDisplayMode);
     const summary = rightSummary?.trim() || "";
-    const leftText = summary ? `${name} ${summary}` : name;
+    const leftText = hideName ? summary : summary ? `${name} ${summary}` : name;
 
     // Show reset countdown whenever quota is not fully available.
     // (i.e., any usage at all, or depleted)
@@ -251,6 +252,7 @@ export function formatQuotaRows(params: {
         entry.resetTimeIso,
         entry.percentRemaining,
         entry.right,
+        entry.hideName,
       );
     }
   }
