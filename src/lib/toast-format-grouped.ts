@@ -202,11 +202,12 @@ export function formatQuotaRowsGrouped(params: {
         continue;
       }
 
-      // Line 1: label + optional right + time at end
+      // Line 1: label + time at end (or only right when hideName)
       const timeWidth = Math.max(timeStr.length, timeCol);
       const leftMax = Math.max(1, maxWidth - separator.length - timeWidth);
+      const line1 = entry.hideName ? (entry.right?.trim() ?? "") : label;
       lines.push(
-        (padRight(label, leftMax) + separator + padLeft(timeStr, timeWidth)).slice(0, maxWidth),
+        (padRight(line1, leftMax) + separator + padLeft(timeStr, timeWidth)).slice(0, maxWidth),
       );
 
       // Line 2: bar + percent

@@ -388,6 +388,30 @@ describe("formatQuotaRows", () => {
     expect(out).not.toContain("→ ");
   });
 
+  it("renders only the right text on line 1 when hideName is set (grouped)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-15T12:00:00.000Z"));
+
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      style: "allWindows",
+      layout: { maxWidth: 50, narrowAt: 42, tinyAt: 32 },
+      entries: [
+        {
+          name: "",
+          label: "",
+          group: "OpenCode Zen",
+          hideName: true,
+          right: "Balance $42.50    Limit $100.00",
+          percentRemaining: 94,
+        },
+      ],
+    });
+
+    expect(out).toContain("[OpenCode Zen]");
+    expect(out).toContain("Balance $42.50    Limit $100.00");
+  });
+
   it("preserves grouped value-row labels and values", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-15T12:00:00.000Z"));
