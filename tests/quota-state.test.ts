@@ -1139,6 +1139,40 @@ describe("quota-state shared cache", () => {
     });
   });
 
+  it("accepts a live percent entry with hideName and right (opencode Zen shape)", async () => {
+    const { fetchQuotaProviderResult } = await import("../src/lib/quota-state.js");
+    const provider = {
+      id: "opencode",
+      isAvailable: vi.fn(),
+      fetch: vi.fn().mockResolvedValue({
+        attempted: true,
+        entries: [
+          {
+            accounting: TEST_ACCOUNTING,
+            name: "",
+            label: "",
+            group: "OpenCode Zen",
+            hideName: true,
+            percentRemaining: 94.25,
+            right: "Balance $42.50    Limit $100.00",
+          },
+        ],
+        errors: [],
+      }),
+    } as any;
+    const ctx = createTestContext();
+
+    const result = await fetchQuotaProviderResult({ provider, ctx, ttlMs: 60_000 });
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({
+      hideName: true,
+      percentRemaining: 94.25,
+      right: "Balance $42.50    Limit $100.00",
+    });
+    expect(result.errors).toEqual([]);
+  });
+
   it("rejects cache v2 timestamps that are parseable but not ISO", async () => {
     const quotaState = await import("../src/lib/quota-state.js");
     quotaState.__resetQuotaStateForTests();

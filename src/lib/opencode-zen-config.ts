@@ -29,7 +29,7 @@ type ReadConfigFileResult =
 
 function getConfigCandidatePaths(): string[] {
   const { configDirs } = getOpencodeRuntimeDirCandidates();
-  return configDirs.map((dir) => join(dir, "opencode-quota", "opencode.json"));
+  return configDirs.map((dir) => join(dir, "opencode-quota", "opencode-zen.json"));
 }
 
 function getConfigFileError(error: unknown): string {

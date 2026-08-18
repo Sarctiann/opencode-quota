@@ -26,7 +26,7 @@ async function createConfigDirs(): Promise<[string, string]> {
 }
 
 function configPath(configDir: string): string {
-  return join(configDir, "opencode-quota", "opencode.json");
+  return join(configDir, "opencode-quota", "opencode-zen.json");
 }
 
 describe("opencode-zen config resolution", () => {

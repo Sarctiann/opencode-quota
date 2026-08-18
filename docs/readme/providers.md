@@ -585,7 +585,7 @@ export OPENCODE_AUTH_COOKIE="your-auth-cookie"
 
 Find both values in your browser: the workspace ID is in the billing-page URL, and the `auth` cookie is under Developer Tools → Storage → Cookies for `opencode.ai`.
 
-You can instead create `~/.config/opencode/opencode-quota/opencode.json`:
+You can instead create `~/.config/opencode/opencode-quota/opencode-zen.json`:
 
 ```json
 {
