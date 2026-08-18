@@ -170,8 +170,11 @@ describe("opencode Zen provider", () => {
       {
         accounting: budgetAccounting,
         name: "",
+        label: "",
         group: "OpenCode Zen",
+        hideName: true,
         percentRemaining: 94.25,
+        right: "Balance $42.50    Limit $100.00",
       },
     ]);
     expect(result.statusDetails).toEqual([
