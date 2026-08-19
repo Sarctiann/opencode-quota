@@ -48,45 +48,26 @@ describe("opencode-zen config resolution", () => {
     }
   });
 
-  it("prefers the PR #140 OPENCODE_* environment variables", async () => {
-    process.env.OPENCODE_WORKSPACE_ID = "  wrk_zen  ";
-    process.env.OPENCODE_AUTH_COOKIE = "  zen-cookie  ";
-    process.env.OPENCODE_GO_WORKSPACE_ID = "wrk_go";
-    process.env.OPENCODE_GO_AUTH_COOKIE = "go-cookie";
+  it("ignores OPENCODE_* environment variables and reads only the config file", async () => {
+    process.env.OPENCODE_WORKSPACE_ID = "wrk_env";
+    process.env.OPENCODE_AUTH_COOKIE = "cookie-env";
+    const [primary] = await createConfigDirs();
+    const path = configPath(primary);
+    await writeFile(path, JSON.stringify({ workspaceId: "wrk_file", authCookie: "cookie-file" }));
+    runtimePathMocks.getOpencodeRuntimeDirCandidates.mockReturnValue({
+      configDirs: [primary],
+    });
 
     const { resolveOpenCodeZenConfig } = await import("../src/lib/opencode-zen-config.js");
 
     await expect(resolveOpenCodeZenConfig()).resolves.toEqual({
       state: "configured",
-      config: { workspaceId: "wrk_zen", authCookie: "zen-cookie" },
-      source: "env(OPENCODE_*)",
+      config: { workspaceId: "wrk_file", authCookie: "cookie-file" },
+      source: path,
     });
   });
 
-  it("does not mix a partial Zen source with OpenCode Go credentials", async () => {
-    process.env.OPENCODE_WORKSPACE_ID = "wrk_zen";
-    process.env.OPENCODE_GO_WORKSPACE_ID = "wrk_go";
-    process.env.OPENCODE_GO_AUTH_COOKIE = "go-cookie";
-
-    const { resolveOpenCodeZenConfig } = await import("../src/lib/opencode-zen-config.js");
-
-    await expect(resolveOpenCodeZenConfig()).resolves.toEqual({
-      state: "incomplete",
-      source: "env(OPENCODE_*)",
-      missing: "OPENCODE_AUTH_COOKIE",
-    });
-  });
-
-  it("does not reuse OpenCode Go credentials", async () => {
-    process.env.OPENCODE_GO_WORKSPACE_ID = "wrk_go";
-    process.env.OPENCODE_GO_AUTH_COOKIE = "go-cookie";
-
-    const { resolveOpenCodeZenConfig } = await import("../src/lib/opencode-zen-config.js");
-
-    await expect(resolveOpenCodeZenConfig()).resolves.toEqual({ state: "none" });
-  });
-
-  it("reads the first trusted runtime config file when env vars are absent", async () => {
+  it("reads the first trusted runtime config file", async () => {
     const [primary] = await createConfigDirs();
     const path = configPath(primary);
     await writeFile(
@@ -182,18 +163,25 @@ describe("opencode-zen config resolution", () => {
   });
 
   it("reports diagnostics without exposing credential values", async () => {
-    process.env.OPENCODE_WORKSPACE_ID = "wrk_secret";
-    process.env.OPENCODE_AUTH_COOKIE = "cookie-secret";
+    const [primary] = await createConfigDirs();
+    const path = configPath(primary);
+    await writeFile(
+      path,
+      JSON.stringify({ workspaceId: "wrk_secret", authCookie: "cookie-secret" }),
+    );
+    runtimePathMocks.getOpencodeRuntimeDirCandidates.mockReturnValue({
+      configDirs: [primary],
+    });
 
     const { getOpenCodeZenConfigDiagnostics } = await import("../src/lib/opencode-zen-config.js");
     const diagnostics = await getOpenCodeZenConfigDiagnostics();
 
     expect(diagnostics).toEqual({
       state: "configured",
-      source: "env(OPENCODE_*)",
+      source: path,
       missing: null,
       error: null,
-      checkedPaths: [],
+      checkedPaths: [path],
     });
     expect(JSON.stringify(diagnostics)).not.toContain("cookie-secret");
     expect(JSON.stringify(diagnostics)).not.toContain("wrk_secret");

@@ -58,35 +58,7 @@ async function readConfigFile(path: string): Promise<ReadConfigFileResult> {
   }
 }
 
-export function resolveOpenCodeZenConfigFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): ResolvedOpenCodeZenConfig | null {
-  const workspaceId = env.OPENCODE_WORKSPACE_ID?.trim();
-  const authCookie = env.OPENCODE_AUTH_COOKIE?.trim();
-
-  if (workspaceId && authCookie) {
-    return {
-      state: "configured",
-      config: { workspaceId, authCookie },
-      source: "env(OPENCODE_*)",
-    };
-  }
-
-  if (workspaceId || authCookie) {
-    return {
-      state: "incomplete",
-      source: "env(OPENCODE_*)",
-      missing: workspaceId ? "OPENCODE_AUTH_COOKIE" : "OPENCODE_WORKSPACE_ID",
-    };
-  }
-
-  return null;
-}
-
 export async function resolveOpenCodeZenConfig(): Promise<ResolvedOpenCodeZenConfig> {
-  const envResult = resolveOpenCodeZenConfigFromEnv();
-  if (envResult) return envResult;
-
   for (const path of getConfigCandidatePaths()) {
     const fileResult = await readConfigFile(path);
     if (fileResult.state === "missing") continue;
