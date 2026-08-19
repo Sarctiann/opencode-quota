@@ -595,3 +595,13 @@ You can instead create `~/.config/opencode/opencode-quota/opencode.json`:
 ```
 
 Set `opencodeMonthlyLimit` in `opencode-quota/quota-toast.json` to override the monthly budget from the billing page. Without a monthly limit, the provider shows the current balance only.
+
+Set `opencodeZenDisplay` to `"detailed"` to show the configured monthly limit and auto-reload summary (right-aligned above the bar) and to replace the percent label with the current balance. When unset (or `"default"`), the provider keeps the existing bar + percent behavior:
+
+```json
+{
+  "opencodeZenDisplay": "detailed"
+}
+```
+
+The detailed mode also reads the Zen auto-reload fields (reload, reloadAmount, reloadTrigger) from the billing page and shows them as `Auto <amount>/<trigger>` (e.g. `Auto $20/5`) next to the limit.
