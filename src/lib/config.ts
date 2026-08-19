@@ -58,6 +58,7 @@ export const QUOTA_TOAST_SETTING_SOURCE_KEYS = [
   "cursorBillingCycleStartDay",
   "opencodeGoWindows",
   "opencodeMonthlyLimit",
+  "opencodeZenDisplay",
   "pricingSnapshot.source",
   "pricingSnapshot.autoRefresh",
   "showOnIdle",
@@ -168,6 +169,7 @@ type ValidatedQuotaToastPatch = {
   cursorBillingCycleStartDay?: number;
   opencodeGoWindows?: Array<"rolling" | "weekly" | "monthly">;
   opencodeMonthlyLimit?: number;
+  opencodeZenDisplay?: "default" | "detailed";
   pricingSnapshot?: PricingSnapshotPatch;
   showOnIdle?: boolean;
   showOnQuestion?: boolean;
@@ -333,6 +335,7 @@ function cloneConfig(config: QuotaToastConfig): QuotaToastConfig {
     googleModels: [...config.googleModels],
     opencodeGoWindows: [...config.opencodeGoWindows],
     opencodeMonthlyLimit: config.opencodeMonthlyLimit,
+    opencodeZenDisplay: config.opencodeZenDisplay,
     pricingSnapshot: { ...config.pricingSnapshot },
     tuiSidebarPanel: { ...config.tuiSidebarPanel },
     tuiCompactStatus: { ...config.tuiCompactStatus },
@@ -743,6 +746,14 @@ function extractValidatedQuotaToastPatch(
     isPositiveNumber(quotaToastConfig.opencodeMonthlyLimit)
   ) {
     patch.opencodeMonthlyLimit = quotaToastConfig.opencodeMonthlyLimit;
+  }
+
+  if (
+    hasOwnKey(quotaToastConfig, "opencodeZenDisplay") &&
+    (quotaToastConfig.opencodeZenDisplay === "default" ||
+      quotaToastConfig.opencodeZenDisplay === "detailed")
+  ) {
+    patch.opencodeZenDisplay = quotaToastConfig.opencodeZenDisplay;
   }
 
   if (hasOwnKey(quotaToastConfig, "pricingSnapshot")) {

@@ -388,6 +388,55 @@ describe("formatQuotaRows", () => {
     expect(out).not.toContain("→ ");
   });
 
+  it("renders a single-segment label-less percent row right-aligned (grouped)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-15T12:00:00.000Z"));
+
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      style: "allWindows",
+      layout: { maxWidth: 50, narrowAt: 42, tinyAt: 32 },
+      entries: [
+        {
+          name: "",
+          group: "OpenCode Zen",
+          right: "Limit $100.00",
+          barValue: "¤ $42.50",
+          percentRemaining: 94,
+        },
+      ],
+    });
+
+    expect(out).toContain("[OpenCode Zen]");
+    expect(out).toContain("Limit $100.00");
+    expect(out).toContain("¤ $42.50");
+  });
+
+  it("justifies a two-segment label-less percent row to the edges (grouped)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-15T12:00:00.000Z"));
+
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      style: "allWindows",
+      layout: { maxWidth: 50, narrowAt: 42, tinyAt: 32 },
+      entries: [
+        {
+          name: "",
+          group: "OpenCode Zen",
+          right: "Limit $100.00  Auto $20/5",
+          barValue: "¤ $42.50",
+          percentRemaining: 94,
+        },
+      ],
+    });
+
+    const lines = out.split("\n");
+    const line1 = lines[1] ?? "";
+    expect(line1.startsWith("Limit $100.00")).toBe(true);
+    expect(line1.endsWith("Auto $20/5")).toBe(true);
+  });
+
   it("preserves grouped value-row labels and values", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-15T12:00:00.000Z"));

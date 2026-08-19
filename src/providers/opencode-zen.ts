@@ -111,6 +111,15 @@ export const opencodeZenProvider: QuotaProvider = {
         ? null
         : result.data.monthlyUsage / OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR;
 
+    const detailed = ctx.config?.opencodeZenDisplay === "detailed";
+    const autoReloadText =
+      detailed &&
+      result.data.reload &&
+      result.data.reloadAmount !== null &&
+      result.data.reloadTrigger !== null
+        ? `Auto $${result.data.reloadAmount}/${result.data.reloadTrigger}`
+        : "";
+
     const entry: QuotaToastEntry =
       effectiveMonthlyLimit !== null &&
       Number.isFinite(effectiveMonthlyLimit) &&
@@ -122,6 +131,14 @@ export const opencodeZenProvider: QuotaProvider = {
             accounting: OPENCODE_ZEN_BUDGET_ACCOUNTING,
             name: "",
             group: OPENCODE_ZEN_GROUP,
+            ...(detailed
+              ? {
+                  right: autoReloadText
+                    ? `Limit $${effectiveMonthlyLimit.toFixed(2)}  ${autoReloadText}`
+                    : `Limit $${effectiveMonthlyLimit.toFixed(2)}`,
+                  barValue: `¤ $${balanceUsd.toFixed(2)}`,
+                }
+              : {}),
             percentRemaining: Math.min(
               100,
               Math.max(
