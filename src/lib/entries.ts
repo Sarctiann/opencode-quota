@@ -76,6 +76,9 @@ export type QuotaToastEntry =
 
       /** Optional source-backed ISO reset timestamp (shown when percentRemaining is < 100). */
       resetTimeIso?: string;
+
+      /** Optional custom text shown after the bar instead of the percent label. */
+      barValue?: string;
     })
   | (GroupedQuotaEntryMeta & {
       /** Value-based entry (no percent bar). */

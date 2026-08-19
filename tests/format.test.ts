@@ -388,7 +388,7 @@ describe("formatQuotaRows", () => {
     expect(out).not.toContain("→ ");
   });
 
-  it("justifies a label-less percent right summary to the edges (grouped)", () => {
+  it("renders a label-less percent row with right-aligned limit and barValue suffix (grouped)", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-15T12:00:00.000Z"));
 
@@ -400,15 +400,16 @@ describe("formatQuotaRows", () => {
         {
           name: "",
           group: "OpenCode Zen",
-          right: "Balance $42.50    Limit $100.00",
+          right: "Limit $100.00",
+          barValue: "¤ $42.50",
           percentRemaining: 94,
         },
       ],
     });
 
     expect(out).toContain("[OpenCode Zen]");
-    expect(out).toContain("Balance $42.50");
     expect(out).toContain("Limit $100.00");
+    expect(out).toContain("¤ $42.50");
   });
 
   it("preserves grouped value-row labels and values", () => {

@@ -122,7 +122,8 @@ export const opencodeZenProvider: QuotaProvider = {
             accounting: OPENCODE_ZEN_BUDGET_ACCOUNTING,
             name: "",
             group: OPENCODE_ZEN_GROUP,
-            right: `Balance $${balanceUsd.toFixed(2)}    Limit $${effectiveMonthlyLimit.toFixed(2)}`,
+            right: `Limit $${effectiveMonthlyLimit.toFixed(2)}`,
+            barValue: `¤ $${balanceUsd.toFixed(2)}`,
             percentRemaining: Math.min(
               100,
               Math.max(

@@ -1152,7 +1152,8 @@ describe("quota-state shared cache", () => {
             name: "",
             group: "OpenCode Zen",
             percentRemaining: 94.25,
-            right: "Balance $42.50    Limit $100.00",
+            right: "Limit $100.00",
+            barValue: "¤ $42.50",
           },
         ],
         errors: [],
@@ -1165,7 +1166,8 @@ describe("quota-state shared cache", () => {
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]).toMatchObject({
       percentRemaining: 94.25,
-      right: "Balance $42.50    Limit $100.00",
+      right: "Limit $100.00",
+      barValue: "¤ $42.50",
     });
     expect(result.errors).toEqual([]);
   });

@@ -172,7 +172,8 @@ describe("opencode Zen provider", () => {
         name: "",
         group: "OpenCode Zen",
         percentRemaining: 94.25,
-        right: "Balance $42.50    Limit $100.00",
+        right: "Limit $100.00",
+        barValue: "¤ $42.50",
       },
     ]);
     expect(result.statusDetails).toEqual([

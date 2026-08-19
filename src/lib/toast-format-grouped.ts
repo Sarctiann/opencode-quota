@@ -27,20 +27,6 @@ function normalizeLabelText(value?: string): string {
   return value?.trim().replace(/:+$/u, "").trim() ?? "";
 }
 
-/**
- * Justify text to the edges of a line. Splits on 2+ spaces: the first segment
- * is left-aligned and the remaining segments are packed to the right.
- */
-function justifyTextToEdges(text: string, width: number): string {
-  const parts = text.split(/\s{2,}/u).filter(Boolean);
-  if (parts.length < 2) return text.slice(0, width);
-  const left = parts[0] ?? "";
-  const rightText = parts.slice(1).join("  ");
-  const sep = "  ";
-  const leftWidth = Math.max(1, width - sep.length - rightText.length);
-  return (padRight(left, leftWidth) + sep + rightText).slice(0, width);
-}
-
 const GROUPED_WINDOW_LABELS: Readonly<Record<QuotaWindowKind, string>> = {
   rpm: "RPM",
   five_hour: "Five-hour",
@@ -236,8 +222,8 @@ export function formatQuotaRowsGrouped(params: {
       }
 
       if (isValueRow) {
-        // Line 1: right summary justified to the edges (no name, no reset)
-        lines.push(justifyTextToEdges(entry.right!.trim(), maxWidth));
+        // Line 1: right summary right-aligned (no name, no reset)
+        lines.push(padLeft(entry.right!.trim(), maxWidth));
       } else {
         // Line 1: label + time at end
         const timeWidth = Math.max(timeStr.length, timeCol);
@@ -247,10 +233,11 @@ export function formatQuotaRowsGrouped(params: {
         );
       }
 
-      // Line 2: bar + percent
+      // Line 2: bar + percent (or a custom barValue when provided)
       const barCell = bar(displayedPercent, barWidth);
-      const percentCell = padLeft(percentLabel, percentCol);
-      lines.push([barCell, percentCell].join(separator));
+      const barSuffix = entry.barValue?.trim() || percentLabel;
+      const suffixCell = padLeft(barSuffix, Math.max(percentCol, barSuffix.length));
+      lines.push([barCell, suffixCell].join(separator));
     }
   }
 
