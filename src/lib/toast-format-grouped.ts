@@ -222,8 +222,19 @@ export function formatQuotaRowsGrouped(params: {
       }
 
       if (isValueRow) {
-        // Line 1: right summary right-aligned (no name, no reset)
-        lines.push(padLeft(entry.right!.trim(), maxWidth));
+        // Line 1: right summary. Two segments -> justified to the edges;
+        // a single segment -> right-aligned. No name, no reset.
+        const text = entry.right!.trim();
+        const parts = text.split(/\s{2,}/u).filter(Boolean);
+        if (parts.length >= 2) {
+          const left = parts[0] ?? "";
+          const rightText = parts.slice(1).join("  ");
+          const sep = "  ";
+          const leftWidth = Math.max(1, maxWidth - sep.length - rightText.length);
+          lines.push((padRight(left, leftWidth) + sep + rightText).slice(0, maxWidth));
+        } else {
+          lines.push(padLeft(text, maxWidth));
+        }
       } else {
         // Line 1: label + time at end
         const timeWidth = Math.max(timeStr.length, timeCol);
