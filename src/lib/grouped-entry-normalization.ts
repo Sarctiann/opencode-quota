@@ -79,11 +79,16 @@ function normalizeGroupedQuotaEntry(
   const group = trimOptional(entry.group);
   const label = trimOptional(entry.label);
   const right = trimOptional(entry.right);
+  const barValue = "barValue" in entry ? trimOptional(entry.barValue) : undefined;
   const normalized = {
     ...entry,
     ...(label ? { label } : {}),
     ...(right ? { right } : {}),
   };
+  if ("barValue" in normalized) {
+    if (barValue) normalized.barValue = barValue;
+    else delete normalized.barValue;
+  }
 
   if (group) {
     return { ...normalized, group };

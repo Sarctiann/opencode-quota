@@ -410,6 +410,7 @@ describe("formatQuotaRows", () => {
     expect(out).toContain("[OpenCode Zen]");
     expect(out).toContain("Limit $100.00");
     expect(out).toContain("¤ $42.50");
+    expect(out.split("\n").every((line) => line.length <= 50)).toBe(true);
   });
 
   it("justifies a two-segment label-less percent row to the edges (grouped)", () => {
@@ -435,6 +436,28 @@ describe("formatQuotaRows", () => {
     const line1 = lines[1] ?? "";
     expect(line1.startsWith("Limit $100.00")).toBe(true);
     expect(line1.endsWith("Auto $20/5")).toBe(true);
+    expect(lines.every((line) => line.length <= 50)).toBe(true);
+  });
+
+  it("uses barValue instead of the percentage in tiny grouped output", () => {
+    const out = formatQuotaRows({
+      version: "1.0.0",
+      style: "allWindows",
+      layout: { maxWidth: 32, narrowAt: 42, tinyAt: 32 },
+      entries: [
+        {
+          name: "",
+          group: "OpenCode Zen",
+          right: "Limit $100.00  Auto $20/5",
+          barValue: "¤ $42.50",
+          percentRemaining: 94,
+        },
+      ],
+    });
+
+    expect(out).toContain("¤ $42.50");
+    expect(out).not.toContain("94%");
+    expect(out.split("\n").every((line) => line.length <= 32)).toBe(true);
   });
 
   it("preserves grouped value-row labels and values", () => {

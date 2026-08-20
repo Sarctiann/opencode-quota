@@ -108,7 +108,7 @@ Custom providers can report quota, rate limit, usage, spend, budget, balance, or
 Run the guided setup:
 
 ```bash
-npx @sarctiann/opencode-quota@latest provider add
+npx @slkiser/opencode-quota@latest provider add
 ```
 
 It asks only how the provider works, previews the exact global config change, and asks before writing. It does not ask for a response body, credential, or secret value.
@@ -385,7 +385,7 @@ When Claude Code does not expose quota windows itself, quota is read from Anthro
 
 ### Cursor
 
-Use companion plugin [`@playwo/opencode-cursor-oauth`](https://github.com/PoolPirate/opencode-cursor#readme). Add it before `@sarctiann/opencode-quota` in `opencode.json`, then authenticate once:
+Use companion plugin [`@playwo/opencode-cursor-oauth`](https://github.com/PoolPirate/opencode-cursor#readme). Add it before `@slkiser/opencode-quota` in `opencode.json`, then authenticate once:
 
 ```bash
 opencode auth login --provider cursor
@@ -395,7 +395,7 @@ opencode auth login --provider cursor
 
 ### Qwen Code
 
-Use companion plugin [`opencode-qwencode-auth`](https://github.com/gustavodiasdev/opencode-qwencode-auth#readme). Add it before `@sarctiann/opencode-quota` in `opencode.json`.
+Use companion plugin [`opencode-qwencode-auth`](https://github.com/gustavodiasdev/opencode-qwencode-auth#readme). Add it before `@slkiser/opencode-quota` in `opencode.json`.
 
 OpenCode Quota's Google integrations use independent community companion plugins. They are not endorsed by Google.
 
@@ -403,13 +403,13 @@ OpenCode Quota's Google integrations use independent community companion plugins
 
 ### Google Antigravity
 
-Use companion plugin [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth#readme). Add it before `@sarctiann/opencode-quota` in `opencode.json`.
+Use companion plugin [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-antigravity-auth#readme). Add it before `@slkiser/opencode-quota` in `opencode.json`.
 
 <a id="google-agy-quick-setup"></a>
 
 ### Google AGY
 
-Use companion plugin [`@anthonyhaussman/opencode-agy-auth`](https://github.com/anthonyhaussman/opencode-agy-auth). Add it before `@sarctiann/opencode-quota` in `opencode.json`, then authenticate Google once:
+Use companion plugin [`@anthonyhaussman/opencode-agy-auth`](https://github.com/anthonyhaussman/opencode-agy-auth). Add it before `@slkiser/opencode-quota` in `opencode.json`, then authenticate Google once:
 
 Google AGY reports the companion's grouped weekly and five-hour quota windows for each account.
 
@@ -449,7 +449,7 @@ Google's official Antigravity CLI replaces the individual Gemini CLI experience.
 
 The instructions below remain available only to maintain an existing setup.
 
-Use companion plugin [`opencode-gemini-auth`](https://github.com/jenslys/opencode-gemini-auth#readme). Add it before `@sarctiann/opencode-quota` in `opencode.json`, then authenticate Google once:
+Use companion plugin [`opencode-gemini-auth`](https://github.com/jenslys/opencode-gemini-auth#readme). Add it before `@slkiser/opencode-quota` in `opencode.json`, then authenticate Google once:
 
 ```bash
 opencode auth login --provider google
@@ -576,16 +576,7 @@ Project-local `opencode.json` and `opencode.jsonc` files are not read for this s
 
 ### OpenCode Zen
 
-OpenCode Zen balance scrapes `opencode.ai/workspace/{id}/billing`. Set its own workspace ID and `auth` cookie:
-
-```bash
-export OPENCODE_WORKSPACE_ID="your-workspace-id"
-export OPENCODE_AUTH_COOKIE="your-auth-cookie"
-```
-
-Find both values in your browser: the workspace ID is in the billing-page URL, and the `auth` cookie is under Developer Tools → Storage → Cookies for `opencode.ai`.
-
-You can instead create `~/.config/opencode/opencode-quota/opencode-zen.json`:
+OpenCode Zen balance scrapes `opencode.ai/workspace/{id}/billing`. Provide its own workspace ID and `auth` cookie via the plugin config file `~/.config/opencode/opencode-quota/opencode.json`:
 
 ```json
 {
@@ -594,4 +585,20 @@ You can instead create `~/.config/opencode/opencode-quota/opencode-zen.json`:
 }
 ```
 
+Find both values in your browser: the workspace ID is in the billing-page URL, and the `auth` cookie is under Developer Tools → Storage → Cookies for `opencode.ai`.
+
+> The credentials are read only from this config file. They are not read from
+> the `OPENCODE_WORKSPACE_ID` / `OPENCODE_AUTH_COOKIE` environment variables,
+> which collide with the OpenCode client's workspace feature.
+
 Set `opencodeMonthlyLimit` in `opencode-quota/quota-toast.json` to override the monthly budget from the billing page. Without a monthly limit, the provider shows the current balance only.
+
+Set `opencodeZenDisplay` to `"detailed"` to show the configured monthly limit and auto-reload summary (right-aligned above the bar) and to replace the percent label with the current balance. When unset (or `"default"`), the provider keeps the existing bar + percent behavior:
+
+```json
+{
+  "opencodeZenDisplay": "detailed"
+}
+```
+
+The detailed mode also reads the Zen auto-reload fields (reload, reloadAmount, reloadTrigger) from the billing page and shows them as `Auto <amount>/<trigger>` (e.g. `Auto $20/5`) next to the limit.

@@ -88,7 +88,17 @@ export function formatQuotaRowsGrouped(params: {
           formatDisplayedPercentLabel(entry.percentRemaining, params.percentDisplayMode).length,
       ),
   );
-  const barWidth = Math.max(10, maxWidth - separator.length - percentCol);
+  const requestedBarValueCol = Math.max(
+    percentCol,
+    ...(params.entries ?? [])
+      .filter((entry) => !isValueEntry(entry))
+      .map((entry) => entry.barValue?.trim().length ?? 0),
+  );
+  const barValueCol = Math.min(
+    requestedBarValueCol,
+    Math.max(percentCol, maxWidth - separator.length - 10),
+  );
+  const barWidth = Math.max(10, maxWidth - separator.length - barValueCol);
   const timeCol = isTiny ? 6 : isNarrow ? 7 : 7;
 
   const lines: string[] = [];
@@ -195,27 +205,29 @@ export function formatQuotaRowsGrouped(params: {
         const timeWidth = isResetTimeDecimals(params.resetTimeDecimals)
           ? Math.max(timeCol, timeStr.length)
           : timeCol;
+        const barSuffix = entry.barValue?.trim() || percentLabel;
+        const visibleBarSuffix = barSuffix.slice(0, barValueCol);
         if (isValueRow) {
           const tinyNameCol = Math.max(
             1,
-            maxWidth - separator.length - timeWidth - separator.length - percentCol,
+            maxWidth - separator.length - timeWidth - separator.length - barValueCol,
           );
           const line = [
             padRight(entry.right!.trim(), tinyNameCol),
             padLeft(timeStr, timeWidth),
-            padLeft(percentLabel, percentCol),
+            padLeft(visibleBarSuffix, barValueCol),
           ].join(separator);
           lines.push(line.slice(0, maxWidth));
           continue;
         }
         const tinyNameCol = Math.max(
           1,
-          maxWidth - separator.length - timeWidth - separator.length - percentCol,
+          maxWidth - separator.length - timeWidth - separator.length - barValueCol,
         );
         const line = [
           padRight(label, tinyNameCol),
           padLeft(timeStr, timeWidth),
-          padLeft(percentLabel, percentCol),
+          padLeft(visibleBarSuffix, barValueCol),
         ].join(separator);
         lines.push(line.slice(0, maxWidth));
         continue;
@@ -247,7 +259,7 @@ export function formatQuotaRowsGrouped(params: {
       // Line 2: bar + percent (or a custom barValue when provided)
       const barCell = bar(displayedPercent, barWidth);
       const barSuffix = entry.barValue?.trim() || percentLabel;
-      const suffixCell = padLeft(barSuffix, Math.max(percentCol, barSuffix.length));
+      const suffixCell = padLeft(barSuffix.slice(0, barValueCol), barValueCol);
       lines.push([barCell, suffixCell].join(separator));
     }
   }

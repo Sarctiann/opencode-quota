@@ -193,7 +193,7 @@ describe("quota runtime context", () => {
     );
   });
 
-  it("propagates request timeout config and explicit-source state to provider context", () => {
+  it("propagates provider config and explicit-source state to provider context", () => {
     const configMeta = createLoadConfigMeta();
     configMeta.settingSources.requestTimeoutMs = "test config";
 
@@ -204,12 +204,14 @@ describe("quota runtime context", () => {
       config: {
         ...DEFAULT_CONFIG,
         requestTimeoutMs: 12000,
+        opencodeZenDisplay: "detailed",
       },
       configMeta,
       session: {},
     });
 
     expect(providerContext.config?.requestTimeoutMs).toBe(12000);
+    expect(providerContext.config?.opencodeZenDisplay).toBe("detailed");
     expect(providerContext.config?.providerCacheTtlMs).toBe(DEFAULT_CONFIG.minIntervalMs);
     expect(providerContext.config?.requestTimeoutMsConfigured).toBe(true);
   });

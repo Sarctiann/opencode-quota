@@ -201,9 +201,10 @@ describe("opencode Zen provider", () => {
         group: "OpenCode Zen",
         percentRemaining: 94.25,
         right: "Limit $100.00",
-        barValue: "¤ $42.50",
+        barValue: "$42.50",
       },
     ]);
+    expect(result.presentation).toEqual({ singleWindowShowRight: true });
   });
 
   it("appends auto-reload to the right summary when reload is enabled (detailed)", async () => {
@@ -221,7 +222,7 @@ describe("opencode Zen provider", () => {
     expectAttemptedWithNoErrors(result);
     expect(result.entries[0]).toMatchObject({
       right: "Limit $100.00  Auto $20/5",
-      barValue: "¤ $42.50",
+      barValue: "$42.50",
     });
   });
 

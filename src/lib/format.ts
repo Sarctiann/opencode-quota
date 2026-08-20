@@ -136,13 +136,23 @@ export function formatQuotaRows(params: {
       ),
   );
 
+  const requestedBarValueCol = Math.max(
+    percentCol,
+    ...(params.entries ?? [])
+      .filter((entry) => !isValueEntry(entry))
+      .map((entry) => entry.barValue?.trim().length ?? 0),
+  );
+  const barValueCol = Math.min(
+    requestedBarValueCol,
+    Math.max(percentCol, maxWidth - separator.length - 10),
+  );
   const timeCol = isTiny ? 6 : isNarrow ? 7 : 7;
 
-  // Bar width: use most of maxWidth, leaving room for separator + percent on line 2.
+  // Bar width: use most of maxWidth, leaving room for separator + suffix on line 2.
   // Line 1 (name + time) can use full maxWidth so labels are not cut before the
   // sidebar width is exhausted.
-  // Line 2 (bar + percent) spans barWidth + separator + percentCol.
-  const barWidth = Math.max(10, maxWidth - separator.length - percentCol);
+  // Line 2 (bar + suffix) spans barWidth + separator + barValueCol.
+  const barWidth = Math.max(10, maxWidth - separator.length - barValueCol);
 
   const lines: string[] = [];
 
@@ -151,9 +161,12 @@ export function formatQuotaRows(params: {
     resetIso: string | undefined,
     remaining: number,
     rightSummary?: string,
+    barValue?: string,
   ) => {
     const displayedPercent = resolveDisplayedPercent(remaining, params.percentDisplayMode);
     const percentLabel = formatDisplayedPercentLabel(remaining, params.percentDisplayMode);
+    const barSuffix = barValue?.trim() || percentLabel;
+    const visibleBarSuffix = barSuffix.slice(0, barValueCol);
     const summary = rightSummary?.trim() || "";
     const leftText = summary ? `${name} ${summary}` : name;
 
@@ -175,12 +188,12 @@ export function formatQuotaRows(params: {
         : timeCol;
       const tinyNameCol = Math.max(
         1,
-        maxWidth - separator.length - timeWidth - separator.length - percentCol,
+        maxWidth - separator.length - timeWidth - separator.length - barValueCol,
       );
       const line = [
         padRight(leftText, tinyNameCol),
         padLeft(timeStr, timeWidth),
-        padLeft(percentLabel, percentCol),
+        padLeft(visibleBarSuffix, barValueCol),
       ].join(separator);
       lines.push(line.slice(0, maxWidth));
       return;
@@ -198,10 +211,10 @@ export function formatQuotaRows(params: {
       }),
     );
 
-    // Line 2: bar + percent (percent extends beyond bar width)
+    // Line 2: bar + percent (or a custom barValue when provided)
     const barCell = bar(displayedPercent, barWidth);
-    const percentCell = padLeft(percentLabel, percentCol);
-    const barLine = [barCell, percentCell].join(separator);
+    const suffixCell = padLeft(visibleBarSuffix, barValueCol);
+    const barLine = [barCell, suffixCell].join(separator);
     lines.push(barLine);
   };
 
@@ -251,6 +264,7 @@ export function formatQuotaRows(params: {
         entry.resetTimeIso,
         entry.percentRemaining,
         entry.right,
+        entry.barValue,
       );
     }
   }

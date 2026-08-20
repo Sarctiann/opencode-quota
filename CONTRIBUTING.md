@@ -77,6 +77,7 @@ Recommended settings for `main`:
 ## Repo Guardrails
 
 - Never invoke an LLM/model API to compute toast/report output. Everything must remain local and deterministic.
+- Monetary values must use the actual currency symbol or ISO code, never decorative or generic currency glyphs.
 - The server plugin is the sole owner of deterministic slash commands for TUI and Desktop/server. It registers each `cfg.command` once, injects exactly one ignored/no-reply output message with `session.prompt({ noReply: true, ignored: true })`, and must throw `handled()` so OpenCode does not continue into `prompt(...)`.
 - The TUI plugin owns only Sidebar, Compact status, home-bottom, prompt-wrapper, refresh, and resource-lifecycle surfaces. It must not register keymap commands or render native slash-command dialogs.
 - Slash commands (`/quota`, `/quota_status`, `/quota_announcements`, `/pricing_refresh`, `/tokens_*`) must route through `buildQuotaDialogCommandOutput()`; do not duplicate command-output logic in `src/plugin.ts`.
