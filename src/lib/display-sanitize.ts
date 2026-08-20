@@ -64,6 +64,9 @@ export function sanitizeQuotaToastEntry(entry: QuotaToastEntry): QuotaToastEntry
     group: sanitizeOptionalDisplayText(entry.group),
     label: sanitizeOptionalDisplayText(entry.label),
     right: sanitizeOptionalDisplayText(entry.right),
+    ...(entry.barValue !== undefined
+      ? { barValue: sanitizeSingleLineDisplayText(entry.barValue) }
+      : {}),
     resetTimeIso: sanitizeOptionalDisplayText(entry.resetTimeIso),
   };
 }

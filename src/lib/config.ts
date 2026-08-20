@@ -748,12 +748,15 @@ function extractValidatedQuotaToastPatch(
     patch.opencodeMonthlyLimit = quotaToastConfig.opencodeMonthlyLimit;
   }
 
-  if (
-    hasOwnKey(quotaToastConfig, "opencodeZenDisplay") &&
-    (quotaToastConfig.opencodeZenDisplay === "default" ||
-      quotaToastConfig.opencodeZenDisplay === "detailed")
-  ) {
-    patch.opencodeZenDisplay = quotaToastConfig.opencodeZenDisplay;
+  if (hasOwnKey(quotaToastConfig, "opencodeZenDisplay")) {
+    if (
+      quotaToastConfig.opencodeZenDisplay === "default" ||
+      quotaToastConfig.opencodeZenDisplay === "detailed"
+    ) {
+      patch.opencodeZenDisplay = quotaToastConfig.opencodeZenDisplay;
+    } else {
+      reportIssue?.("opencodeZenDisplay", 'expected "default" or "detailed"');
+    }
   }
 
   if (hasOwnKey(quotaToastConfig, "pricingSnapshot")) {
@@ -985,6 +988,11 @@ function applyValidatedQuotaToastPatch(
   if (hasOwnKey(patch, "opencodeMonthlyLimit")) {
     config.opencodeMonthlyLimit = patch.opencodeMonthlyLimit;
     applySettingSource(settingSources, "opencodeMonthlyLimit", sourcePath);
+  }
+
+  if (hasOwnKey(patch, "opencodeZenDisplay")) {
+    config.opencodeZenDisplay = patch.opencodeZenDisplay;
+    applySettingSource(settingSources, "opencodeZenDisplay", sourcePath);
   }
 
   if (patch.pricingSnapshot) {

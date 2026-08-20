@@ -130,12 +130,13 @@ function buildQuotaCommandDocument(params: {
       }
 
       const pctLabel = formatDisplayedPercentLabel(row.percentRemaining, params.percentDisplayMode);
+      const barValue = row.barValue?.trim() || pctLabel;
       const displayedPercent = resolveDisplayedPercent(
         row.percentRemaining,
         params.percentDisplayMode,
       );
       lines.push(
-        `  ${label}  ${bar(displayedPercent, QUOTA_COMMAND_BAR_WIDTH)}  ${padLeft(pctLabel, 9)}${details}`,
+        `  ${label}  ${bar(displayedPercent, QUOTA_COMMAND_BAR_WIDTH)}  ${padLeft(barValue, Math.max(9, barValue.length))}${details}`,
       );
     }
     return {

@@ -67,6 +67,15 @@ describe("opencode-zen config resolution", () => {
     });
   });
 
+  it("ignores OPENCODE_* environment variables when no config file exists", async () => {
+    process.env.OPENCODE_WORKSPACE_ID = "wrk_env";
+    process.env.OPENCODE_AUTH_COOKIE = "cookie-env";
+
+    const { resolveOpenCodeZenConfig } = await import("../src/lib/opencode-zen-config.js");
+
+    await expect(resolveOpenCodeZenConfig()).resolves.toEqual({ state: "none" });
+  });
+
   it("reads the first trusted runtime config file", async () => {
     const [primary] = await createConfigDirs();
     const path = configPath(primary);

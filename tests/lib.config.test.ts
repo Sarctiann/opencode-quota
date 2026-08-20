@@ -92,6 +92,32 @@ describe("loadConfig", () => {
     expect(removedKey.meta.configIssues).toEqual([]);
   });
 
+  it("loads the OpenCode Zen display mode with provenance and diagnostics", async () => {
+    const defaults = await loadSdkConfig({});
+    expect(defaults.config.opencodeZenDisplay).toBeUndefined();
+
+    for (const opencodeZenDisplay of ["default", "detailed"] as const) {
+      const configured = await loadSdkConfig({ opencodeZenDisplay });
+      expect(configured.config.opencodeZenDisplay).toBe(opencodeZenDisplay);
+      expect(configured.meta.settingSources).toEqual({
+        opencodeZenDisplay: "client.config.get",
+      });
+      expect(configured.meta.networkSettingSources).toEqual({});
+      expect(configured.meta.configIssues).toEqual([]);
+    }
+
+    const invalid = await loadSdkConfig({ opencodeZenDisplay: "expanded" });
+    expect(invalid.config.opencodeZenDisplay).toBeUndefined();
+    expect(invalid.meta.settingSources).toEqual({});
+    expect(invalid.meta.configIssues).toEqual([
+      {
+        path: "client.config.get",
+        key: "opencodeZenDisplay",
+        message: 'expected "default" or "detailed"',
+      },
+    ]);
+  });
+
   it("defaults and validates quota reset notifications with provenance", async () => {
     const defaults = await loadSdkConfig({});
     expect(defaults.config.resetNotifications).toEqual({

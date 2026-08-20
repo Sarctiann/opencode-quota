@@ -155,19 +155,24 @@ export const opencodeZenProvider: QuotaProvider = {
             value: `$${balanceUsd.toFixed(2)}`,
           };
 
-    return withStatusDetails(attemptedResult([entry]), [
-      ...statusDetails,
-      { key: "balance_usd", value: `$${balanceUsd.toFixed(2)}` },
-      {
-        key: "monthly_limit_usd",
-        value:
-          result.data.monthlyLimit === null ? "(none)" : `$${result.data.monthlyLimit.toFixed(2)}`,
-      },
-      {
-        key: "last_payment_usd",
-        value:
-          result.data.lastPayment === null ? "(none)" : `$${result.data.lastPayment.toFixed(2)}`,
-      },
-    ]);
+    return withStatusDetails(
+      attemptedResult([entry], [], detailed ? { singleWindowShowRight: true } : undefined),
+      [
+        ...statusDetails,
+        { key: "balance_usd", value: `$${balanceUsd.toFixed(2)}` },
+        {
+          key: "monthly_limit_usd",
+          value:
+            result.data.monthlyLimit === null
+              ? "(none)"
+              : `$${result.data.monthlyLimit.toFixed(2)}`,
+        },
+        {
+          key: "last_payment_usd",
+          value:
+            result.data.lastPayment === null ? "(none)" : `$${result.data.lastPayment.toFixed(2)}`,
+        },
+      ],
+    );
   },
 };

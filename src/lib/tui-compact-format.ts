@@ -100,7 +100,7 @@ function formatCompactValueEntrySegment(
 
 type CompactPercentGroup = {
   provider: string;
-  windows: Array<{ label: string | null; percent: string; isWindow: boolean }>;
+  windows: Array<{ label: string | null; value: string; isWindow: boolean }>;
 };
 
 type PendingCompactSegment = { kind: "percent"; key: string } | { kind: "value"; segment: string };
@@ -112,10 +112,10 @@ function formatCompactPercentGroupSegment(group: CompactPercentGroup): string | 
   const summary =
     windows.length === 1
       ? windows[0]!.label && !windows[0]!.isWindow
-        ? `${windows[0]!.label} ${windows[0]!.percent}`
-        : windows[0]!.percent
+        ? `${windows[0]!.label} ${windows[0]!.value}`
+        : windows[0]!.value
       : windows
-          .map((window) => (window.label ? `${window.label} ${window.percent}` : window.percent))
+          .map((window) => (window.label ? `${window.label} ${window.value}` : window.value))
           .join(COMPACT_WINDOW_SEPARATOR);
 
   const separator = windows.every((window) => window.label && !window.isWindow) ? ": " : " ";
@@ -137,7 +137,9 @@ function formatCompactEntrySegments(params: {
     }
 
     const provider = getProviderName(entry);
-    const percent = formatCompactPercentLabel(entry.percentRemaining, params.percentDisplayMode);
+    const value =
+      compactText(entry.barValue ?? "") ||
+      formatCompactPercentLabel(entry.percentRemaining, params.percentDisplayMode);
     const label = getWindowLabel(entry);
     const key = provider.toLowerCase();
     let group = groups.get(key);
@@ -150,7 +152,7 @@ function formatCompactEntrySegments(params: {
 
     group.windows.push({
       label: label?.text ?? null,
-      percent,
+      value,
       isWindow: label?.isWindow ?? false,
     });
   }

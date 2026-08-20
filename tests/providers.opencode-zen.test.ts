@@ -204,6 +204,7 @@ describe("opencode Zen provider", () => {
         barValue: "¤ $42.50",
       },
     ]);
+    expect(result.presentation).toEqual({ singleWindowShowRight: true });
   });
 
   it("appends auto-reload to the right summary when reload is enabled (detailed)", async () => {
