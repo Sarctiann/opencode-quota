@@ -58,6 +58,7 @@ export const QUOTA_TOAST_SETTING_SOURCE_KEYS = [
   "cursorBillingCycleStartDay",
   "opencodeGoWindows",
   "opencodeMonthlyLimit",
+  "opencodeZenDisplay",
   "pricingSnapshot.source",
   "pricingSnapshot.autoRefresh",
   "showOnIdle",
@@ -168,6 +169,7 @@ type ValidatedQuotaToastPatch = {
   cursorBillingCycleStartDay?: number;
   opencodeGoWindows?: Array<"rolling" | "weekly" | "monthly">;
   opencodeMonthlyLimit?: number;
+  opencodeZenDisplay?: "default" | "detailed";
   pricingSnapshot?: PricingSnapshotPatch;
   showOnIdle?: boolean;
   showOnQuestion?: boolean;
@@ -333,6 +335,7 @@ function cloneConfig(config: QuotaToastConfig): QuotaToastConfig {
     googleModels: [...config.googleModels],
     opencodeGoWindows: [...config.opencodeGoWindows],
     opencodeMonthlyLimit: config.opencodeMonthlyLimit,
+    opencodeZenDisplay: config.opencodeZenDisplay,
     pricingSnapshot: { ...config.pricingSnapshot },
     tuiSidebarPanel: { ...config.tuiSidebarPanel },
     tuiCompactStatus: { ...config.tuiCompactStatus },
@@ -745,6 +748,17 @@ function extractValidatedQuotaToastPatch(
     patch.opencodeMonthlyLimit = quotaToastConfig.opencodeMonthlyLimit;
   }
 
+  if (hasOwnKey(quotaToastConfig, "opencodeZenDisplay")) {
+    if (
+      quotaToastConfig.opencodeZenDisplay === "default" ||
+      quotaToastConfig.opencodeZenDisplay === "detailed"
+    ) {
+      patch.opencodeZenDisplay = quotaToastConfig.opencodeZenDisplay;
+    } else {
+      reportIssue?.("opencodeZenDisplay", 'expected "default" or "detailed"');
+    }
+  }
+
   if (hasOwnKey(quotaToastConfig, "pricingSnapshot")) {
     const pricingSnapshot = extractPricingSnapshotPatch(quotaToastConfig.pricingSnapshot);
     if (pricingSnapshot) {
@@ -974,6 +988,11 @@ function applyValidatedQuotaToastPatch(
   if (hasOwnKey(patch, "opencodeMonthlyLimit")) {
     config.opencodeMonthlyLimit = patch.opencodeMonthlyLimit;
     applySettingSource(settingSources, "opencodeMonthlyLimit", sourcePath);
+  }
+
+  if (hasOwnKey(patch, "opencodeZenDisplay")) {
+    config.opencodeZenDisplay = patch.opencodeZenDisplay;
+    applySettingSource(settingSources, "opencodeZenDisplay", sourcePath);
   }
 
   if (patch.pricingSnapshot) {

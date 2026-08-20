@@ -15,6 +15,36 @@ describe("normalizeGroupedQuotaEntries", () => {
     );
   });
 
+  it("trims bar values and discards empty ones", () => {
+    const entries = [
+      {
+        name: "Detailed",
+        group: "Example",
+        percentRemaining: 75,
+        barValue: "  $42.50  ",
+      },
+      {
+        name: "Default",
+        group: "Example",
+        percentRemaining: 50,
+        barValue: "   ",
+      },
+    ];
+
+    expect(normalizeGroupedQuotaEntries(entries, "toast")).toEqual([
+      {
+        ...entries[0],
+        group: "Example",
+        barValue: "$42.50",
+      },
+      {
+        name: "Default",
+        group: "Example",
+        percentRemaining: 50,
+      },
+    ]);
+  });
+
   it("applies the Google fallback label only for /quota rendering", () => {
     const entry = {
       name: "Claude (acct)",

@@ -576,16 +576,7 @@ Project-local `opencode.json` and `opencode.jsonc` files are not read for this s
 
 ### OpenCode Zen
 
-OpenCode Zen balance scrapes `opencode.ai/workspace/{id}/billing`. Set its own workspace ID and `auth` cookie:
-
-```bash
-export OPENCODE_WORKSPACE_ID="your-workspace-id"
-export OPENCODE_AUTH_COOKIE="your-auth-cookie"
-```
-
-Find both values in your browser: the workspace ID is in the billing-page URL, and the `auth` cookie is under Developer Tools → Storage → Cookies for `opencode.ai`.
-
-You can instead create `~/.config/opencode/opencode-quota/opencode.json`:
+OpenCode Zen balance scrapes `opencode.ai/workspace/{id}/billing`. Provide its own workspace ID and `auth` cookie via the plugin config file `~/.config/opencode/opencode-quota/opencode.json`:
 
 ```json
 {
@@ -594,4 +585,20 @@ You can instead create `~/.config/opencode/opencode-quota/opencode.json`:
 }
 ```
 
+Find both values in your browser: the workspace ID is in the billing-page URL, and the `auth` cookie is under Developer Tools → Storage → Cookies for `opencode.ai`.
+
+> The credentials are read only from this config file. They are not read from
+> the `OPENCODE_WORKSPACE_ID` / `OPENCODE_AUTH_COOKIE` environment variables,
+> which collide with the OpenCode client's workspace feature.
+
 Set `opencodeMonthlyLimit` in `opencode-quota/quota-toast.json` to override the monthly budget from the billing page. Without a monthly limit, the provider shows the current balance only.
+
+Set `opencodeZenDisplay` to `"detailed"` to show the configured monthly limit and auto-reload summary (right-aligned above the bar) and to replace the percent label with the current balance. When unset (or `"default"`), the provider keeps the existing bar + percent behavior:
+
+```json
+{
+  "opencodeZenDisplay": "detailed"
+}
+```
+
+The detailed mode also reads the Zen auto-reload fields (reload, reloadAmount, reloadTrigger) from the billing page and shows them as `Auto <amount>/<trigger>` (e.g. `Auto $20/5`) next to the limit.

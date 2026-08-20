@@ -100,6 +100,9 @@ describe("OpenCode Zen billing parser", () => {
       monthlyLimit: 20,
       monthlyUsage: 12_500_000,
       lastPayment: null,
+      reload: false,
+      reloadAmount: null,
+      reloadTrigger: null,
     });
   });
 
@@ -109,6 +112,9 @@ describe("OpenCode Zen billing parser", () => {
       monthlyLimit: null,
       monthlyUsage: null,
       lastPayment: null,
+      reload: false,
+      reloadAmount: null,
+      reloadTrigger: null,
     });
   });
 
@@ -126,6 +132,9 @@ describe("OpenCode Zen billing parser", () => {
       monthlyLimit: 100,
       monthlyUsage: 12.5 * OPENCODE_ZEN_BILLING_UNITS_PER_DOLLAR,
       lastPayment: null,
+      reload: false,
+      reloadAmount: null,
+      reloadTrigger: null,
     });
   });
 
@@ -149,6 +158,9 @@ describe("OpenCode Zen billing parser", () => {
       monthlyLimit: 50,
       monthlyUsage: 17_321_332,
       lastPayment: null,
+      reload: false,
+      reloadAmount: null,
+      reloadTrigger: null,
     });
   });
 
@@ -158,6 +170,25 @@ describe("OpenCode Zen billing parser", () => {
       monthlyLimit: 20,
       monthlyUsage: 12_500_000,
       lastPayment: null,
+      reload: false,
+      reloadAmount: null,
+      reloadTrigger: null,
+    });
+  });
+
+  it("parses auto-reload fields from the new billing object", () => {
+    const html =
+      `<html><script>_$HY.r["billing.get[\\"wrk_X\\"]"]=$R[21]=$R[2]($R[22]={p:0,s:0,f:0});` +
+      `$R[16]($R[22],$R[25]={customerID:"cus_1",balance:1659413744,` +
+      `reload:!0,reloadAmount:20,reloadTrigger:5,monthlyLimit:20,monthlyUsage:212149669});</script></html>`;
+    expect(_parseNewSsrBillingData(html)).toEqual({
+      balance: 1_659_413_744,
+      monthlyLimit: 20,
+      monthlyUsage: 212_149_669,
+      lastPayment: null,
+      reload: true,
+      reloadAmount: 20,
+      reloadTrigger: 5,
     });
   });
 
@@ -208,6 +239,9 @@ describe("OpenCode Zen billing parser", () => {
       monthlyLimit: 20,
       monthlyUsage: 12_500_000,
       lastPayment: null,
+      reload: false,
+      reloadAmount: null,
+      reloadTrigger: null,
     });
   });
 
@@ -223,6 +257,9 @@ describe("OpenCode Zen billing parser", () => {
       monthlyLimit: 20,
       monthlyUsage: 12_500_000,
       lastPayment: null,
+      reload: false,
+      reloadAmount: null,
+      reloadTrigger: null,
     });
   });
 
@@ -232,6 +269,9 @@ describe("OpenCode Zen billing parser", () => {
       monthlyLimit: null,
       monthlyUsage: null,
       lastPayment: null,
+      reload: false,
+      reloadAmount: null,
+      reloadTrigger: null,
     });
   });
 
@@ -295,6 +335,9 @@ describe("queryOpenCodeZenQuota", () => {
         monthlyLimit: 100,
         monthlyUsage: 575_000_000,
         lastPayment: 21,
+        reload: false,
+        reloadAmount: null,
+        reloadTrigger: null,
       },
     });
   });
@@ -314,6 +357,9 @@ describe("queryOpenCodeZenQuota", () => {
         monthlyLimit: 50,
         monthlyUsage: 17_321_332,
         lastPayment: 5,
+        reload: false,
+        reloadAmount: null,
+        reloadTrigger: null,
       },
     });
   });
@@ -328,6 +374,9 @@ describe("queryOpenCodeZenQuota", () => {
         monthlyLimit: 100,
         monthlyUsage: 1_250_000_000,
         lastPayment: null,
+        reload: false,
+        reloadAmount: null,
+        reloadTrigger: null,
       },
     });
   });

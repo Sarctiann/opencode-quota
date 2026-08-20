@@ -19,6 +19,9 @@ export interface OpenCodeZenBillingData {
   monthlyLimit: number | null;
   monthlyUsage: number | null;
   lastPayment: number | null;
+  reload: boolean;
+  reloadAmount: number | null;
+  reloadTrigger: number | null;
 }
 
 export type OpenCodeZenResult =
@@ -40,6 +43,9 @@ function parseSsrBillingData(html: string): OpenCodeZenBillingData | null {
     monthlyUsage:
       Number.isFinite(fields.monthlyUsage) && fields.monthlyUsage >= 0 ? fields.monthlyUsage : null,
     lastPayment: null,
+    reload: false,
+    reloadAmount: null,
+    reloadTrigger: null,
   };
 }
 
@@ -97,6 +103,9 @@ function parseNewSsrBillingData(html: string): OpenCodeZenBillingData | null {
   const balanceMatch = object.match(/\bbalance\s*:\s*(-?\d+)/);
   const limitMatch = object.match(/\bmonthlyLimit\s*:\s*(\d+)/);
   const usageMatch = object.match(/\bmonthlyUsage\s*:\s*(\d+)/);
+  const reloadMatch = object.match(/\breload\s*:\s*(!0|!1|true|false)/);
+  const reloadAmountMatch = object.match(/\breloadAmount\s*:\s*(\d+)/);
+  const reloadTriggerMatch = object.match(/\breloadTrigger\s*:\s*(\d+)/);
   if (!balanceMatch) return null;
 
   return {
@@ -104,6 +113,9 @@ function parseNewSsrBillingData(html: string): OpenCodeZenBillingData | null {
     monthlyLimit: limitMatch ? Number(limitMatch[1]) : null,
     monthlyUsage: usageMatch ? Number(usageMatch[1]) : null,
     lastPayment: null,
+    reload: reloadMatch ? reloadMatch[1] === "true" || reloadMatch[1] === "!0" : false,
+    reloadAmount: reloadAmountMatch ? Number(reloadAmountMatch[1]) : null,
+    reloadTrigger: reloadTriggerMatch ? Number(reloadTriggerMatch[1]) : null,
   };
 }
 
@@ -163,7 +175,15 @@ function parseDataSlotBillingData(html: string): OpenCodeZenBillingData | null {
   }
 
   if (balance === null) return null;
-  return { balance, monthlyLimit, monthlyUsage, lastPayment: null };
+  return {
+    balance,
+    monthlyLimit,
+    monthlyUsage,
+    lastPayment: null,
+    reload: false,
+    reloadAmount: null,
+    reloadTrigger: null,
+  };
 }
 
 function parseSsrPaymentData(html: string): number | null {

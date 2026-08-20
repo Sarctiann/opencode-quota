@@ -61,6 +61,9 @@ function success(overrides: Record<string, unknown> = {}): void {
       monthlyLimit: null,
       monthlyUsage: null,
       lastPayment: null,
+      reload: false,
+      reloadAmount: null,
+      reloadTrigger: null,
       ...overrides,
     },
   });
@@ -159,7 +162,7 @@ describe("opencode Zen provider", () => {
     expect(result.presentation).toBeUndefined();
   });
 
-  it("calculates monthly-limit remaining from monthly usage", async () => {
+  it("calculates monthly-limit remaining from monthly usage (default display)", async () => {
     configured();
     success({ monthlyLimit: 100, monthlyUsage: 575_000_000 });
 
@@ -182,6 +185,45 @@ describe("opencode Zen provider", () => {
       { key: "monthly_limit_usd", value: "$100.00" },
       { key: "last_payment_usd", value: "(none)" },
     ]);
+  });
+
+  it("emits limit and barValue when opencodeZenDisplay is detailed", async () => {
+    configured();
+    success({ monthlyLimit: 100, monthlyUsage: 575_000_000 });
+
+    const result = await opencodeZenProvider.fetch(context({ opencodeZenDisplay: "detailed" }));
+
+    expectAttemptedWithNoErrors(result);
+    expect(result.entries).toEqual([
+      {
+        accounting: budgetAccounting,
+        name: "",
+        group: "OpenCode Zen",
+        percentRemaining: 94.25,
+        right: "Limit $100.00",
+        barValue: "$42.50",
+      },
+    ]);
+    expect(result.presentation).toEqual({ singleWindowShowRight: true });
+  });
+
+  it("appends auto-reload to the right summary when reload is enabled (detailed)", async () => {
+    configured();
+    success({
+      monthlyLimit: 100,
+      monthlyUsage: 575_000_000,
+      reload: true,
+      reloadAmount: 20,
+      reloadTrigger: 5,
+    });
+
+    const result = await opencodeZenProvider.fetch(context({ opencodeZenDisplay: "detailed" }));
+
+    expectAttemptedWithNoErrors(result);
+    expect(result.entries[0]).toMatchObject({
+      right: "Limit $100.00  Auto $20/5",
+      barValue: "$42.50",
+    });
   });
 
   it("prefers the positive plugin monthly-limit override", async () => {
