@@ -136,7 +136,7 @@ export const opencodeZenProvider: QuotaProvider = {
                   right: autoReloadText
                     ? `Limit $${effectiveMonthlyLimit.toFixed(2)}  ${autoReloadText}`
                     : `Limit $${effectiveMonthlyLimit.toFixed(2)}`,
-                  barValue: `¤ $${balanceUsd.toFixed(2)}`,
+                  barValue: `$${balanceUsd.toFixed(2)}`,
                 }
               : {}),
             percentRemaining: Math.min(

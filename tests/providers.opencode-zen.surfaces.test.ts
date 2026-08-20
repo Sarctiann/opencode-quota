@@ -31,7 +31,7 @@ const detailedData: QuotaRenderData = {
       name: "",
       group: "OpenCode Zen",
       right: "Limit $100.00  Auto $20/5",
-      barValue: "¤ $42.50",
+      barValue: "$42.50",
       percentRemaining: 94.25,
     },
   ],
@@ -74,16 +74,16 @@ describe("OpenCode Zen four-surface formatting", () => {
     for (const output of [outputs.command, outputs.toast]) {
       expect(output).toContain("Limit $100.00");
       expect(output).toContain("Auto $20/5");
-      expect(output).toContain("¤ $42.50");
+      expect(output).toContain("$42.50");
       expect(output).not.toContain("94%");
     }
 
     expect(outputs.sidebar).toContain("OpenCode Zen");
-    expect(outputs.sidebar).toContain("¤ $42.50");
+    expect(outputs.sidebar).toContain("$42.50");
     expect(outputs.sidebar).not.toContain("94%");
 
     expect(outputs.compact).toContain("OpenCode Zen");
-    expect(outputs.compact).toContain("¤ $42.50");
+    expect(outputs.compact).toContain("$42.50");
     expect(outputs.compact).not.toContain("94%");
   });
 });
